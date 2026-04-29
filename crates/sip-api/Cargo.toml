@@ -1,0 +1,45 @@
+[package]
+name = "sip-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["full"]
+full = ["ai", "documents", "export", "plugins"]
+ai = []
+documents = []
+export = []
+plugins = []
+
+[[bin]]
+name = "sip-api"
+path = "src/main.rs"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+sqlx = { workspace = true }
+rust_decimal = { workspace = true }
+
+sip-application = { workspace = true }
+sip-auth = { workspace = true }
+sip-tenancy = { workspace = true }
+sip-observability = { workspace = true }
+sip-config = { workspace = true }
+sip-domain = { workspace = true }
+sip-infrastructure = { workspace = true }
+sip-scheduler = { workspace = true }
+tokio-stream = { workspace = true }

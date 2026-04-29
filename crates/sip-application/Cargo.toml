@@ -1,0 +1,28 @@
+[package]
+name = "sip-application"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+sqlx = { workspace = true }
+rust_decimal = { workspace = true }
+
+sip-domain = { workspace = true }
+sip-auth = { workspace = true }
+sip-tenancy = { workspace = true }
+sip-infrastructure = { workspace = true }
+tokio-stream = { workspace = true }

@@ -1,0 +1,23 @@
+[package]
+name = "sip-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "sip-cli"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+
+sip-config = { workspace = true }
+sip-infrastructure = { workspace = true }
+sip-domain = { workspace = true }
+sip-observability = { workspace = true }

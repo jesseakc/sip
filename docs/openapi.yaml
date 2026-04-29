@@ -1,0 +1,1703 @@
+openapi: "3.0.3"
+info:
+  title: "SIP — Service Intelligence Platform API"
+  version: "0.1.0"
+  description: >
+    Machine-readable, AI-consumable service intelligence API for physical assets.
+    The same API serves the web UI, AI agents, and external integrations.
+  contact:
+    name: "SIP Team"
+  license:
+    name: "AGPLv3"
+servers:
+  - url: "http://localhost:8080"
+    description: "Local development server"
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+# All endpoints support CORS with permissive origins in development.
+# Production deployments should restrict `Access-Control-Allow-Origin`.
+#
+# ── API Discovery ──────────────────────────────────────────────────────────────
+# Public metadata is available at `/.well-known/sip-api` (no auth required).
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ── Health ─────────────────────────────────────────────────────────────────
+  /api/v1/health:
+    get:
+      summary: "Basic health check"
+      security: []
+      responses:
+        '200':
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+  /api/v1/health/ready:
+    get:
+      summary: "Readiness check (includes database)"
+      security: []
+      responses:
+        '200':
+          description: "Ready"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  database:
+                    type: string
+        '503':
+          description: "Not ready"
+
+  /api/v1/capabilities:
+    get:
+      summary: "Feature capability flags"
+      security: []
+      responses:
+        '200':
+          description: "Capability map"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      features:
+                        type: object
+                        properties:
+                          assets: { type: boolean }
+                          work_orders: { type: boolean }
+                          ai_chat: { type: boolean }
+                          documents: { type: boolean }
+                          export: { type: boolean }
+                          plugins: { type: boolean }
+                      ai:
+                        type: object
+                        properties:
+                          enabled: { type: boolean }
+                          models:
+                            type: array
+                            items: { type: string }
+
+  /.well-known/sip-api:
+    get:
+      summary: "API discovery metadata"
+      security: []
+      responses:
+        '200':
+          description: "API metadata"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  version: { type: string }
+                  description: { type: string }
+                  auth:
+                    type: object
+                    properties:
+                      type: { type: string }
+                      login_url: { type: string }
+                      refresh_url: { type: string }
+                  documentation: { type: string }
+                  links:
+                    type: object
+                    properties:
+                      openapi: { type: string }
+
+  # ── Auth ───────────────────────────────────────────────────────────────────
+  /api/v1/auth/login:
+    post:
+      summary: "Authenticate and receive JWT token pair"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: "Login successful"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  refresh_token: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/refresh:
+    post:
+      summary: "Refresh access token"
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: "New access token"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/logout:
+    post:
+      summary: "Logout (client should discard tokens)"
+
+  /api/v1/auth/me:
+    get:
+      summary: "Return current user info from token"
+      responses:
+        '200':
+          description: "Current user"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  organization_id: { type: string, format: uuid }
+                  role: { type: string }
+                  permissions: { type: array, items: { type: string } }
+
+  # ── Organizations ──────────────────────────────────────────────────────────
+  /api/v1/organizations:
+    post:
+      summary: "Create organization"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+                timezone: { type: string }
+                default_currency: { type: string }
+      responses:
+        '200':
+          description: "Created organization"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Organization'
+
+  /api/v1/organizations/me:
+    get:
+      summary: "Get current organization"
+      responses:
+        '200':
+          description: "Organization detail"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Organization'
+    patch:
+      summary: "Update current organization"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                timezone: { type: string }
+                default_currency: { type: string }
+      responses:
+        '200':
+          description: "Updated organization"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Organization'
+
+  # ── Locations ──────────────────────────────────────────────────────────────
+  /api/v1/locations:
+    get:
+      summary: "List all locations"
+      responses:
+        '200':
+          description: "Location list"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Location'
+    post:
+      summary: "Create location"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, location_type]
+              properties:
+                parent_id: { type: string, format: uuid }
+                name: { type: string }
+                location_type: { type: string, enum: [SITE, BUILDING, FLOOR, ROOM, AREA, OTHER] }
+      responses:
+        '200':
+          description: "Created location"
+
+  /api/v1/locations/{id}:
+    get:
+      summary: "Get location by ID"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Location detail"
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: "Update location"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Updated location"
+
+  /api/v1/locations/{id}/children:
+    get:
+      summary: "List child locations"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Child locations"
+
+  /api/v1/locations/{id}/assets:
+    get:
+      summary: "List assets at this location"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Asset list"
+
+  # ── Asset Types ────────────────────────────────────────────────────────────
+  /api/v1/asset-types:
+    get:
+      summary: "List asset types"
+      responses:
+        '200':
+          description: "Asset type list"
+    post:
+      summary: "Create asset type"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, category]
+              properties:
+                name: { type: string }
+                category: { type: string }
+                description: { type: string }
+      responses:
+        '200':
+          description: "Created asset type"
+
+  /api/v1/asset-types/{id}:
+    get:
+      summary: "Get asset type"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Asset type detail"
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: "Update asset type"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Updated asset type"
+
+  # ── Manufacturers & Models ─────────────────────────────────────────────────
+  /api/v1/manufacturers:
+    get:
+      summary: "List manufacturers"
+      responses:
+        '200':
+          description: "Manufacturer list"
+    post:
+      summary: "Create manufacturer"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                website: { type: string }
+                support_url: { type: string }
+      responses:
+        '200':
+          description: "Created manufacturer"
+
+  /api/v1/manufacturers/{id}:
+    get:
+      summary: "Get manufacturer"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Manufacturer detail"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/manufacturers/{id}/models:
+    get:
+      summary: "List models for a manufacturer"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Model list"
+
+  /api/v1/models:
+    get:
+      summary: "List asset models"
+      parameters:
+        - name: manufacturer_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Model list"
+    post:
+      summary: "Create asset model"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [manufacturer_id, name, model_number, asset_type_id]
+              properties:
+                manufacturer_id: { type: string, format: uuid }
+                name: { type: string }
+                model_number: { type: string }
+                asset_type_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Created model"
+
+  /api/v1/models/{id}:
+    get:
+      summary: "Get asset model"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Model detail"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Assets ─────────────────────────────────────────────────────────────────
+  /api/v1/assets:
+    get:
+      summary: "List all assets for the current organization"
+      responses:
+        '200':
+          description: "Asset list"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Asset'
+    post:
+      summary: "Create asset"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset_type_id, name, criticality]
+              properties:
+                asset_type_id: { type: string, format: uuid }
+                model_id: { type: string, format: uuid }
+                location_id: { type: string, format: uuid }
+                name: { type: string }
+                description: { type: string }
+                serial_number: { type: string }
+                criticality: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+                attributes: { type: object }
+                tags: { type: array, items: { type: string } }
+      responses:
+        '200':
+          description: "Created asset"
+
+  /api/v1/assets/{id}:
+    get:
+      summary: "Get asset by ID"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Asset detail"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Asset'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: "Update asset status"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [OPERATIONAL, DEGRADED, DOWN, MAINTENANCE, RETIRED]
+      responses:
+        '200':
+          description: "Updated asset"
+
+  /api/v1/assets/{id}/archive:
+    post:
+      summary: "Archive (retire) an asset"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Archived asset"
+
+  /api/v1/assets/{id}/children:
+    get:
+      summary: "List child assets"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Child asset list"
+
+  /api/v1/assets/{id}/work-orders:
+    get:
+      summary: "List work orders for an asset"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Work order list"
+
+  # ── Work Orders ────────────────────────────────────────────────────────────
+  /api/v1/work-orders:
+    get:
+      summary: "List all work orders"
+      responses:
+        '200':
+          description: "Work order list"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkOrder'
+    post:
+      summary: "Create work order"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset_id, work_order_type, priority, title, description]
+              properties:
+                asset_id: { type: string, format: uuid }
+                work_order_type: { type: string, enum: [PREVENTIVE, INSPECTION, CORRECTIVE, EMERGENCY] }
+                priority: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+                title: { type: string }
+                description: { type: string }
+                due_at: { type: string, format: date-time }
+                estimated_hours: { type: number }
+      responses:
+        '200':
+          description: "Created work order"
+
+  /api/v1/work-orders/{id}:
+    get:
+      summary: "Get work order detail"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Work order detail"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WorkOrder'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: "Transition work order status"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  $ref: '#/components/schemas/WorkOrderStatus'
+                resolution_notes: { type: string }
+      responses:
+        '200':
+          description: "Updated work order"
+
+  # Lifecycle sub-actions
+  /api/v1/work-orders/{id}/publish:
+    post:
+      summary: "Publish work order (Draft → Open)"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses: { '200': { description: "Published" } }
+
+  /api/v1/work-orders/{id}/start:
+    post:
+      summary: "Start work order (Open → In Progress)"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses: { '200': { description: "Started" } }
+
+  /api/v1/work-orders/{id}/hold:
+    post:
+      summary: "Hold work order (In Progress → On Hold)"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses: { '200': { description: "Held" } }
+
+  /api/v1/work-orders/{id}/resume:
+    post:
+      summary: "Resume work order (On Hold → In Progress)"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses: { '200': { description: "Resumed" } }
+
+  /api/v1/work-orders/{id}/complete:
+    post:
+      summary: "Complete work order"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution_notes: { type: string }
+      responses: { '200': { description: "Completed" } }
+
+  /api/v1/work-orders/{id}/review:
+    post:
+      summary: "Review work order (Completed → Reviewed)"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses: { '200': { description: "Reviewed" } }
+
+  /api/v1/work-orders/{id}/close:
+    post:
+      summary: "Close work order (Reviewed → Closed)"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses: { '200': { description: "Closed" } }
+
+  /api/v1/work-orders/{id}/cancel:
+    post:
+      summary: "Cancel work order"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses: { '200': { description: "Cancelled" } }
+
+  /api/v1/work-orders/{id}/archive:
+    post:
+      summary: "Archive work order"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses: { '200': { description: "Archived" } }
+
+  /api/v1/work-orders/{id}/reopen:
+    post:
+      summary: "Reopen a closed/cancelled work order"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resume_in_progress: { type: boolean }
+      responses: { '200': { description: "Reopened" } }
+
+  # Work Order — Assignments
+  /api/v1/work-orders/{id}/assignments:
+    get:
+      summary: "List assignments for a work order"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses:
+        '200':
+          description: "Assignment list"
+    post:
+      summary: "Create assignment"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assignee_type, assignee_id, role]
+              properties:
+                assignee_type: { type: string, enum: [USER, TEAM, VENDOR, AI_AGENT] }
+                assignee_id: { type: string, format: uuid }
+                role: { type: string, enum: [PRIMARY, SECONDARY, OBSERVER, APPROVER, DISPATCHED_TECH, REMOTE_SUPPORT] }
+      responses: { '200': { description: "Created assignment" } }
+
+  /api/v1/work-orders/{id}/assignments/{assignment_id}:
+    delete:
+      summary: "Remove assignment"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+        - name: assignment_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses: { '200': { description: "Removed" } }
+    patch:
+      summary: "Update assignment status"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+        - name: assignment_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [ACCEPTED, DECLINED, REMOVED, COMPLETED, ASSIGNED] }
+      responses: { '200': { description: "Updated" } }
+
+  # Work Order — Parts
+  /api/v1/work-orders/{id}/parts:
+    get:
+      summary: "List parts used on a work order"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      responses:
+        '200':
+          description: "Parts list"
+    post:
+      summary: "Record part usage"
+      parameters:
+        - $ref: '#/components/parameters/WorkOrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [part_id, quantity]
+              properties:
+                part_id: { type: string, format: uuid }
+                quantity: { type: number }
+      responses: { '200': { description: "Recorded" } }
+
+  # ── Schedules ──────────────────────────────────────────────────────────────
+  /api/v1/schedules:
+    get:
+      summary: "List maintenance schedules"
+      responses:
+        '200':
+          description: "Schedule list"
+    post:
+      summary: "Create schedule"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [asset_id, name, trigger_type]
+              properties:
+                asset_id: { type: string, format: uuid }
+                name: { type: string }
+                trigger_type: { type: string, enum: [CRON, METER] }
+                cron_expression: { type: string }
+                trigger_config: { type: object }
+                work_order_template: { type: object }
+      responses: { '200': { description: "Created schedule" } }
+
+  /api/v1/schedules/{id}:
+    get:
+      summary: "Get schedule"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Schedule detail"
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: "Update schedule"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses: { '200': { description: "Updated schedule" } }
+
+  /api/v1/schedules/{id}/archive:
+    post:
+      summary: "Archive schedule"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses: { '200': { description: "Archived" } }
+
+  # ── Inspections ────────────────────────────────────────────────────────────
+  /api/v1/inspections:
+    get:
+      summary: "List inspections"
+      parameters:
+        - name: work_order_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Inspection list"
+
+  /api/v1/inspections/{id}:
+    get:
+      summary: "Get inspection"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Inspection detail"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/inspections/{id}/items:
+    patch:
+      summary: "Update checklist items for an inspection"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: string, format: uuid }
+                  result: { type: string, enum: [PASS, FAIL, N_A] }
+                  actual_value: { type: string }
+                  finding: { type: string }
+                  photo_url: { type: string }
+      responses: { '200': { description: "Updated inspection" } }
+
+  # ── Parts ──────────────────────────────────────────────────────────────────
+  /api/v1/parts:
+    get:
+      summary: "List parts inventory"
+      responses:
+        '200':
+          description: "Parts list"
+    post:
+      summary: "Create part"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                part_number: { type: string }
+                description: { type: string }
+                quantity_on_hand: { type: number }
+                quantity_minimum: { type: number }
+                unit: { type: string }
+                unit_cost: { type: number }
+                storage_location: { type: string }
+      responses: { '200': { description: "Created part" } }
+
+  /api/v1/parts/{id}:
+    get:
+      summary: "Get part by ID"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Part detail"
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: "Update part"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses: { '200': { description: "Updated part" } }
+
+  # ── Users ──────────────────────────────────────────────────────────────────
+  /api/v1/users:
+    get:
+      summary: "List users"
+      responses:
+        '200':
+          description: "User list"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+    post:
+      summary: "Create user"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name, role, password]
+              properties:
+                email: { type: string, format: email }
+                name: { type: string }
+                role: { type: string, enum: [ADMIN, MANAGER, TECHNICIAN, VIEWER, VENDOR, AUDITOR] }
+                password: { type: string }
+      responses: { '200': { description: "Created user" } }
+
+  /api/v1/users/{id}:
+    get:
+      summary: "Get user by ID"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "User detail"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: "Update user"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                role: { type: string, enum: [ADMIN, MANAGER, TECHNICIAN, VIEWER, VENDOR, AUDITOR] }
+                is_active: { type: boolean }
+      responses: { '200': { description: "Updated user" } }
+
+  # ── Teams ──────────────────────────────────────────────────────────────────
+  /api/v1/teams:
+    get:
+      summary: "List teams"
+      responses:
+        '200':
+          description: "Team list"
+    post:
+      summary: "Create team"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                lead_id: { type: string, format: uuid }
+      responses: { '200': { description: "Created team" } }
+
+  /api/v1/teams/{id}:
+    get:
+      summary: "Get team"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Team detail"
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: "Update team"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses: { '200': { description: "Updated team" } }
+
+  # ── Documents ──────────────────────────────────────────────────────────────
+  /api/v1/documents:
+    get:
+      summary: "List documents"
+      responses:
+        '200':
+          description: "Document list"
+    post:
+      summary: "Create document"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, document_type, mime_type, size_bytes, checksum, source_type, storage_path, visibility]
+              properties:
+                name: { type: string }
+                document_type: { type: string, enum: [MANUAL, PROCEDURE, DIAGRAM, WARRANTY, CERTIFICATE, PHOTO, OTHER] }
+                mime_type: { type: string }
+                size_bytes: { type: integer }
+                document_version: { type: string }
+                checksum: { type: string }
+                source_type: { type: string, enum: [UPLOAD, API, PLUGIN, SYSTEM, VENDOR, PUBLIC_IMPORT] }
+                source_system: { type: string }
+                external_id: { type: string }
+                external_url: { type: string }
+                storage_path: { type: string }
+                visibility: { type: string, enum: [PRIVATE_TENANT, SHARED_VENDOR, PUBLIC, SYSTEM_DEFAULT] }
+                effective_date: { type: string, format: date }
+                expiration_date: { type: string, format: date }
+                supersedes_document_id: { type: string, format: uuid }
+                metadata: { type: object }
+      responses: { '200': { description: "Created document" } }
+
+  /api/v1/documents/{id}:
+    get:
+      summary: "Get document"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Document detail"
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/documents/{id}/archive:
+    post:
+      summary: "Archive document"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses: { '200': { description: "Archived document" } }
+
+  # ── Activities ─────────────────────────────────────────────────────────────
+  /api/v1/activities:
+    get:
+      summary: "List activities (audit log)"
+      responses:
+        '200':
+          description: "Activity list"
+
+  /api/v1/activities/{entity_type}/{entity_id}:
+    get:
+      summary: "List activities for a specific entity"
+      parameters:
+        - name: entity_type
+          in: path
+          required: true
+          schema: { type: string }
+        - name: entity_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Activity list for entity"
+
+  # ── AI ─────────────────────────────────────────────────────────────────────
+  /api/v1/ai/chat:
+    post:
+      summary: "Stream an AI chat response (SSE)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string }
+                conversation_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "SSE stream of AI events"
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/ai/conversations:
+    get:
+      summary: "List AI conversations for current user"
+      responses:
+        '200':
+          description: "Conversation list"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AIConversation'
+
+  /api/v1/ai/conversations/{id}:
+    get:
+      summary: "Get conversation with messages"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Conversation detail"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      title: { type: string }
+                      created_at: { type: string, format: date-time }
+                      updated_at: { type: string, format: date-time }
+                      messages:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/AIMessage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/ai/messages/{id}/retrieval-trace:
+    get:
+      summary: "Get retrieval trace for an AI message"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Retrieval trace list"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AIRetrievalTrace'
+
+  /api/v1/ai/messages/{id}/verification-trace:
+    get:
+      summary: "Get verification trace for an AI message"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: "Verification trace"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/VerificationTrace'
+                      - type: 'null'
+                  message: { type: string }
+
+  /api/v1/ai/messages/{id}/feedback:
+    post:
+      summary: "Submit feedback for an AI message"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: { type: integer }
+                comment: { type: string }
+      responses: { '200': { description: "Feedback recorded" } }
+
+  # ── Export ─────────────────────────────────────────────────────────────────
+  /api/v1/export/work-orders:
+    post:
+      summary: "Export work orders"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format: { type: string }
+      responses:
+        '200':
+          description: "Exported work orders"
+
+  /api/v1/export:
+    get:
+      summary: "Export all organization data"
+      responses:
+        '200':
+          description: "Full organization export"
+
+# ── Components ────────────────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Obtain a token via POST /api/v1/auth/login.  Include the token in the
+        `Authorization: Bearer <token>` header.  Tokens expire after the configured
+        TTL; use /api/v1/auth/refresh to obtain a new access token.
+
+  parameters:
+    WorkOrderId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Unauthorized:
+      description: "Authentication required or invalid token"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: "Resource not found"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: "Internal server error"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    # ── Common ───────────────────────────────────────────────────────────────
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+        status:
+          type: string
+          enum: [error]
+
+    Pagination:
+      type: object
+      properties:
+        total: { type: integer }
+        offset: { type: integer }
+        limit: { type: integer }
+
+    # ── Organization ─────────────────────────────────────────────────────────
+    Organization:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+        timezone: { type: string }
+        default_currency: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Location ─────────────────────────────────────────────────────────────
+    Location:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { type: string }
+        parent_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Asset Type ───────────────────────────────────────────────────────────
+    AssetType:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        category: { type: string }
+        description: { type: string }
+        schema: { type: object }
+        default_pm_schedules: { type: object }
+        default_inspection_template: { type: object }
+        icon: { type: string }
+        is_system: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Asset ────────────────────────────────────────────────────────────────
+    Asset:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [OPERATIONAL, DEGRADED, DOWN, MAINTENANCE, RETIRED] }
+        criticality: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+        description: { type: string }
+        asset_type_id: { type: string, format: uuid }
+        model_id: { type: string, format: uuid }
+        location_id: { type: string, format: uuid }
+        serial_number: { type: string }
+        tags: { type: array, items: { type: string } }
+        attributes: { type: object }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Work Order ───────────────────────────────────────────────────────────
+    WorkOrderStatus:
+      type: string
+      enum: [DRAFT, OPEN, ASSIGNED, ACCEPTED, IN_PROGRESS, ON_HOLD, COMPLETED, REVIEWED, CLOSED, CANCELLED, ARCHIVED]
+
+    WorkOrder:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        display_number: { type: string }
+        title: { type: string }
+        description: { type: string }
+        status: { $ref: '#/components/schemas/WorkOrderStatus' }
+        priority: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL] }
+        type: { type: string, enum: [PREVENTIVE, INSPECTION, CORRECTIVE, EMERGENCY] }
+        asset_id: { type: string, format: uuid }
+        due_at: { type: string, format: date-time }
+        scheduled_start: { type: string, format: date-time }
+        scheduled_end: { type: string, format: date-time }
+        actual_start: { type: string, format: date-time }
+        actual_end: { type: string, format: date-time }
+        resolution_notes: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── User ─────────────────────────────────────────────────────────────────
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        name: { type: string }
+        role: { type: string, enum: [ADMIN, MANAGER, TECHNICIAN, VIEWER, VENDOR, AUDITOR] }
+        skills: { type: array, items: { type: string } }
+        certifications: { type: array, items: { type: string } }
+        working_hours: { type: object }
+        is_active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Team ─────────────────────────────────────────────────────────────────
+    Team:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        lead_id: { type: string, format: uuid }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Schedule ─────────────────────────────────────────────────────────────
+    Schedule:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        asset_id: { type: string, format: uuid }
+        name: { type: string }
+        trigger_type: { type: string, enum: [CRON, METER] }
+        trigger_config: { type: object }
+        work_order_template: { type: object }
+        cron_expression: { type: string }
+        next_due: { type: string, format: date-time }
+        last_triggered: { type: string, format: date-time }
+        enabled: { type: boolean }
+        archived_at: { type: string, format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Part ─────────────────────────────────────────────────────────────────
+    Part:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        part_number: { type: string }
+        description: { type: string }
+        quantity_on_hand: { type: number }
+        quantity_minimum: { type: number }
+        unit: { type: string }
+        unit_cost: { type: number }
+        storage_location: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Document ─────────────────────────────────────────────────────────────
+    Document:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        document_type: { type: string }
+        mime_type: { type: string }
+        size_bytes: { type: integer }
+        checksum: { type: string }
+        source_type: { type: string }
+        storage_path: { type: string }
+        visibility: { type: string }
+        processing_status: { type: string }
+        archived_at: { type: string, format: date-time }
+        archive_reason: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    # ── Activity ─────────────────────────────────────────────────────────────
+    Activity:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        actor_id: { type: string, format: uuid }
+        actor_type: { type: string }
+        entity_type: { type: string }
+        entity_id: { type: string, format: uuid }
+        action: { type: string }
+        metadata: { type: object }
+        created_at: { type: string, format: date-time }
+
+    # ── AI ───────────────────────────────────────────────────────────────────
+    AIConversation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    AIMessage:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [user, assistant, system, tool] }
+        content: { type: string }
+        sources: { type: object }
+        created_at: { type: string, format: date-time }
+
+    AIRetrievalTrace:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        message_id: { type: string, format: uuid }
+        query: { type: string }
+        strategy: { type: string }
+        records_queried: { type: integer }
+        records_returned: { type: integer }
+        duration_ms: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    VerificationTrace:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        organization_id: { type: string, format: uuid }
+        message_id: { type: string, format: uuid }
+        claim: { type: string }
+        verification_status:
+          type: string
+          enum: [VERIFIED, PARTIALLY_VERIFIED, UNSUPPORTED, CONTRADICTED]
+        verified_by: { type: string }
+        contradiction: { type: string }
+        supporting_evidence: { type: object }
+        created_at: { type: string, format: date-time }
+
+    # ── AI Response Contract (SIPmem Answer Contract) ────────────────────────
+    AIChatResponse:
+      type: object
+      properties:
+        answer:
+          type: string
+        confidence:
+          type: number
+          format: float
+        verification_status:
+          type: string
+          enum: [VERIFIED, PARTIALLY_VERIFIED, UNSUPPORTED, CONTRADICTED]
+        retrieval_paths:
+          type: array
+          items:
+            type: string
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/AISource'
+        verified_claims:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerifiedClaim'
+        unsupported_claims:
+          type: array
+          items:
+            type: string
+        recommended_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecommendedAction'
+
+    AISource:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        title:
+          type: string
+        relevance:
+          type: number
+          format: float
+
+    VerifiedClaim:
+      type: object
+      properties:
+        claim:
+          type: string
+        verification:
+          type: string
+          enum: [VERIFIED, PARTIALLY_VERIFIED, UNSUPPORTED, CONTRADICTED]
+        evidence:
+          type: string
+
+    RecommendedAction:
+      type: object
+      properties:
+        action:
+          type: string
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        context:
+          type: string

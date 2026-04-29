@@ -1,0 +1,20 @@
+[package]
+name = "sip-auth"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+jsonwebtoken = { workspace = true }
+argon2 = { workspace = true }
+anyhow = { workspace = true }
+rand = "0.8"
