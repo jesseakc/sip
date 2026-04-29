@@ -1,24 +1,41 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/jesseakc/sip/main/docs/logo.svg" alt="SIP" width="0" />
-</p>
-
 <h1 align="center">SIP — Service Intelligence Platform</h1>
 
 <p align="center">
-  <strong>AI-first service intelligence for physical assets</strong><br/>
-  Open source (AGPLv3). Built in Rust + Next.js.
+  <strong>The open-source, AI-native CMMS and asset CRM for the physical world</strong><br/>
+  Structured maintenance intelligence for LLMs. Built in Rust. Licensed AGPLv3.
 </p>
 
 <p align="center">
-  <a href="#demo"><img src="https://img.shields.io/badge/demo-login_here-blue" /></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/docker-compose_up_→_running-blue" /></a>
+  <a href="#demo-login"><img src="https://img.shields.io/badge/demo-login_here-lightgrey" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-green" /></a>
+  <a href="./docs/openapi.yaml"><img src="https://img.shields.io/badge/API-OpenAPI_3.0-orange" /></a>
+  <img src="https://img.shields.io/badge/language-Rust_+_TypeScript-purple" />
 </p>
 
 ---
 
-**SIP** is an AI-first service intelligence platform for physical assets. It builds a **maintenance intelligence layer** on top of a cross-industry **service-domain canonical model** — a structured, queryable representation of every asset, every work order, and every repair decision an organization has ever made.
+## What is SIP?
 
-Every entity in SIP exposes **agent-accessible service data** through the same public REST API that serves the web UI, AI agents, and external integrations.
+**SIP** is an open-source, AI-native **CMMS** (Computerized Maintenance Management System) and **asset CRM** — a service intelligence platform for physical assets. It is the first maintenance platform designed from the ground up for the age of LLMs and AI agents.
+
+Today, the world's physical infrastructure — factories, hospitals, fleets, buildings, HVAC systems, food processing plants, power grids — is maintained using software built in the pre-AI era. These legacy CMMS platforms treat operational data as a passive ledger: a flat record of work orders, parts consumed, and inspections filed. Data goes in, PDF reports come out. The data is structured for human compliance officers, not for machines.
+
+**SIP inverts this.** It builds a **structured maintenance substrate** — a cross-industry, machine-readable **service-domain canonical model** that encodes every asset, every work order, every repair decision, every inspection finding, every replacement part, and every resolution note as a queryable, AI-consumable record. This transforms maintenance data from a compliance archive into a compounding operational intelligence asset.
+
+### Why this matters now
+
+LLMs are powerful reasoning engines, but they are only as good as the data they can access. They cannot reason about assets they cannot query. They cannot cite records that don't exist in a structured form. They cannot enforce tenant boundaries or permission scopes on unstructured data. **SIP is the structured data layer that makes AI-assisted maintenance possible** — grounded, auditable, and permission-safe.
+
+SIP does not just bolt an AI chatbot onto a legacy CMMS. It rethinks the entire data model from first principles: **machine-readable before human-readable**. The same public REST API serves the web UI, AI agents, CLI tools, MCP servers, and external integrations. Every entity is queryable. Every state change is audited immutably. Every AI answer must cite its sources from retrievable operational records.
+
+### SIP in 30 seconds
+
+- **CMMS + asset CRM**: Manage assets, work orders, preventive maintenance schedules, inspections, parts inventory, documents, teams, and locations through a unified REST API and web dashboard.
+- **AI-native data layer**: Assets, work orders, resolution notes, and documents are structured for LLM consumption. AI agents query the same API as the UI.
+- **SIPmem memory system**: Six cooperating memory layers — SQL (operational truth), Vector (semantic search), RAG (context assembly), Graph (relationships), Temporal (change over time), and Verification (answer accuracy) — produce grounded, cited, permission-safe AI answers.
+- **Open source forever**: AGPLv3. Self-host on your own infrastructure. Data portability is guaranteed. No vendor lock-in.
+- **Cross-industry**: Works for any physical asset — pumps, motors, conveyors, HVAC units, fleet vehicles, medical devices, kitchen equipment, elevators, power tools, robots. The schema lives in the database, not in the code.
 
 ---
 
