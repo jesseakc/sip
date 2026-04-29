@@ -15,27 +15,82 @@
 
 ---
 
-## What is SIP?
+## The Problem
 
-**SIP** is an open-source, AI-native **CMMS** (Computerized Maintenance Management System) and **asset CRM** — a service intelligence platform for physical assets. It is the first maintenance platform designed from the ground up for the age of LLMs and AI agents.
+The software that maintains the physical world is broken.
 
-Today, the world's physical infrastructure — factories, hospitals, fleets, buildings, HVAC systems, food processing plants, power grids — is maintained using software built in the pre-AI era. These legacy CMMS platforms treat operational data as a passive ledger: a flat record of work orders, parts consumed, and inspections filed. Data goes in, PDF reports come out. The data is structured for human compliance officers, not for machines.
+### Legacy CMMS: data silos that can't reason
 
-**SIP inverts this.** It builds a **structured maintenance substrate** — a cross-industry, machine-readable **service-domain canonical model** that encodes every asset, every work order, every repair decision, every inspection finding, every replacement part, and every resolution note as a queryable, AI-consumable record. This transforms maintenance data from a compliance archive into a compounding operational intelligence asset.
+Every factory, hospital, fleet, building, and power plant relies on a **CMMS** (Computerized Maintenance Management System) to track assets, schedule preventive maintenance, and log work orders. The market for this software is $1.2 billion and growing at 9% CAGR — yet the dominant platforms (IBM Maximo, SAP PM, Oracle EAM) were architected decades ago. They share the same fundamental flaws:
 
-### Why this matters now
+| Problem | What It Means In Practice |
+|----------|---------------------------|
+| **Single-industry schemas** | A manufacturing CMMS can't model a hospital's HVAC system. A fleet platform can't handle kitchen equipment. Every industry reinvents the data model. |
+| **Human-only interfaces** | Data is stored for PDF compliance reports, not for machines. There is no API an AI agent can query. No MCP endpoints. No function-calling tools. |
+| **AI bolted on as marketing** | Legacy vendors add a "chat with your data" widget that RAGs over unstructured PDFs. No structured retrieval. No citations. No audit trail. No RBAC enforcement in the retrieval path. |
+| **Closed-source lock-in** | Maintenance data outlives the software vendor. Organizations risk data hostage situations. Switching costs are existential. |
+| **Reactive, not intelligent** | Work orders are logged after the fact. The question "what fixed this last time?" requires calling a senior technician, not querying a database. There is no compounding operational intelligence. |
+| **No agentic surface** | AI agents cannot create work orders, assign technicians, check inventory, or surface compliance gaps — because the platform has no structured, permissioned API for them to use. |
 
-LLMs are powerful reasoning engines, but they are only as good as the data they can access. They cannot reason about assets they cannot query. They cannot cite records that don't exist in a structured form. They cannot enforce tenant boundaries or permission scopes on unstructured data. **SIP is the structured data layer that makes AI-assisted maintenance possible** — grounded, auditable, and permission-safe.
+### Asset CRM: the missing category
 
-SIP does not just bolt an AI chatbot onto a legacy CMMS. It rethinks the entire data model from first principles: **machine-readable before human-readable**. The same public REST API serves the web UI, AI agents, CLI tools, MCP servers, and external integrations. Every entity is queryable. Every state change is audited immutably. Every AI answer must cite its sources from retrievable operational records.
+CRM (Customer Relationship Management) transformed sales and support by giving every customer a structured, queryable record with full interaction history. Salesforce built a $300 billion business on that insight. **But assets have no equivalent.**
 
-### SIP in 30 seconds
+When a technician writes "replaced bearing, found inner race spalling due to contamination" in a work order, that note should become retrievable intelligence for every future query about that asset type. Instead, it disappears into a closed database. There is no asset CRM — no system that treats assets as first-class entities with a complete, queryable, AI-consumable operational history.
 
-- **CMMS + asset CRM**: Manage assets, work orders, preventive maintenance schedules, inspections, parts inventory, documents, teams, and locations through a unified REST API and web dashboard.
-- **AI-native data layer**: Assets, work orders, resolution notes, and documents are structured for LLM consumption. AI agents query the same API as the UI.
-- **SIPmem memory system**: Six cooperating memory layers — SQL (operational truth), Vector (semantic search), RAG (context assembly), Graph (relationships), Temporal (change over time), and Verification (answer accuracy) — produce grounded, cited, permission-safe AI answers.
-- **Open source forever**: AGPLv3. Self-host on your own infrastructure. Data portability is guaranteed. No vendor lock-in.
-- **Cross-industry**: Works for any physical asset — pumps, motors, conveyors, HVAC units, fleet vehicles, medical devices, kitchen equipment, elevators, power tools, robots. The schema lives in the database, not in the code.
+### Why existing tools fall short
+
+| Category | Examples | Why They Fail |
+|----------|----------|---------------|
+| **Enterprise CMMS** | IBM Maximo, SAP PM, Oracle EAM | $100K+ deployments, on-premise, zero AI integration, locked schemas |
+| **Mid-Market CMMS** | Fiix, MaintainX, UpKeep | Single-industry focus, closed-source, AI is a marketing afterthought |
+| **Open-Source CMMS** | openMAINT, Fracttal | No AI layer, no plugin ecosystem, limited adoption |
+| **Horizontal Tools** | Jira, ServiceNow, Monday.com | Not maintenance-native; work orders need the asset context that these tools lack |
+| **AI Wrappers** | CustomGPT, ChatPDF | Surface-level RAG over unstructured data — no permission model, no citation tracking, no audit trail, no state machine enforcement |
+
+---
+
+## Why SIP Is the Future
+
+**SIP** is an open-source, AI-native **CMMS and asset CRM** designed from first principles for the age of LLMs and AI agents.
+
+### Machine-readable before human-readable
+
+SIP starts with a **service-domain canonical model** — a cross-industry, structured representation of every asset, work order, repair decision, inspection finding, replacement part, and resolution note. This is not a passive ledger. It is a **structured maintenance substrate** that both humans and AI agents consume through the same public REST API.
+
+The principle is simple: if a human can see it, an AI must be able to query it — through the same endpoint, with the same auth, generating the same audit trail.
+
+### AI is not a feature. It's the data model.
+
+SIP does not bolt AI onto a legacy schema. The data model itself is AI-native:
+
+- **Every entity is API-queryable.** Assets, work orders, schedules, inspections, parts, documents, and activities all have structured REST endpoints with consistent JSON schemas.
+- **Every state change is audited immutably.** Activity records track who did what, when, and why. AI agents are first-class users with traceable identities.
+- **Every AI answer is grounded.** SIPmem — SIP's hybrid memory system — enforces that answers cite retrievable source records. No hallucinated facts. No unsourced claims.
+- **AI retrieval enforces authorization.** The same RLS and RBAC that protect the API also govern what the AI can retrieve. An AI query from a technician never surfaces data from another organization, or data the technician lacks permission to see.
+
+### SIPmem: hybrid memory for service intelligence
+
+SIPmem combines six cooperating memory layers in a single PostgreSQL database:
+
+1. **SQL Memory** — Authoritative operational truth. Exact facts are verified against current database records.
+2. **Vector Memory** — Semantic search over work order notes and document chunks via pgvector HNSW.
+3. **RAG Memory** — Permission-safe context assembly with source citations and evidence ranking.
+4. **Graph Memory** — Relationship traversal via parent/child hierarchies, ltree paths, and document links.
+5. **Temporal Memory** — Change-over-time preservation through Activity records and status history tables.
+6. **Verification Memory** — Post-response checks that cited records exist, are accessible, and support the claims made.
+
+A retrieval router classifies each question into one of seven types (exact fact, similarity, relationship, temporal, document QA, root cause, hybrid) and dispatches to the appropriate memory layers per a decision matrix.
+
+### Open source is a feature, not a tactic
+
+SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs to you. The business model is optional hosting and support — not data lock-in. Every feature available in a hosted version is available in the open-source version.
+
+### Built for the real world
+
+- **Cross-industry by design.** The schema lives in the database, not in the code. Asset types are JSON Schema documents. Any physical object — from a robotic arm to a dishwasher to a lawn — can be modeled without code changes.
+- **Modular monolith.** 19 Rust crates with well-defined interface boundaries. Services extract only when there is a measurable bottleneck. Cargo feature flags let you compile only what you need.
+- **Single command deploy.** `docker compose up` brings up the full stack: API, frontend, PostgreSQL+pgvector, Redis, MinIO, and Ollama — with migrations applied and seed data loaded.
 
 ---
 
