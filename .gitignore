@@ -2,8 +2,7 @@
 /target/
 **/target/
 
-# Cargo
-Cargo.lock
+# Cargo (Cargo.lock is committed for binary crates)
 *.rs.bk
 
 # Node.js
@@ -37,6 +36,9 @@ Thumbs.db
 coverage/
 *.profraw
 
+# TypeScript build artifacts
+*.tsbuildinfo
+
 # SQLx
 .sqlx/
 
@@ -45,3 +47,4 @@ frontend/.next/
 frontend/out/
 frontend/dist/
 frontend/node_modules/
+*.tsbuildinfo

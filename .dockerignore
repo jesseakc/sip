@@ -1,0 +1,39 @@
+# Rust
+/target/
+**/target/
+
+# Node.js
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+out/
+frontend/out/
+dist/
+frontend/dist/
+
+# Environment (don't leak local env into Docker)
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+.dockerignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs (not needed in container)
+docs/
+
+# README
+README.md
