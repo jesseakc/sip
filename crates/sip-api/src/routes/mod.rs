@@ -21,3 +21,5 @@ pub mod users;
 pub mod work_orders;
 pub mod inspections;
 pub mod parts;
+#[cfg(feature = "plugins")]
+pub mod plugins;

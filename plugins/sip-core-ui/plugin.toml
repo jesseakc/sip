@@ -1,0 +1,220 @@
+# ── Identity ──────────────────────────────────────────────────────────────────
+id = "sip-core-ui"
+name = "SIP Core UI"
+version = "0.1.0"
+description = "Official first-party web interface for the SIP Service Intelligence Platform."
+author = "SIP Project"
+license = "AGPL-3.0-or-later"
+sip_version = "0.1.0"
+
+# ── Type ──────────────────────────────────────────────────────────────────────
+plugin_type = "ui"
+enabled_by_default = true
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions = [
+    "dashboard:read",
+    "assets:read",
+    "work_orders:read",
+    "work_orders:write",
+    "schedules:read",
+    "inspections:read",
+    "parts:read",
+    "locations:read",
+    "teams:read",
+    "users:read",
+    "documents:read",
+    "ai:query",
+]
+
+# ── UI Configuration ──────────────────────────────────────────────────────────
+[ui]
+kind = "web"
+framework = "nextjs"
+entrypoint = "/"
+dev_url = "http://localhost:3000"
+production_mount = "/"
+api_base_env = "NEXT_PUBLIC_API_URL"
+
+# ── Navigation ────────────────────────────────────────────────────────────────
+
+[[navigation]]
+id = "dashboard"
+label = "Dashboard"
+path = "/"
+icon = "layout-dashboard"
+permission = "dashboard:read"
+order = 10
+
+[[navigation]]
+id = "assets"
+label = "Assets"
+path = "/assets"
+icon = "packages"
+permission = "assets:read"
+order = 20
+
+[[navigation]]
+id = "work-orders"
+label = "Work Orders"
+path = "/work-orders"
+icon = "clipboard-list"
+permission = "work_orders:read"
+order = 30
+
+[[navigation]]
+id = "schedules"
+label = "Schedules"
+path = "/schedules"
+icon = "calendar"
+permission = "schedules:read"
+order = 40
+
+[[navigation]]
+id = "inspections"
+label = "Inspections"
+path = "/inspections"
+icon = "clipboard-check"
+permission = "inspections:read"
+order = 50
+
+[[navigation]]
+id = "parts"
+label = "Parts"
+path = "/parts"
+icon = "wrench"
+permission = "parts:read"
+order = 60
+
+[[navigation]]
+id = "ai-chat"
+label = "AI Chat"
+path = "/ai-chat"
+icon = "message-square"
+permission = "ai:query"
+order = 70
+
+[[navigation]]
+id = "locations"
+label = "Locations"
+path = "/locations"
+icon = "map-pin"
+permission = "locations:read"
+order = 80
+
+[[navigation]]
+id = "teams"
+label = "Teams"
+path = "/teams"
+icon = "users"
+permission = "teams:read"
+order = 90
+
+[[navigation]]
+id = "users"
+label = "Users"
+path = "/users"
+icon = "user"
+permission = "users:read"
+order = 100
+
+[[navigation]]
+id = "documents"
+label = "Documents"
+path = "/documents"
+icon = "file-text"
+permission = "documents:read"
+order = 110
+
+[[navigation]]
+id = "settings"
+label = "Settings"
+path = "/settings"
+icon = "settings"
+permission = "org:manage"
+order = 120
+
+# ── Resources ─────────────────────────────────────────────────────────────────
+[[resources]]
+id = "asset"
+label = "Asset"
+plural_label = "Assets"
+route_base = "/assets"
+icon = "packages"
+search_fields = ["name", "serial_number", "description"]
+default_sort = "name"
+
+[[resources.columns]]
+field = "name"
+label = "Name"
+sortable = true
+
+[[resources.columns]]
+field = "status"
+label = "Status"
+sortable = true
+
+[[resources.columns]]
+field = "asset_type_name"
+label = "Type"
+sortable = true
+
+[[resources.columns]]
+field = "location_name"
+label = "Location"
+sortable = true
+
+[[resources.columns]]
+field = "updated_at"
+label = "Last Updated"
+sortable = true
+
+[[resources]]
+id = "work_order"
+label = "Work Order"
+plural_label = "Work Orders"
+route_base = "/work-orders"
+icon = "clipboard-list"
+search_fields = ["title", "description", "resolution_notes"]
+default_sort = "created_at DESC"
+
+[[resources.columns]]
+field = "title"
+label = "Title"
+sortable = true
+
+[[resources.columns]]
+field = "status"
+label = "Status"
+sortable = true
+
+[[resources.columns]]
+field = "priority"
+label = "Priority"
+sortable = true
+
+[[resources.columns]]
+field = "asset_name"
+label = "Asset"
+sortable = true
+
+[[resources.columns]]
+field = "assigned_to_name"
+label = "Assigned To"
+sortable = true
+
+[[resources.columns]]
+field = "created_at"
+label = "Created"
+sortable = true
+
+# ── Extension Points ──────────────────────────────────────────────────────────
+[[extension_points]]
+id = "app.shell.sidebar.nav"
+type = "ui"
+
+# ── Marketplace Metadata ──────────────────────────────────────────────────────
+[marketplace]
+category = "ui"
+tags = ["official", "web", "nextjs", "administration"]
+homepage = "https://github.com/jesseakc/sip"

@@ -153,7 +153,34 @@ SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs t
 | **AI** | Ollama / OpenAI / Anthropic / Bedrock | Provider abstraction via LLM provider trait |
 | **Cache** | Redis/Valkey | Session store, rate limiting |
 | **Object Storage** | MinIO (self-hosted) | Document uploads, extracted text |
+| **Plugins** | TOML manifests + Rust registry | UI plugins, functional plugins, hybrid plugins |
 | **Deployment** | Docker Compose | 6 containers, single `docker compose up` |
+
+### Plugin Architecture
+
+**The official SIP frontend is itself a UI plugin.** It is not a hardcoded special case — it ships as `sip-core-ui`, registered and discovered through the same plugin framework that future plugins will use.
+
+SIP supports three plugin types:
+- **UI plugins** — contribute navigation, routes, dashboards, forms, and extension points
+- **Functional plugins** — contribute backend logic, API routes, jobs, automations, integrations, AI tools, and MCP tools
+- **Hybrid plugins** — contribute both UI and backend capabilities
+
+Each plugin is defined by a `plugin.toml` manifest in its own directory under `plugins/`:
+```
+plugins/
+└── sip-core-ui/
+    └── plugin.toml      # First-party web frontend plugin
+```
+
+**Plugin discovery** (public API, no auth required):
+```bash
+curl http://localhost:8000/api/v1/plugins           # List all enabled plugins
+curl http://localhost:8000/api/v1/ui/navigation     # Aggregated sidebar navigation
+curl http://localhost:8000/api/v1/ui/plugins        # UI-specific plugin info
+curl http://localhost:8000/api/v1/ui/extension-points  # Available extension points
+```
+
+**The frontend sidebar is plugin-driven.** On page load, the Next.js shell fetches `/api/v1/ui/navigation` and renders the sidebar from the response. If the API is unavailable, it falls back to an embedded default navigation — so local development works without the backend running.
 
 ---
 
@@ -293,12 +320,12 @@ The seed migration creates a complete demo organization. Use these credentials:
 | 15 | **Work order assignments** | Multi-assignee support (User, Team, Vendor, AI Agent). Role-based assignment (Primary, Secondary, Observer, Approver, etc.). |
 | 16 | **Docker Compose deployment** | 6 services. Auto-migration. Ollama model pull. Health checks on all services. |
 | 17 | **Seed data** | Demo org, 35 assets, 50 work orders across all states, 8 users across all roles, 2 teams, 5 schedules, 2 inspections, 3 documents, AI conversation. |
+| 18 | **Plugin framework** | TOML manifest registry. UI/functional/hybrid plugin types. First-party frontend shipped as `sip-core-ui` plugin. Plugin discovery API endpoints. Sidebar navigation driven by plugin registry. Declarative extension points (35 defined). Manifest validation (unique IDs, semver, dependency checks, navigation validation). |
 
 ### 🚧 Deferred to Later Phases
 
 | Feature | Phase |
 |---------|-------|
-| Plugin framework + manifest validation | 1.5 |
 | Per-tenant LLM provider config | 1.5 |
 | Advanced RAG pipeline (re-ranking, hybrid search) | 1.5 |
 | Notification service (email, push, webhook) | 2 |

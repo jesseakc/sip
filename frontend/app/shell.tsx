@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { API_BASE } from '@/lib/api';
 import {
   LayoutDashboard,
   Package,
@@ -20,27 +21,110 @@ import {
   Calendar,
   ClipboardCheck,
   Wrench,
+  type LucideIcon,
 } from 'lucide-react';
 
-const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/assets', label: 'Assets', icon: Package },
-  { href: '/work-orders', label: 'Work Orders', icon: ClipboardList },
-  { href: '/schedules', label: 'Schedules', icon: Calendar },
-  { href: '/inspections', label: 'Inspections', icon: ClipboardCheck },
-  { href: '/parts', label: 'Parts', icon: Wrench },
-  { href: '/ai-chat', label: 'AI Chat', icon: MessageSquare },
-  { href: '/locations', label: 'Locations', icon: MapPin },
-  { href: '/teams', label: 'Teams', icon: Users },
-  { href: '/users', label: 'Users', icon: User },
-  { href: '/documents', label: 'Documents', icon: FileText },
-  { href: '/settings', label: 'Settings', icon: Settings },
+// ─── Hardcoded fallback navigation (used when API is unavailable) ──────────────
+const FALLBACK_NAV_ITEMS = [
+  { id: 'dashboard', label: 'Dashboard', href: '/', icon: 'layout-dashboard' },
+  { id: 'assets', label: 'Assets', href: '/assets', icon: 'packages' },
+  { id: 'work-orders', label: 'Work Orders', href: '/work-orders', icon: 'clipboard-list' },
+  { id: 'schedules', label: 'Schedules', href: '/schedules', icon: 'calendar' },
+  { id: 'inspections', label: 'Inspections', href: '/inspections', icon: 'clipboard-check' },
+  { id: 'parts', label: 'Parts', href: '/parts', icon: 'wrench' },
+  { id: 'ai-chat', label: 'AI Chat', href: '/ai-chat', icon: 'message-square' },
+  { id: 'locations', label: 'Locations', href: '/locations', icon: 'map-pin' },
+  { id: 'teams', label: 'Teams', href: '/teams', icon: 'users' },
+  { id: 'users', label: 'Users', href: '/users', icon: 'user' },
+  { id: 'documents', label: 'Documents', href: '/documents', icon: 'file-text' },
+  { id: 'settings', label: 'Settings', href: '/settings', icon: 'settings' },
 ];
+
+// ─── Icon name → Lucide component mapping ─────────────────────────────────────
+const ICON_MAP: Record<string, LucideIcon> = {
+  'layout-dashboard': LayoutDashboard,
+  'packages': Package,
+  'package': Package,
+  'boxes': Package,
+  'clipboard-list': ClipboardList,
+  'calendar': Calendar,
+  'clipboard-check': ClipboardCheck,
+  'wrench': Wrench,
+  'message-square': MessageSquare,
+  'map-pin': MapPin,
+  'users': Users,
+  'user': User,
+  'file-text': FileText,
+  'settings': Settings,
+};
+
+function resolveIcon(iconName: string | null | undefined): LucideIcon {
+  if (!iconName) return LayoutDashboard;
+  return ICON_MAP[iconName] || LayoutDashboard;
+}
+
+// ─── API NavItem type ──────────────────────────────────────────────────────────
+interface ApiNavItem {
+  id: string;
+  label: string;
+  path: string;
+  icon?: string | null;
+  permission?: string | null;
+  order?: number | null;
+}
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [navItems, setNavItems] = useState(FALLBACK_NAV_ITEMS);
+  const [navLoading, setNavLoading] = useState(true);
   const pathname = usePathname();
   const { user, logout } = useAuth();
+
+  // Fetch navigation from the API when the user is authenticated.
+  // Falls back to FALLBACK_NAV_ITEMS if the request fails or times out.
+  useEffect(() => {
+    if (!user) {
+      setNavLoading(false);
+      return;
+    }
+
+    const token = localStorage.getItem('sip_token');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    fetch(`${API_BASE}/ui/navigation`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: controller.signal,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((json) => {
+        const data = json?.data;
+        if (Array.isArray(data) && data.length > 0) {
+          // Convert API response to the format expected by the renderer
+          const items = data.map((item: ApiNavItem) => ({
+            id: item.id,
+            label: item.label,
+            href: item.path,
+            icon: item.icon || 'layout-dashboard',
+          }));
+          setNavItems(items);
+        }
+        setNavLoading(false);
+      })
+      .catch(() => {
+        // API unavailable — fall back to defaults
+        setNavLoading(false);
+      })
+      .finally(() => clearTimeout(timeout));
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [user]);
 
   if (pathname === '/login') {
     return <>{children}</>;
@@ -73,14 +157,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="p-4 space-y-1">
           {navItems.map((item) => {
-            const Icon = item.icon;
+            const Icon = resolveIcon(item.icon);
             const isActive =
               item.href === '/'
                 ? pathname === '/'
                 : pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link
-                key={item.href}
+                key={item.id}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium ${

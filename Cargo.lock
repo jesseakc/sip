@@ -2240,6 +2240,7 @@ dependencies = [
  "sip-domain",
  "sip-infrastructure",
  "sip-observability",
+ "sip-plugins",
  "sip-scheduler",
  "sip-tenancy",
  "sqlx",
@@ -2408,9 +2409,13 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "sip-config",
  "sip-domain",
  "sip-tenancy",
  "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
 ]
 
 [[package]]

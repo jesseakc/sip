@@ -42,5 +42,6 @@ sip-config = { workspace = true }
 sip-ai = { workspace = true }
 sip-domain = { workspace = true }
 sip-infrastructure = { workspace = true }
+sip-plugins = { workspace = true }
 sip-scheduler = { workspace = true }
 tokio-stream = { workspace = true }

@@ -9,15 +9,18 @@ use axum::{
 use sip_infrastructure::db::create_pool;
 use sip_observability::init_tracing;
 use sip_config::{AppConfig, load_config, validate_config, config_status, apply_backward_compat};
+use sip_plugins::PluginRegistry;
 use sip_scheduler::CronEngine;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 use tower_http::cors::CorsLayer;
 use sqlx::PgPool;
 
 pub struct AppState {
     pub pool: PgPool,
     pub config: AppConfig,
+    pub plugin_registry: RwLock<PluginRegistry>,
 }
 
 async fn capabilities_handler(
@@ -77,6 +80,71 @@ async fn config_status_handler(
     }))
 }
 
+/// Register a default set of navigation items for the first-party UI.
+/// Used when the TOML manifest is unavailable (plugin system disabled or file missing).
+fn register_default_navigation(registry: &mut PluginRegistry) {
+    use sip_plugins::manifest::*;
+
+    let manifest = PluginManifest {
+        id: "sip-core-ui".into(),
+        name: "SIP Core UI".into(),
+        version: "0.1.0".into(),
+        description: Some("Official first-party web interface (embedded default).".into()),
+        author: Some("SIP Project".into()),
+        license: Some("AGPL-3.0-or-later".into()),
+        sip_version: "0.1.0".into(),
+        plugin_type: PluginType::Ui,
+        enabled_by_default: true,
+        ui: Some(UiConfig {
+            kind: UiKind::Web,
+            framework: Some(UiFramework::Nextjs),
+            entrypoint: Some("/".into()),
+            dev_url: Some("http://localhost:3000".into()),
+            production_mount: Some("/".into()),
+            api_base_env: Some("NEXT_PUBLIC_API_URL".into()),
+        }),
+        navigation: vec![
+            nav_item("dashboard", "Dashboard", "/", "layout-dashboard", "dashboard:read", 10),
+            nav_item("assets", "Assets", "/assets", "packages", "assets:read", 20),
+            nav_item("work-orders", "Work Orders", "/work-orders", "clipboard-list", "work_orders:read", 30),
+            nav_item("schedules", "Schedules", "/schedules", "calendar", "schedules:read", 40),
+            nav_item("inspections", "Inspections", "/inspections", "clipboard-check", "inspections:read", 50),
+            nav_item("parts", "Parts", "/parts", "wrench", "parts:read", 60),
+            nav_item("ai-chat", "AI Chat", "/ai-chat", "message-square", "ai:query", 70),
+            nav_item("locations", "Locations", "/locations", "map-pin", "locations:read", 80),
+            nav_item("teams", "Teams", "/teams", "users", "teams:read", 90),
+            nav_item("users", "Users", "/users", "user", "users:read", 100),
+            nav_item("documents", "Documents", "/documents", "file-text", "documents:read", 110),
+            nav_item("settings", "Settings", "/settings", "settings", "org:manage", 120),
+        ],
+        ..Default::default()
+    };
+
+    registry.register(manifest);
+}
+
+fn nav_item(id: &str, label: &str, path: &str, icon: &str, permission: &str, order: i32) -> sip_plugins::manifest::NavigationItem {
+    sip_plugins::manifest::NavigationItem {
+        id: id.into(),
+        label: label.into(),
+        path: path.into(),
+        icon: Some(icon.into()),
+        permission: Some(permission.into()),
+        order: Some(order),
+        feature_flag: None,
+        children: vec![],
+    }
+}
+
+#[cfg(not(feature = "plugins"))]
+async fn ui_navigation_handler_no_plugins(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> axum::Json<serde_json::Value> {
+    let registry = state.plugin_registry.read().await;
+    let nav = registry.aggregate_navigation();
+    axum::Json(serde_json::json!({ "data": nav }))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _ = init_tracing();
@@ -117,9 +185,41 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|| std::env::var("SIP_DATABASE_URL").unwrap_or_default());
     let pool = create_pool(&db_url).await?;
 
+    // Initialize plugin registry
+    let plugin_dir = std::env::var("SIP_PLUGIN_DIR").unwrap_or_else(|_| "plugins".to_string());
+    let mut plugin_registry = PluginRegistry::new(&plugin_dir);
+
+    // Load built-in sip-core-ui manifest if the plugin system is enabled
+    if config.features.plugin_system_enabled {
+        // Try loading from plugins directory
+        if let Err(e) = plugin_registry.load_all().await {
+            tracing::warn!("Failed to load plugins from {}: {:?}", plugin_dir, e);
+        }
+
+        // Always register the first-party sip-core-ui plugin
+        // (load manifest embedded or from file)
+        match sip_plugins::registry::load_manifest_from_file(
+            std::path::Path::new("plugins/sip-core-ui/plugin.toml")
+        ) {
+            Ok(manifest) => {
+                tracing::info!("Registered plugin: {} v{}", manifest.id, manifest.version);
+                plugin_registry.register(manifest);
+            }
+            Err(e) => {
+                // Fall back to embedded default navigation if TOML file is missing
+                tracing::warn!("Could not load plugins/sip-core-ui/plugin.toml: {}. Using embedded defaults.", e);
+                register_default_navigation(&mut plugin_registry);
+            }
+        }
+    } else {
+        // Plugin system disabled — still register default navigation for the first-party UI
+        register_default_navigation(&mut plugin_registry);
+    }
+
     let state = Arc::new(AppState {
         pool: pool.clone(),
         config: config.clone(),
+        plugin_registry: RwLock::new(plugin_registry),
     });
 
     let public = Router::new()
@@ -149,6 +249,22 @@ async fn main() -> anyhow::Result<()> {
                 }
             }))
         }));
+
+    // Plugin discovery endpoints (public, no auth needed)
+    #[cfg(feature = "plugins")]
+    let public = public
+        .route("/api/v1/plugins", get(routes::plugins::list_plugins))
+        .route("/api/v1/plugins/enabled", get(routes::plugins::list_enabled_plugins))
+        .route("/api/v1/plugins/:plugin_id", get(routes::plugins::get_plugin))
+        .route("/api/v1/ui/plugins", get(routes::plugins::list_ui_plugins))
+        .route("/api/v1/ui/capabilities", get(routes::plugins::get_ui_capabilities))
+        .route("/api/v1/ui/extension-points", get(routes::plugins::get_extension_points))
+        .route("/api/v1/ui/navigation", get(routes::plugins::get_ui_navigation));
+
+    // Navigation endpoint always available (without plugins feature, falls back to embedded defaults)
+    #[cfg(not(feature = "plugins"))]
+    let public = public
+        .route("/api/v1/ui/navigation", get(ui_navigation_handler_no_plugins));
 
     let mut protected = Router::new()
         .route("/api/v1/auth/logout", post(routes::auth::logout))
