@@ -150,7 +150,7 @@ SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs t
 | **Database** | PostgreSQL 16 + pgvector | Operational truth, vector search, RLS |
 | **Vector Search** | pgvector (HNSW) | Semantic similarity over WO notes, document chunks |
 | **Graph** | Recursive CTEs + ltree | Asset hierarchy, location paths |
-| **AI** | Ollama (default) | Local LLM with structured RAG pipeline |
+| **AI** | Ollama / OpenAI / Anthropic / Bedrock | Provider abstraction via LLM provider trait |
 | **Cache** | Redis/Valkey | Session store, rate limiting |
 | **Object Storage** | MinIO (self-hosted) | Document uploads, extracted text |
 | **Deployment** | Docker Compose | 6 containers, single `docker compose up` |
@@ -194,7 +194,64 @@ docker compose up --build
 | `postgres` | 5432 | PostgreSQL 16 + pgvector + postgis + ltree + pg_trgm |
 | `redis` | 6379 | Redis 7 (Valkey) |
 | `minio` | 9000/9001 | S3-compatible object storage |
-| `ollama` | 11434 | Local LLM (default: `llama3.1:8b`) |
+| `ollama` | 11434 | Local LLM (default: `llama3.1:8b`) — optional if using hosted provider |
+
+### Running Without Ollama (Hosted LLM or AI Disabled)
+
+**1. AI Disabled Mode** — SIP works without any LLM:
+```bash
+SIP_AI_ENABLED=false SIP_AI_PROVIDER=disabled docker compose up
+```
+Or in `.env`:
+```env
+SIP_AI_ENABLED=false
+SIP_AI_PROVIDER=disabled
+```
+Then: `docker compose up` (the ollama service will not start without `--profile ollama`).
+
+**2. Hosted OpenAI Mode** — Use OpenAI instead of local Ollama:
+```env
+SIP_AI_ENABLED=true
+SIP_AI_PROVIDER=openai
+SIP_AI_OPENAI_API_KEY=sk-your-key-here
+SIP_AI_OPENAI_MODEL=gpt-4o
+```
+Then: `docker compose up` (ollama is unused; omit `--profile ollama`).
+
+**3. Local Ollama (default demo mode)**:
+```bash
+docker compose --profile ollama up
+```
+
+### Configuration Reference
+
+SIP uses a layered configuration system with this precedence:
+1. **Hardcoded safe defaults** (in `sip-config/src/lib.rs`)
+2. **`Sip.toml`** (optional, placed in the working directory)
+3. **`SIP_` prefixed environment variables** (highest precedence)
+
+All environment variables use the `SIP_` prefix. Nested config uses underscores:
+`SIP_AI_OLLAMA_URL` maps to `ai.ollama.url`.
+
+Key configuration sections:
+
+| Section | Purpose | Key Variables |
+|---------|---------|---------------|
+| `SIP_ENV` | Deployment profile | `local`, `development`, `test`, `staging`, `production` |
+| `SIP_DATABASE_URL` | PostgreSQL connection | Required |
+| `SIP_REDIS_URL` | Redis connection | Optional (caching, rate limiting) |
+| `SIP_OBJECT_STORAGE_*` | MinIO/S3 | Required for document ingestion |
+| `SIP_AUTH_JWT_SECRET` | JWT signing key | Required (min 32 chars in prod) |
+| `SIP_AI_*` | LLM provider config | See `.env.example` for full reference |
+| `SIP_FEATURES_*` | Feature flags | Enable/disable capabilities at runtime |
+
+**Backward compatibility**: The old flat env vars `SIP_OLLAMA_URL` and `SIP_OLLAMA_MODEL` still work and are automatically mapped to `SIP_AI_OLLAMA_URL` / `SIP_AI_OLLAMA_MODEL`.
+
+**Config inspection** (development/local only):
+```bash
+curl http://localhost:8000/admin/config/status -H "Authorization: Bearer <token>"
+```
+Shows active environment, AI provider, enabled features, validation status, and redacted config — never exposes secrets.
 
 ---
 

@@ -8,7 +8,7 @@ use axum::{
 };
 use sip_infrastructure::db::create_pool;
 use sip_observability::init_tracing;
-use sip_config::load_config;
+use sip_config::{AppConfig, load_config, validate_config, config_status, apply_backward_compat};
 use sip_scheduler::CronEngine;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -17,32 +17,63 @@ use sqlx::PgPool;
 
 pub struct AppState {
     pub pool: PgPool,
-    pub jwt_secret: String,
-    pub jwt_expiration: u64,
-    pub refresh_expiration: u64,
-    pub ollama_url: String,
-    pub ollama_model: String,
+    pub config: AppConfig,
 }
 
-async fn capabilities_handler() -> axum::Json<serde_json::Value> {
+async fn capabilities_handler(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> axum::Json<serde_json::Value> {
+    let cfg = &state.config;
+    let ai_available = cfg.ai.enabled && cfg.features.ai_chat_enabled && cfg!(feature = "ai");
+
+    let model_name = match cfg.ai.provider {
+        sip_config::LlmProviderType::Ollama => Some(cfg.ai.ollama.model.clone()),
+        sip_config::LlmProviderType::OpenAI => cfg.ai.openai.as_ref().map(|o| o.model.clone()),
+        sip_config::LlmProviderType::Anthropic => cfg.ai.anthropic.as_ref().map(|a| a.model.clone()),
+        sip_config::LlmProviderType::OpenRouter => cfg.ai.openrouter.as_ref().map(|o| o.model.clone()),
+        sip_config::LlmProviderType::AzureOpenAI => cfg.ai.azure_openai.as_ref().map(|a| a.deployment.clone()),
+        sip_config::LlmProviderType::Bedrock => cfg.ai.bedrock.as_ref().map(|b| b.model_id.clone()),
+        sip_config::LlmProviderType::CustomHttp => cfg.ai.custom_http.as_ref().map(|c| c.model.clone()),
+        sip_config::LlmProviderType::Disabled => None,
+    };
+
     axum::Json(serde_json::json!({
         "data": {
+            "version": "0.1.0",
+            "env": cfg.env.to_string(),
             "features": {
                 "assets": true,
                 "work_orders": true,
-                "ai_chat": cfg!(feature = "ai"),
-                "documents": cfg!(feature = "documents"),
+                "ai_chat": ai_available,
+                "ai_enabled": cfg.ai.enabled,
+                "documents": cfg.features.document_ingestion_enabled && cfg!(feature = "documents"),
                 "export": cfg!(feature = "export"),
-                "plugins": cfg!(feature = "plugins"),
+                "plugins": cfg.features.plugin_system_enabled && cfg!(feature = "plugins"),
+                "rag": cfg.features.rag_enabled,
+                "semantic_search": cfg.features.semantic_search_enabled,
+                "graph": cfg.features.graph_enabled,
+                "dispatch": cfg.features.dispatch_enabled,
+                "parts_inventory": cfg.features.parts_inventory_enabled,
             },
             "ai": {
-                "enabled": cfg!(feature = "ai"),
-                "models": if cfg!(feature = "ai") { vec!["llama3.1:8b"] } else { vec![] as Vec<&str> }
+                "enabled": cfg.ai.enabled,
+                "provider": cfg.ai.provider.to_string(),
+                "model": model_name,
+                "models": if ai_available { vec![model_name.unwrap_or_else(|| "unknown".into())] } else { vec![] as Vec<String> }
             },
             "plugins": {
-                "enabled": cfg!(feature = "plugins")
+                "enabled": cfg.features.plugin_system_enabled && cfg!(feature = "plugins")
             }
         }
+    }))
+}
+
+async fn config_status_handler(
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+) -> axum::Json<serde_json::Value> {
+    let status = config_status(&state.config);
+    axum::Json(serde_json::json!({
+        "data": status
     }))
 }
 
@@ -50,16 +81,45 @@ async fn capabilities_handler() -> axum::Json<serde_json::Value> {
 async fn main() -> anyhow::Result<()> {
     let _ = init_tracing();
 
-    let config = load_config().map_err(|e| anyhow::anyhow!("Config load error: {}", e))?;
-    let pool = create_pool(&config.database_url).await?;
+    let mut config = load_config()
+        .map_err(|e| anyhow::anyhow!("Config load error: {}", e))?;
+
+    // Apply backward compatibility for old flat env vars
+    apply_backward_compat(&mut config);
+
+    // Validate config
+    let validation = validate_config(&config);
+    if !validation.errors.is_empty() {
+        for e in &validation.errors {
+            tracing::error!("Config validation error: {}", e);
+        }
+        if config.env.is_strict() {
+            anyhow::bail!("Configuration errors detected in {} mode:\n{}",
+                config.env, validation);
+        }
+    }
+    for w in &validation.warnings {
+        tracing::warn!("Config warning: {}", w);
+    }
+
+    tracing::info!(
+        "Starting SIP in {} mode. AI: {} (provider: {}, model: {})",
+        config.env,
+        if config.ai.enabled { "enabled" } else { "disabled" },
+        config.ai.provider,
+        if config.ai.provider == sip_config::LlmProviderType::Ollama { config.ai.ollama.model.as_str() }
+        else if config.ai.provider == sip_config::LlmProviderType::OpenAI { config.ai.openai.as_ref().map(|o| o.model.as_str()).unwrap_or("unknown") }
+        else { "unknown" }
+    );
+
+    let db_url = config.database.as_ref()
+        .map(|d| d.url.clone())
+        .unwrap_or_else(|| std::env::var("SIP_DATABASE_URL").unwrap_or_default());
+    let pool = create_pool(&db_url).await?;
 
     let state = Arc::new(AppState {
         pool: pool.clone(),
-        jwt_secret: config.jwt_secret.clone(),
-        jwt_expiration: config.jwt_expiration_seconds,
-        refresh_expiration: config.refresh_expiration_seconds,
-        ollama_url: config.ollama_url.clone(),
-        ollama_model: config.ollama_model.clone(),
+        config: config.clone(),
     });
 
     let public = Router::new()
@@ -82,6 +142,7 @@ async fn main() -> anyhow::Result<()> {
                 "endpoints": {
                     "health": "/api/v1/health",
                     "capabilities": "/api/v1/capabilities",
+                    "config_status": "/admin/config/status"
                 },
                 "links": {
                     "openapi": "/docs/openapi.yaml",
@@ -159,13 +220,21 @@ async fn main() -> anyhow::Result<()> {
 
     #[cfg(feature = "ai")]
     {
-        protected = protected
-            .route("/api/v1/ai/chat", post(routes::ai::chat))
-            .route("/api/v1/ai/conversations", get(routes::ai_conversations::list_conversations))
-            .route("/api/v1/ai/conversations/:id", get(routes::ai_conversations::get_conversation))
-            .route("/api/v1/ai/messages/:id/retrieval-trace", get(routes::ai_conversations::get_retrieval_trace))
-            .route("/api/v1/ai/messages/:id/verification-trace", get(routes::ai_conversations::get_verification_trace))
-            .route("/api/v1/ai/messages/:id/feedback", post(routes::ai_conversations::submit_feedback));
+        // Only register AI routes if feature flag for AI chat is enabled in config
+        if state.config.features.ai_chat_enabled {
+            protected = protected
+                .route("/api/v1/ai/chat", post(routes::ai::chat))
+                .route("/api/v1/ai/conversations", get(routes::ai_conversations::list_conversations))
+                .route("/api/v1/ai/conversations/:id", get(routes::ai_conversations::get_conversation))
+                .route("/api/v1/ai/messages/:id/retrieval-trace", get(routes::ai_conversations::get_retrieval_trace))
+                .route("/api/v1/ai/messages/:id/verification-trace", get(routes::ai_conversations::get_verification_trace))
+                .route("/api/v1/ai/messages/:id/feedback", post(routes::ai_conversations::submit_feedback));
+        }
+    }
+
+    // Config inspection endpoint — only in non-production environments
+    if !state.config.env.is_production() {
+        protected = protected.route("/admin/config/status", get(config_status_handler));
     }
 
     protected = protected
@@ -180,7 +249,7 @@ async fn main() -> anyhow::Result<()> {
     let cron_engine = CronEngine::new(pool.clone());
     let _cron_handle = cron_engine.start();
 
-    let addr: SocketAddr = format!("{}:{}", config.server_host, config.server_port).parse()?;
+    let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port).parse()?;
     tracing::info!("SIP API listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

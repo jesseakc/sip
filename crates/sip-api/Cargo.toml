@@ -39,6 +39,7 @@ sip-auth = { workspace = true }
 sip-tenancy = { workspace = true }
 sip-observability = { workspace = true }
 sip-config = { workspace = true }
+sip-ai = { workspace = true }
 sip-domain = { workspace = true }
 sip-infrastructure = { workspace = true }
 sip-scheduler = { workspace = true }

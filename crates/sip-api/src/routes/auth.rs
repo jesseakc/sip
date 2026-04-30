@@ -28,9 +28,9 @@ pub async fn login(
 ) -> Result<Json<LoginResponse>, (StatusCode, Json<serde_json::Value>)> {
     let auth = AuthService::new(
         state.pool.clone(),
-        state.jwt_secret.clone(),
-        state.jwt_expiration,
-        state.refresh_expiration,
+        state.config.auth.as_ref().map(|a| a.jwt_secret.clone()).unwrap_or_default(),
+        state.config.auth.as_ref().map(|a| a.jwt_expiration_seconds).unwrap_or(900),
+        state.config.auth.as_ref().map(|a| a.refresh_expiration_seconds).unwrap_or(604800),
     );
     match auth.login(&req.email, &req.password).await {
         Ok((token, refresh)) => Ok(Json(LoginResponse { token, refresh_token: refresh })),
@@ -49,9 +49,9 @@ pub async fn refresh(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let auth = AuthService::new(
         state.pool.clone(),
-        state.jwt_secret.clone(),
-        state.jwt_expiration,
-        state.refresh_expiration,
+        state.config.auth.as_ref().map(|a| a.jwt_secret.clone()).unwrap_or_default(),
+        state.config.auth.as_ref().map(|a| a.jwt_expiration_seconds).unwrap_or(900),
+        state.config.auth.as_ref().map(|a| a.refresh_expiration_seconds).unwrap_or(604800),
     );
     match auth.refresh(&req.refresh_token).await {
         Ok(token) => Ok(Json(json!({"data": {"token": token}}))),

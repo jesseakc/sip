@@ -12,7 +12,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
+reqwest = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true }
+futures = "0.3"
 
 sip-domain = { workspace = true }
 sip-tenancy = { workspace = true }
 sip-auth = { workspace = true }
+sip-config = { workspace = true }

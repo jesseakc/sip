@@ -1,5 +1,6 @@
 use chrono::{Utc, Datelike};
 use serde::Serialize;
+use sip_ai::{CompletionOptions, LlmProvider};
 use sip_auth::{encode_jwt, decode_jwt, Claims, verify_password};
 use sip_domain::{
     entity::activity::{Activity, ActivitySource},
@@ -27,7 +28,7 @@ use sip_infrastructure::repositories::{PgAIConversationRepository, PgActivityRep
 use sip_tenancy::set_rls_org_pool;
 use sqlx::PgPool;
 use std::str::FromStr;
-use tokio_stream::StreamExt;
+use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct AuthService {
@@ -736,14 +737,13 @@ struct EntityReference {
 }
 
 pub struct AIService {
-    ollama_url: String,
-    ollama_model: String,
+    provider: Arc<dyn LlmProvider>,
     pool: PgPool,
 }
 
 impl AIService {
-    pub fn new(ollama_url: String, ollama_model: String, pool: PgPool) -> Self {
-        Self { ollama_url, ollama_model, pool }
+    pub fn new(provider: Box<dyn LlmProvider>, pool: PgPool) -> Self {
+        Self { provider: Arc::from(provider), pool }
     }
 
     pub async fn chat_stream(
@@ -755,9 +755,8 @@ impl AIService {
         ctx.require_permission("ai:query")?;
         let ctx = ctx.clone();
         let message = message.to_string();
-        let ollama_url = self.ollama_url.clone();
-        let ollama_model = self.ollama_model.clone();
         let pool = self.pool.clone();
+        let provider = self.provider.clone();
 
         let (conversation_id, context, records_queried, retrieval_paths) =
             self.setup_chat(&ctx, &message, conversation_id).await?;
@@ -772,8 +771,7 @@ impl AIService {
                 context,
                 records_queried,
                 retrieval_paths,
-                &ollama_url,
-                &ollama_model,
+                provider,
                 &pool,
                 tx.clone(),
             )
@@ -1397,8 +1395,7 @@ impl AIService {
         context: String,
         records_queried: usize,
         retrieval_paths: Vec<String>,
-        ollama_url: &str,
-        ollama_model: &str,
+        provider: Arc<dyn LlmProvider>,
         pool: &PgPool,
         tx: tokio::sync::mpsc::UnboundedSender<AIStreamEvent>,
     ) -> Result<(), SipError> {
@@ -1418,10 +1415,12 @@ impl AIService {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let prompt = format!(
-            r#"You are a maintenance intelligence assistant for the SIP platform. Answer based ONLY on the context provided below. If the information is not in the context, say "I don't have enough information to answer that question." Do not fabricate.
+        let system_prompt = format!(
+            r#"You are a maintenance intelligence assistant for the SIP platform. Answer based ONLY on the context provided below. If the information is not in the context, say "I don't have enough information to answer that question." Do not fabricate."#
+        );
 
-CONVERSATION HISTORY:
+        let user_prompt = format!(
+            r#"CONVERSATION HISTORY:
 {history}
 
 CONTEXT:
@@ -1466,49 +1465,31 @@ Respond with valid JSON in this exact format:
             message = message,
         );
 
-        let client = reqwest::Client::new();
-        let response = client
-            .post(format!("{}/api/generate", ollama_url))
-            .json(&serde_json::json!({
-                "model": ollama_model,
-                "prompt": prompt,
-                "stream": true,
-                "format": "json"
-            }))
-            .send()
-            .await
-            .map_err(|e| SipError::Validation(format!("Ollama request failed: {}", e)))?;
+        let options = CompletionOptions {
+            temperature: 0.2,
+            max_tokens: 4096,
+            stream: true,
+        };
 
-        let mut stream = response.bytes_stream();
+        let mut chunk_rx = match provider.complete_stream(&system_prompt, &user_prompt, &options).await {
+            Ok(rx) => rx,
+            Err(e) => {
+                let _ = tx.send(AIStreamEvent::Error { message: e.to_string() });
+                return Err(SipError::Validation(e.to_string()));
+            }
+        };
+
         let mut full_answer = String::new();
-        let mut buffer = String::new();
 
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|e| SipError::Validation(format!("Stream error: {}", e)))?;
-            buffer.push_str(&String::from_utf8_lossy(&chunk));
-
-            while let Some(pos) = buffer.find('\n') {
-                let line = buffer[..pos].trim().to_string();
-                buffer = buffer[pos + 1..].to_string();
-
-                if line.is_empty() {
-                    continue;
+        while let Some(chunk_result) = chunk_rx.recv().await {
+            match chunk_result {
+                Ok(text) => {
+                    full_answer.push_str(&text);
+                    let _ = tx.send(AIStreamEvent::Chunk { text });
                 }
-
-                let parsed: serde_json::Value = match serde_json::from_str(&line) {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
-
-                if let Some(response_text) = parsed.get("response").and_then(|v| v.as_str()) {
-                    full_answer.push_str(response_text);
-                    let _ = tx.send(AIStreamEvent::Chunk {
-                        text: response_text.to_string(),
-                    });
-                }
-
-                if parsed.get("done").and_then(|v| v.as_bool()).unwrap_or(false) {
-                    break;
+                Err(e) => {
+                    let _ = tx.send(AIStreamEvent::Error { message: e.to_string() });
+                    return Err(SipError::Validation(e.to_string()));
                 }
             }
         }
@@ -1654,27 +1635,15 @@ Respond with valid JSON in this exact format:
     }
 
     pub async fn embed(&self, text: &str) -> Result<Vec<f32>, SipError> {
-        let client = reqwest::Client::new();
-        let response = client
-            .post(format!("{}/api/embeddings", self.ollama_url))
-            .json(&serde_json::json!({
-                "model": "nomic-embed-text",
-                "prompt": text,
-            }))
-            .send()
+        let embeddings = self
+            .provider
+            .embed(&[text.to_string()])
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
-        let body: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
-        let embedding: Vec<f32> = body["embedding"]
-            .as_array()
-            .ok_or(SipError::Validation("No embedding in response".into()))?
-            .iter()
-            .filter_map(|v| v.as_f64().map(|f| f as f32))
-            .collect();
-        Ok(embedding)
+        embeddings
+            .into_iter()
+            .next()
+            .ok_or_else(|| SipError::Validation("No embedding returned".into()))
     }
 
     pub async fn vector_search(&self, ctx: &TenantContext, query: &str) -> Vec<Source> {

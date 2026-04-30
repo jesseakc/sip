@@ -25,7 +25,11 @@ pub async fn auth_middleware(
         }
     };
 
-    let claims = match decode_jwt(token, &state.jwt_secret) {
+    let jwt_secret = state.config.auth.as_ref()
+        .map(|a| a.jwt_secret.as_str())
+        .unwrap_or("");
+
+    let claims = match decode_jwt(token, jwt_secret) {
         Ok(c) => c,
         Err(_) => {
             return (StatusCode::UNAUTHORIZED, Json(json!({"error": {"code": "UNAUTHORIZED", "message": "Invalid token"}}))).into_response();

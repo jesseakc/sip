@@ -25,4 +25,6 @@ sip-domain = { workspace = true }
 sip-auth = { workspace = true }
 sip-tenancy = { workspace = true }
 sip-infrastructure = { workspace = true }
+sip-ai = { workspace = true }
+sip-config = { workspace = true }
 tokio-stream = { workspace = true }

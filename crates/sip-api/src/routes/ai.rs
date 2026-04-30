@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
+use sip_ai::create_provider;
 use sip_application::services::AIService;
 use sip_domain::tenant::TenantContext;
 use std::convert::Infallible;
@@ -25,11 +26,8 @@ pub async fn chat(
     Extension(ctx): Extension<TenantContext>,
     axum::extract::Json(req): axum::extract::Json<ChatRequest>,
 ) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, (StatusCode, axum::Json<serde_json::Value>)> {
-    let ai = AIService::new(
-        state.ollama_url.clone(),
-        state.ollama_model.clone(),
-        state.pool.clone(),
-    );
+    let provider = create_provider(&state.config.ai);
+    let ai = AIService::new(provider, state.pool.clone());
 
     match ai.chat_stream(&ctx, &req.message, req.conversation_id).await {
         Ok(rx) => {

@@ -4,6 +4,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sip_ai::create_provider;
 use sip_application::services::AIService;
 use sip_domain::{
     id::{AIConversationId, AIMessageId},
@@ -48,8 +49,7 @@ pub async fn list_conversations(
         }
     };
     let ai = AIService::new(
-        state.ollama_url.clone(),
-        state.ollama_model.clone(),
+        create_provider(&state.config.ai),
         state.pool.clone(),
     );
     match ai.list_conversations(&ctx, user_id).await {
@@ -75,8 +75,7 @@ pub async fn get_conversation(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let conv_id = AIConversationId::from(id);
     let ai = AIService::new(
-        state.ollama_url.clone(),
-        state.ollama_model.clone(),
+        create_provider(&state.config.ai),
         state.pool.clone(),
     );
     match ai.get_conversation(&ctx, conv_id).await {
@@ -113,8 +112,7 @@ pub async fn get_retrieval_trace(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let msg_id = AIMessageId::from(id);
     let ai = AIService::new(
-        state.ollama_url.clone(),
-        state.ollama_model.clone(),
+        create_provider(&state.config.ai),
         state.pool.clone(),
     );
     match ai.get_retrieval_trace(&ctx, msg_id).await {
@@ -145,8 +143,7 @@ pub async fn submit_feedback(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let msg_id = AIMessageId::from(id);
     let ai = AIService::new(
-        state.ollama_url.clone(),
-        state.ollama_model.clone(),
+        create_provider(&state.config.ai),
         state.pool.clone(),
     );
     match ai.submit_feedback(&ctx, msg_id, body.rating, body.comment).await {
