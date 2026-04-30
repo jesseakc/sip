@@ -97,6 +97,7 @@ SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs t
 ## Table of Contents
 
 - [Architecture](#architecture)
+- [Plugin Architecture](#plugin-architecture)
 - [Quick Start](#quick-start)
 - [Demo Login](#demo-login)
 - [MVP Features](#mvp-features)
@@ -181,6 +182,13 @@ curl http://localhost:8000/api/v1/ui/extension-points  # Available extension poi
 ```
 
 **The frontend sidebar is plugin-driven.** On page load, the Next.js shell fetches `/api/v1/ui/navigation` and renders the sidebar from the response. If the API is unavailable, it falls back to an embedded default navigation — so local development works without the backend running.
+
+📖 **Plugin Development Docs:**
+- [Plugin Architecture Overview](./docs/plugins/overview.md)
+- [Manifest Reference](./docs/plugins/manifest-reference.md) — every field in `plugin.toml`
+- [API Reference](./docs/plugins/api-reference.md) — plugin discovery endpoints
+- [Extension Points](./docs/plugins/extension-points.md) — 35 UI injection slots
+- [Examples](./docs/plugins/examples.md) — walkthroughs for common plugin types
 
 ---
 
