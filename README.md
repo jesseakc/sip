@@ -106,6 +106,7 @@ SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs t
 - [Development](#development)
 - [SIPmem — Hybrid Memory System](#sipmem--hybrid-memory-system)
 - [Service Domain Model](#service-domain-model)
+- [Documentation](#documentation)
 - [License](#license)
 
 ---
@@ -169,19 +170,17 @@ SIP supports three plugin types:
 Each plugin is defined by a `plugin.toml` manifest in its own directory under `plugins/`:
 ```
 plugins/
-└── sip-core-ui/
-    └── plugin.toml      # First-party web frontend plugin
+├── sip-core-ui/
+│   └── plugin.toml           # First-party web frontend plugin
+└── sip-migration-studio/
+    ├── plugin.toml            # Hybrid plugin for CRM/CMMS data import
+    ├── docs/                  # Plugin documentation
+    └── examples/              # Sample CSV/JSON import files
 ```
 
-**Plugin discovery** (public API, no auth required):
-```bash
-curl http://localhost:8000/api/v1/plugins           # List all enabled plugins
-curl http://localhost:8000/api/v1/ui/navigation     # Aggregated sidebar navigation
-curl http://localhost:8000/api/v1/ui/plugins        # UI-specific plugin info
-curl http://localhost:8000/api/v1/ui/extension-points  # Available extension points
-```
+### Reference Plugins
 
-**The frontend sidebar is plugin-driven.** On page load, the Next.js shell fetches `/api/v1/ui/navigation` and renders the sidebar from the response. If the API is unavailable, it falls back to an embedded default navigation — so local development works without the backend running.
+**`sip-migration-studio`** — A hybrid plugin that imports customer data from external CRMs and CMMS systems. CSV and JSON file upload with client-side parsing → field mapping wizard → validation → dry run → execute import → rollback. Built on the Migration Core Framework. Consumes the same `/api/v1/migrations/*` API that any plugin can use.
 
 📖 **Plugin Development Docs:**
 - [Plugin Architecture Overview](./docs/plugins/overview.md)
@@ -189,6 +188,13 @@ curl http://localhost:8000/api/v1/ui/extension-points  # Available extension poi
 - [API Reference](./docs/plugins/api-reference.md) — plugin discovery endpoints
 - [Extension Points](./docs/plugins/extension-points.md) — 35 UI injection slots
 - [Examples](./docs/plugins/examples.md) — walkthroughs for common plugin types
+
+📖 **Migration Docs:**
+- [Migration API Reference](./docs/migrations/api-reference.md)
+- [External ID Mapping](./docs/migrations/external-id-mapping.md)
+- [Migration Studio Plugin](./plugins/sip-migration-studio/README.md)
+
+📖 **Implementation Tracker:** [PROGRESS.md](./docs/PROGRESS.md) — full PRD implementation status
 
 ---
 
@@ -815,6 +821,27 @@ cargo build -p sip-api --no-default-features --features "ai,export"
 Every tenant-owned table has RLS enabled with `organization_id = current_org_id()` policies. The `set_rls_org_pool` helper sets the session variable before each query.
 
 ---
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [PROGRESS.md](./docs/PROGRESS.md) | Full PRD implementation tracker |
+| [PRD-v2.md](./docs/PRD-v2.md) | Product Requirements Document v5.7 |
+| [openapi.yaml](./docs/openapi.yaml) | OpenAPI 3.0 specification |
+| **Plugin Engine** | |
+| [Plugin Overview](./docs/plugins/overview.md) | Plugin architecture, lifecycle, types |
+| [Manifest Reference](./docs/plugins/manifest-reference.md) | Complete `plugin.toml` field reference |
+| [Extension Points](./docs/plugins/extension-points.md) | 35 UI injection slots + 8 migration slots |
+| [Plugin Examples](./docs/plugins/examples.md) | 5 walkthroughs for common plugin types |
+| [Plugin API](./docs/plugins/api-reference.md) | Plugin discovery REST endpoints |
+| **Migration** | |
+| [Migration Overview](./docs/migrations/overview.md) | Migration Core Framework overview |
+| [Migration API](./docs/migrations/api-reference.md) | Migration REST endpoints |
+| [External ID Mapping](./docs/migrations/external-id-mapping.md) | Source→SIP traceability |
+| [Migration Studio](./plugins/sip-migration-studio/README.md) | Reference hybrid import plugin |
 
 ## License
 
