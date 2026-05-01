@@ -6,6 +6,10 @@
 </p>
 
 <p align="center">
+  <em>Part CMMS, part asset CRM, part agent-ready operational memory, and part Harness-as-a-Service for the physical world.</em>
+</p>
+
+<p align="center">
   <a href="#quick-start"><img src="https://img.shields.io/badge/docker-compose_up_→_running-blue" /></a>
   <a href="#demo-login"><img src="https://img.shields.io/badge/demo-login_here-lightgrey" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-green" /></a>
@@ -32,6 +36,8 @@ SIP exists to make service intelligence structured, permission-safe, source-grou
 ## Why SIP Is the Future
 
 **SIP** is an open-source, AI-native **CMMS and asset CRM** designed from first principles for the age of LLMs and AI agents.
+
+SIP is also designed as **Harness-as-a-Service**: a structured, permission-aware operational harness that lets AI agents and external systems safely interact with real-world service data, assets, documents, workflows, and actions. Instead of bolting AI onto a legacy CMMS, SIP gives AI a reliable harness built directly into the platform.
 
 ### Machine-readable before human-readable
 
@@ -159,6 +165,8 @@ When a technician writes "replaced bearing, found inner race spalling due to con
 └──────────────────────────────────────────────────────────────┘
 ```
 
+The SIP architecture treats the platform as a **harness layer** between humans, AI agents, plugins, documents, databases, APIs, and physical assets. This Harness-as-a-Service model makes service workflows observable, auditable, extensible, and safe for both human operators and AI-driven systems.
+
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
 | **Backend** | Rust (Axum, Tokio, SQLx) | API server, domain logic, auth, scheduling |
@@ -175,6 +183,8 @@ When a technician writes "replaced bearing, found inner race spalling due to con
 ### Plugin Architecture
 
 **The official SIP frontend is itself a UI plugin.** It is not a hardcoded special case — it ships as `sip-core-ui`, registered and discovered through the same plugin framework that future plugins will use.
+
+Plugins should extend SIP's **Harness-as-a-Service model** rather than bypass it. Functional plugins, UI plugins, migration plugins, automation plugins, and AI plugins all interact through documented APIs, shared permissions, event logs, and auditable service workflows. No plugin gets a back door.
 
 SIP supports three plugin types:
 - **UI plugins** — contribute navigation, routes, dashboards, forms, and extension points
@@ -735,6 +745,8 @@ Questions are classified into 7 types and routed to appropriate memory layers:
 ---
 
 ## Development
+
+For developers, SIP provides the **harness**: canonical service objects, permissioned APIs, event-driven workflows, structured memory, plugin boundaries, and documentation patterns. Build new interfaces, automations, integrations, and AI capabilities without rebuilding the service intelligence foundation from scratch.
 
 ### Rust Backend
 
