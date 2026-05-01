@@ -107,8 +107,8 @@ services:
       # AI — default to Ollama for demo mode
       # Set SIP_AI_ENABLED=false to disable AI entirely
       # Set SIP_AI_PROVIDER=openai and SIP_AI_OPENAI_API_KEY=... for hosted mode
-      SIP_AI_ENABLED: ${SIP_AI_ENABLED:-true}
-      SIP_AI_PROVIDER: ${SIP_AI_PROVIDER:-ollama}
+      SIP_AI_ENABLED: ${SIP_AI_ENABLED:-false}
+      SIP_AI_PROVIDER: ${SIP_AI_PROVIDER:-disabled}
       SIP_AI_OLLAMA_URL: http://ollama:11434
       SIP_AI_OLLAMA_MODEL: ${SIP_OLLAMA_MODEL:-llama3.1:8b}
     depends_on:
@@ -130,9 +130,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
-    command: sh -c "sqlx migrate run --database-url $$SIP_DATABASE_URL"
-    environment:
-      DATABASE_URL: ${SIP_DATABASE_URL}
+    command: sh -c "sqlx migrate run --database-url postgres://sip:sip@postgres:5432/sip"
     depends_on:
       postgres:
         condition: service_healthy

@@ -27,7 +27,7 @@ export default function NewMigrationJobPage() {
 
     try {
       // 1. Create the migration job
-      const createRes = await apiFetch('/migrations/jobs', {
+      const createRes = await apiFetch('/migrations', {
         method: 'POST',
         body: JSON.stringify({
           name: form.name,
@@ -44,7 +44,7 @@ export default function NewMigrationJobPage() {
       if (csvFile) {
         const text = await csvFile.text();
         const records = parseCSV(text);
-        await apiFetch(`/migrations/jobs/${jobId}/source-records`, {
+        await apiFetch(`/migrations/${jobId}/source-records`, {
           method: 'POST',
           body: JSON.stringify({ records }),
         });
@@ -55,7 +55,7 @@ export default function NewMigrationJobPage() {
         const text = await jsonFile.text();
         const records = JSON.parse(text);
         const recordsArray = Array.isArray(records) ? records : [records];
-        await apiFetch(`/migrations/jobs/${jobId}/source-records`, {
+        await apiFetch(`/migrations/${jobId}/source-records`, {
           method: 'POST',
           body: JSON.stringify({ records: recordsArray }),
         });

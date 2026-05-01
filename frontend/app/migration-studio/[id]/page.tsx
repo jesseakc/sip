@@ -75,7 +75,7 @@ export default function MigrationJobDetailPage() {
 
   const fetchJob = useCallback(async () => {
     try {
-      const json = await apiFetch(`/migrations/jobs/${jobId}`);
+      const json = await apiFetch(`/migrations/${jobId}`);
       setJob(json.data);
       return json.data;
     } catch (e: any) {
@@ -90,7 +90,7 @@ export default function MigrationJobDetailPage() {
       await fetchJob();
       // Fetch source records
       try {
-        const src = await apiFetch(`/migrations/jobs/${jobId}/source-records`);
+        const src = await apiFetch(`/migrations/${jobId}/source-records`);
         setSourceRecords(src.data || []);
         // Auto-suggest mapping form: match source fields to target fields by name
         if (src.data?.length > 0) {
@@ -110,22 +110,22 @@ export default function MigrationJobDetailPage() {
       } catch {}
       // Fetch staged records
       try {
-        const staged = await apiFetch(`/migrations/jobs/${jobId}/staged-records`);
+        const staged = await apiFetch(`/migrations/${jobId}/staged-records`);
         setStagedRecords(staged.data || []);
       } catch {}
       // Fetch mappings
       try {
-        const maps = await apiFetch(`/migrations/jobs/${jobId}/field-mappings`);
+        const maps = await apiFetch(`/migrations/${jobId}/mappings`);
         setMappings(maps.data || []);
       } catch {}
       // Fetch issues
       try {
-        const issueData = await apiFetch(`/migrations/jobs/${jobId}/validation-issues`);
+        const issueData = await apiFetch(`/migrations/${jobId}/validation-issues`);
         setIssues(issueData.data || []);
       } catch {}
       // Fetch duplicates
       try {
-        const dupData = await apiFetch(`/migrations/jobs/${jobId}/duplicates`);
+        const dupData = await apiFetch(`/migrations/${jobId}/duplicates`);
         setDuplicates(dupData.data || []);
       } catch {}
       setLoading(false);
@@ -141,14 +141,14 @@ export default function MigrationJobDetailPage() {
       if (action === 'validate') {
         // Refresh issues after validation
         try {
-          const issueData = await apiFetch(`/migrations/jobs/${jobId}/validation-issues`);
+          const issueData = await apiFetch(`/migrations/${jobId}/validation-issues`);
           setIssues(issueData.data || []);
         } catch {}
       }
-      if (action === 'execute') {
+      if (action === 'import') {
         // Fetch report after import
         try {
-          const reportData = await apiFetch(`/migrations/jobs/${jobId}/report`);
+          const reportData = await apiFetch(`/migrations/${jobId}/report`);
           setReport(reportData.data);
         } catch {}
       }
@@ -178,7 +178,7 @@ export default function MigrationJobDetailPage() {
         }));
 
       if (validMappings.length > 0) {
-        await apiFetch(`/migrations/jobs/${jobId}/field-mappings`, {
+        await apiFetch(`/migrations/${jobId}/mappings`, {
           method: 'POST',
           body: JSON.stringify({ mappings: validMappings }),
         });
@@ -251,7 +251,7 @@ export default function MigrationJobDetailPage() {
         <div className="flex items-center space-x-2">
           {canCancel && (
             <button
-              onClick={() => handleAction('cancel', `/migrations/jobs/${jobId}/cancel`)}
+              onClick={() => handleAction('cancel', `/migrations/${jobId}/cancel`)}
               disabled={actionLoading === 'cancel'}
               className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 disabled:opacity-50"
             >
@@ -261,7 +261,7 @@ export default function MigrationJobDetailPage() {
           )}
           {canRollback && (
             <button
-              onClick={() => handleAction('rollback', `/migrations/jobs/${jobId}/rollback`)}
+              onClick={() => handleAction('rollback', `/migrations/${jobId}/rollback`)}
               disabled={actionLoading === 'rollback'}
               className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded-md hover:bg-orange-100 disabled:opacity-50"
             >
@@ -482,7 +482,7 @@ export default function MigrationJobDetailPage() {
             </h3>
             {canValidate && (
               <button
-                onClick={() => handleAction('validate', `/migrations/jobs/${jobId}/validate`)}
+                onClick={() => handleAction('validate', `/migrations/${jobId}/validate`)}
                 disabled={actionLoading === 'validate'}
                 className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50"
               >
@@ -542,7 +542,7 @@ export default function MigrationJobDetailPage() {
             <h3 className="text-sm font-semibold text-gray-900">Dry Run</h3>
             {canDryRun && (
               <button
-                onClick={() => handleAction('dryrun', `/migrations/jobs/${jobId}/dry-run`)}
+                onClick={() => handleAction('dryrun', `/migrations/${jobId}/dry-run`)}
                 disabled={actionLoading === 'dryrun'}
                 className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700 disabled:opacity-50"
               >
@@ -582,11 +582,10 @@ export default function MigrationJobDetailPage() {
             <div className="flex items-center space-x-2">
               {canExecute && (
                 <button
-                  onClick={() => handleAction('execute', `/migrations/jobs/${jobId}/execute`)}
-                  disabled={actionLoading === 'execute'}
-                  className="flex items-center space-x-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 shadow-sm"
+                  onClick={() => handleAction('import', `/migrations/${jobId}/import`)}
+                  disabled={actionLoading === 'import'}
                 >
-                  {actionLoading === 'execute' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  {actionLoading === 'import' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                   <span>Execute Import</span>
                 </button>
               )}

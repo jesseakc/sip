@@ -40,7 +40,7 @@ export default function MigrationStudioPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch('/migrations/jobs')
+    apiFetch('/migrations')
       .then((json) => setJobs(json.data || []))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));

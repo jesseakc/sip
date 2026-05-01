@@ -4,10 +4,11 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY migrations ./migrations
+COPY plugins ./plugins
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
-RUN cargo build --release -p sip-api
+RUN cargo build --release -p sip-api --features full
 RUN cargo install sqlx-cli --no-default-features --features postgres,rustls
 
 FROM debian:bookworm-slim
@@ -18,6 +19,7 @@ WORKDIR /app
 COPY --from=builder /app/target/release/sip-api /usr/local/bin/sip-api
 COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
 COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/plugins ./plugins
 
 EXPOSE 8000
 

@@ -10,6 +10,7 @@ use crate::id::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MigrationJobStatus {
     Draft,
     Uploaded,
@@ -88,6 +89,7 @@ pub struct MigrationJob {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MigrationRunType {
     DryRun,
     Import,
@@ -95,6 +97,7 @@ pub enum MigrationRunType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MigrationRunStatus {
     Running,
     Completed,
