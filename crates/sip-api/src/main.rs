@@ -3,6 +3,7 @@ pub mod response;
 pub mod routes;
 
 use axum::{
+    http::{header, Method},
     routing::{delete, get, patch, post},
     Router,
 };
@@ -122,13 +123,13 @@ fn register_default_navigation(registry: &mut PluginRegistry) {
                 "dashboard:read",
                 10,
             ),
-            nav_item("assets", "Assets", "/assets", "packages", "assets:read", 20),
+            nav_item("assets", "Assets", "/assets", "packages", "asset:read", 20),
             nav_item(
                 "work-orders",
                 "Work Orders",
                 "/work-orders",
                 "clipboard-list",
-                "work_orders:read",
+                "work_order:read",
                 30,
             ),
             nav_item(
@@ -136,7 +137,7 @@ fn register_default_navigation(registry: &mut PluginRegistry) {
                 "Schedules",
                 "/schedules",
                 "calendar",
-                "schedules:read",
+                "schedule:read",
                 40,
             ),
             nav_item(
@@ -144,10 +145,10 @@ fn register_default_navigation(registry: &mut PluginRegistry) {
                 "Inspections",
                 "/inspections",
                 "clipboard-check",
-                "inspections:read",
+                "inspection:read",
                 50,
             ),
-            nav_item("parts", "Parts", "/parts", "wrench", "parts:read", 60),
+            nav_item("parts", "Parts", "/parts", "wrench", "part:read", 60),
             nav_item(
                 "ai-chat",
                 "AI Chat",
@@ -161,17 +162,17 @@ fn register_default_navigation(registry: &mut PluginRegistry) {
                 "Locations",
                 "/locations",
                 "map-pin",
-                "locations:read",
+                "location:read",
                 80,
             ),
-            nav_item("teams", "Teams", "/teams", "users", "teams:read", 90),
-            nav_item("users", "Users", "/users", "user", "users:read", 100),
+            nav_item("teams", "Teams", "/teams", "users", "team:read", 90),
+            nav_item("users", "Users", "/users", "user", "user:read", 100),
             nav_item(
                 "documents",
                 "Documents",
                 "/documents",
                 "file-text",
-                "documents:read",
+                "document:read",
                 110,
             ),
             nav_item(
@@ -701,14 +702,43 @@ async fn main() -> anyhow::Result<()> {
         middleware::auth::auth_middleware,
     ));
 
+    let cors = if config.security.cors_allowed_origins.is_empty() {
+        if config.env.is_production() {
+            tracing::warn!("CORS origins empty in production — using permissive CORS. Set SIP_CORS_ALLOWED_ORIGINS.");
+        }
+        CorsLayer::permissive()
+    } else {
+        CorsLayer::new()
+            .allow_origin(
+                config
+                    .security
+                    .cors_allowed_origins
+                    .iter()
+                    .map(|o| o.parse().unwrap())
+                    .collect::<Vec<_>>(),
+            )
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PATCH,
+                Method::DELETE,
+            ])
+            .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+    };
+
     let app = Router::new()
         .merge(public)
         .merge(protected)
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .with_state(state);
 
-    let cron_engine = CronEngine::new(pool.clone());
-    let _cron_handle = cron_engine.start();
+    if config.features.dispatch_enabled {
+        let cron_engine = CronEngine::new(pool.clone());
+        let _cron_handle = cron_engine.start();
+        tracing::info!("Cron engine started");
+    } else {
+        tracing::info!("Cron engine disabled (dispatch feature off)");
+    }
 
     let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port).parse()?;
     tracing::info!("SIP API listening on {}", addr);

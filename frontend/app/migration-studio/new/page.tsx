@@ -69,17 +69,79 @@ export default function NewMigrationJobPage() {
   }
 
   function parseCSV(text: string): any[] {
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) return [];
+    // RFC 4180-compatible CSV parser
+    if (!text || text.trim().length === 0) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    // Normalize line endings: \r\n → \n, \r → \n
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < normalized.length; i++) {
+      const ch = normalized[i];
+      const next = normalized[i + 1];
+
+      if (inQuotes) {
+        if (ch === '"') {
+          if (next === '"') {
+            // Escaped quote: two double-quotes inside a quoted field
+            field += '"';
+            i++; // skip the second quote
+          } else {
+            // Closing quote
+            inQuotes = false;
+          }
+        } else {
+          field += ch;
+        }
+      } else {
+        if (ch === '"') {
+          if (field.length === 0) {
+            // Start of a quoted field
+            inQuotes = true;
+          } else {
+            // Quote in the middle of an unquoted field — treat as literal
+            field += ch;
+          }
+        } else if (ch === ',') {
+          row.push(field);
+          field = '';
+        } else if (ch === '\n') {
+          row.push(field);
+          field = '';
+          // Skip empty rows (trailing newline)
+          if (row.length > 0 && row.some(v => v !== '')) {
+            rows.push(row);
+          }
+          row = [];
+        } else {
+          field += ch;
+        }
+      }
+    }
+
+    // Handle last field and row if no trailing newline
+    row.push(field);
+    if (row.length > 0 && row.some(v => v !== '')) {
+      rows.push(row);
+    }
+
+    if (rows.length < 2) return [];
+
+    const headers = rows[0].map(h => h.trim());
+    const headerCount = headers.length;
+
     const records: any[] = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      if (values.length === headers.length && values.some(v => v !== '')) {
+    for (let r = 1; r < rows.length; r++) {
+      const values = rows[r];
+      if (values.length >= headerCount && values.some(v => v !== '')) {
         const record: Record<string, string> = {};
-        headers.forEach((h, idx) => { record[h] = values[idx] || ''; });
+        for (let c = 0; c < headerCount; c++) {
+          record[headers[c]] = (values[c] || '').trim();
+        }
         records.push(record);
       }
     }

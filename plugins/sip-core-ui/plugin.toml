@@ -14,16 +14,16 @@ enabled_by_default = true
 # ── Permissions ───────────────────────────────────────────────────────────────
 permissions = [
     "dashboard:read",
-    "assets:read",
-    "work_orders:read",
-    "work_orders:write",
-    "schedules:read",
-    "inspections:read",
-    "parts:read",
-    "locations:read",
-    "teams:read",
-    "users:read",
-    "documents:read",
+"asset:read",
+    "work_order:read",
+    "work_order:write",
+    "schedule:read",
+    "inspection:read",
+    "part:read",
+    "location:read",
+    "team:read",
+    "user:read",
+    "document:read",
     "ai:query",
 ]
 
@@ -51,7 +51,7 @@ id = "assets"
 label = "Assets"
 path = "/assets"
 icon = "packages"
-permission = "assets:read"
+permission = "asset:read"
 order = 20
 
 [[navigation]]
@@ -59,7 +59,7 @@ id = "work-orders"
 label = "Work Orders"
 path = "/work-orders"
 icon = "clipboard-list"
-permission = "work_orders:read"
+permission = "work_order:read"
 order = 30
 
 [[navigation]]
@@ -67,7 +67,7 @@ id = "schedules"
 label = "Schedules"
 path = "/schedules"
 icon = "calendar"
-permission = "schedules:read"
+permission = "schedule:read"
 order = 40
 
 [[navigation]]
@@ -75,7 +75,7 @@ id = "inspections"
 label = "Inspections"
 path = "/inspections"
 icon = "clipboard-check"
-permission = "inspections:read"
+permission = "inspection:read"
 order = 50
 
 [[navigation]]
@@ -83,7 +83,7 @@ id = "parts"
 label = "Parts"
 path = "/parts"
 icon = "wrench"
-permission = "parts:read"
+permission = "part:read"
 order = 60
 
 [[navigation]]
@@ -99,7 +99,7 @@ id = "locations"
 label = "Locations"
 path = "/locations"
 icon = "map-pin"
-permission = "locations:read"
+permission = "location:read"
 order = 80
 
 [[navigation]]
@@ -107,7 +107,7 @@ id = "teams"
 label = "Teams"
 path = "/teams"
 icon = "users"
-permission = "teams:read"
+permission = "team:read"
 order = 90
 
 [[navigation]]
@@ -115,7 +115,7 @@ id = "users"
 label = "Users"
 path = "/users"
 icon = "user"
-permission = "users:read"
+permission = "user:read"
 order = 100
 
 [[navigation]]
@@ -123,7 +123,7 @@ id = "documents"
 label = "Documents"
 path = "/documents"
 icon = "file-text"
-permission = "documents:read"
+permission = "document:read"
 order = 110
 
 [[navigation]]

@@ -324,7 +324,7 @@ impl<R: sip_domain::repository::AssetRepository> AssetService<R> {
             ));
         }
         let patch = serde_json::json!({"status": format!("{:?}", status).to_uppercase()});
-        self.repo.update_asset(ctx, id, 1, patch).await
+        self.repo.update_asset(ctx, id, current.version, patch).await
     }
 
     pub async fn archive(&self, ctx: &TenantContext, id: AssetId) -> Result<Asset, SipError> {

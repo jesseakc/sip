@@ -281,7 +281,7 @@ mod tests {
                     label: "Assets".into(),
                     path: "/assets".into(),
                     icon: Some("boxes".into()),
-                    permission: Some("assets:read".into()),
+                    permission: Some("asset:read".into()),
                     order: Some(20),
                     feature_flag: None,
                     children: vec![],

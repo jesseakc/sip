@@ -64,18 +64,18 @@ impl RolePermissions {
     pub fn permissions_for(role: Role) -> Vec<String> {
         match role {
             Role::Admin => vec![
-                "assets:read",
-                "assets:create",
-                "assets:update",
-                "assets:delete",
-                "work_orders:read",
-                "work_orders:create",
-                "work_orders:update",
-                "work_orders:delete",
-                "users:read",
-                "users:create",
-                "users:update",
-                "users:delete",
+                "asset:read",
+                "asset:create",
+                "asset:update",
+                "asset:delete",
+                "work_order:read",
+                "work_order:create",
+                "work_order:update",
+                "work_order:delete",
+                "user:read",
+                "user:create",
+                "user:update",
+                "user:delete",
                 "reports:read",
                 "reports:create",
                 "settings:read",
@@ -87,17 +87,17 @@ impl RolePermissions {
             .map(String::from)
             .collect(),
             Role::Manager => vec![
-                "assets:read",
-                "assets:create",
-                "assets:update",
-                "assets:delete",
-                "work_orders:read",
-                "work_orders:create",
-                "work_orders:update",
-                "work_orders:delete",
-                "users:read",
-                "users:create",
-                "users:update",
+                "asset:read",
+                "asset:create",
+                "asset:update",
+                "asset:delete",
+                "work_order:read",
+                "work_order:create",
+                "work_order:update",
+                "work_order:delete",
+                "user:read",
+                "user:create",
+                "user:update",
                 "reports:read",
                 "reports:create",
                 "settings:read",
@@ -108,22 +108,22 @@ impl RolePermissions {
             .map(String::from)
             .collect(),
             Role::Technician => vec![
-                "assets:read",
-                "work_orders:read",
-                "work_orders:create",
-                "work_orders:update",
-                "parts:read",
-                "parts:create",
-                "parts:update",
+                "asset:read",
+                "work_order:read",
+                "work_order:create",
+                "work_order:update",
+                "part:read",
+                "part:create",
+                "part:update",
                 "activity:read",
             ]
             .into_iter()
             .map(String::from)
             .collect(),
             Role::Viewer => vec![
-                "assets:read",
-                "work_orders:read",
-                "parts:read",
+                "asset:read",
+                "work_order:read",
+                "part:read",
                 "reports:read",
                 "activity:read",
             ]
@@ -133,7 +133,7 @@ impl RolePermissions {
             Role::Vendor => vec![
                 "assets:read_assigned",
                 "work_orders:read_assigned",
-                "parts:read",
+                "part:read",
             ]
             .into_iter()
             .map(String::from)
@@ -141,8 +141,8 @@ impl RolePermissions {
             Role::Auditor => vec![
                 "activity:read",
                 "reports:read",
-                "assets:read",
-                "work_orders:read",
+                "asset:read",
+                "work_order:read",
             ]
             .into_iter()
             .map(String::from)

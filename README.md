@@ -242,15 +242,21 @@ cd sip
 # 2. Copy environment template
 cp .env.example .env
 
-# 3. Start everything (API, frontend, PostgreSQL, Redis, MinIO, Ollama)
+# 3. Start everything (API, frontend, PostgreSQL, Redis, MinIO — AI disabled by default)
 docker compose up --build
 
-# 4. Wait for migrations + Ollama model pull (~2 minutes first run)
+# 4. To include Ollama for local AI:
+docker compose --profile ollama up --build
+
+# 5. Or use a hosted AI provider by setting env vars in .env
+#    (see "Hosted OpenAI Mode" below)
+
+# 6. Wait for migrations (~30s first run; plus Ollama model pull ~2 min if using --profile ollama)
 #    Then access:
 #    - Frontend:  http://localhost:3000
 #    - API:       http://localhost:8000
 #    - MinIO:     http://localhost:9001
-#    - Ollama:    http://localhost:11434
+#    - Ollama:    http://localhost:11434  (only with --profile ollama)
 ```
 
 ### Services (docker-compose.yml)
@@ -262,7 +268,7 @@ docker compose up --build
 | `postgres` | 5432 | PostgreSQL 16 + pgvector + postgis + ltree + pg_trgm |
 | `redis` | 6379 | Redis 7 (Valkey) |
 | `minio` | 9000/9001 | S3-compatible object storage |
-| `ollama` | 11434 | Local LLM (default: `llama3.1:8b`) — optional if using hosted provider |
+| `ollama` | 11434 | Local LLM (default: `llama3.1:8b`) — **optional** (requires `--profile ollama`) |
 
 ### Running Without Ollama (Hosted LLM or AI Disabled)
 

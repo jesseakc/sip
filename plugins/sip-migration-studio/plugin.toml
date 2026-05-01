@@ -35,11 +35,11 @@ permissions = [
     "migration:rollback",
     "migration:delete",
     "migration:view_raw_source",
-    "assets:read",
-    "work_orders:read",
-    "locations:read",
-    "parts:read",
-    "documents:read",
+    "asset:read",
+    "work_order:read",
+    "location:read",
+    "part:read",
+    "document:read",
 ]
 
 # ── Capabilities ──────────────────────────────────────────────────────────────

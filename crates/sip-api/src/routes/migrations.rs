@@ -6,12 +6,63 @@ use serde::Deserialize;
 use serde_json::json;
 use sip_application::services::MigrationService;
 use sip_domain::{
-    entity::migration::MigrationFieldMapping, id::MigrationJobId, tenant::TenantContext,
+    entity::migration::MigrationFieldMapping, error::SipError, id::MigrationJobId,
+    tenant::TenantContext,
 };
 use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::AppState;
+
+fn migration_error(
+    status: StatusCode,
+    code: &str,
+    message: String,
+) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        status,
+        Json(json!({"error": {"code": code, "message": message}})),
+    )
+}
+
+fn map_migration_error(e: SipError) -> (StatusCode, Json<serde_json::Value>) {
+    match &e {
+        SipError::PermissionDenied => {
+            migration_error(StatusCode::FORBIDDEN, "FORBIDDEN", e.to_string())
+        }
+        SipError::Validation(msg) => {
+            if msg.contains("not found")
+                || msg.contains("job not found")
+                || msg.contains("Job not found")
+            {
+                migration_error(StatusCode::NOT_FOUND, "NOT_FOUND", e.to_string())
+            } else if msg.contains("duplicate")
+                || msg.contains("already exists")
+                || msg.contains("conflict")
+            {
+                migration_error(StatusCode::CONFLICT, "CONFLICT", e.to_string())
+            } else {
+                migration_error(
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    "VALIDATION_ERROR",
+                    e.to_string(),
+                )
+            }
+        }
+        SipError::InvalidStateTransition { .. } => {
+            migration_error(StatusCode::CONFLICT, "CONFLICT", e.to_string())
+        }
+        SipError::VersionConflict { .. } => {
+            migration_error(StatusCode::CONFLICT, "CONFLICT", e.to_string())
+        }
+        SipError::TenantScopeViolation => {
+            migration_error(StatusCode::FORBIDDEN, "FORBIDDEN", e.to_string())
+        }
+        SipError::CapabilityNotAvailable(_) => {
+            migration_error(StatusCode::NOT_IMPLEMENTED, "CAPABILITY_UNAVAILABLE", e.to_string())
+        }
+    }
+}
 
 #[derive(Deserialize)]
 pub struct CreateMigrationJobRequest {
@@ -52,10 +103,7 @@ pub async fn list_jobs(
                 "updated_at": j.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -84,10 +132,7 @@ pub async fn create_job(
                 "status": format!("{:?}", job.status),
             }
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -124,10 +169,7 @@ pub async fn get_job(
             StatusCode::NOT_FOUND,
             Json(json!({"error": {"code": "NOT_FOUND", "message": "Job not found"}})),
         )),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -154,10 +196,7 @@ pub async fn get_source_records(
                 "row_number": r.row_number,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -181,10 +220,7 @@ pub async fn add_source_records(
                 "status": "uploaded",
             }
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -207,10 +243,7 @@ pub async fn save_field_mappings(
                 "status": "mapped",
             }
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -238,10 +271,7 @@ pub async fn get_field_mappings(
                 "is_required": m.is_required,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -269,10 +299,7 @@ pub async fn validate_job(
                 })).collect::<Vec<_>>(),
             }
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -299,10 +326,7 @@ pub async fn dry_run(
                 "records_with_errors": run.records_failed,
             }
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -330,10 +354,7 @@ pub async fn execute_import(
                 "records_failed": run.records_failed,
             }
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -357,10 +378,7 @@ pub async fn rollback_job(
                 "records_processed": run.records_processed,
             }
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -382,10 +400,7 @@ pub async fn cancel_job(
                 "status": "cancelled",
             }
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -410,10 +425,7 @@ pub async fn get_validation_issues(
                 "message": i.message,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -440,10 +452,7 @@ pub async fn get_duplicates(
                 "status": d.status,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -470,10 +479,7 @@ pub async fn get_external_id_maps(
                 "sip_entity_id": m.sip_entity_id.to_string(),
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -499,10 +505,7 @@ pub async fn get_staged_records(
                 "validation_errors": r.validation_errors,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
 
@@ -520,9 +523,6 @@ pub async fn get_report(
     let service = MigrationService::new(state.pool.clone());
     match service.get_report(&ctx, id).await {
         Ok(report) => Ok(Json(json!({"data": report}))),
-        Err(e) => Err((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
-        )),
+        Err(e) => Err(map_migration_error(e)),
     }
 }
