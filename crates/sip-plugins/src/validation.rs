@@ -1,4 +1,5 @@
-use super::manifest::{PluginManifest, PluginType};
+use super::manifest::{PluginManifest, PluginType, UiCompatibilityLevel};
+use super::manifest::UiConfig;
 
 /// Result of validating a single plugin manifest.
 #[derive(Debug, Clone)]
@@ -190,6 +191,11 @@ pub fn validate_manifest(manifest: &PluginManifest) -> ValidationResult {
         }
     }
 
+    // ── UI Compatibility validation ──
+    if let Some(ref ui) = manifest.ui {
+        validate_ui_config(ui, &mut result);
+    }
+
     // ── Secrets check ──
     // (no secrets should be in the manifest itself — they go in env vars)
     // We flag suspicious field values that look like keys
@@ -230,6 +236,37 @@ fn validate_nav_paths(
     }
     for child in &item.children {
         validate_nav_paths(child, result);
+    }
+}
+
+fn validate_ui_config(ui: &UiConfig, result: &mut ValidationResult) {
+    // ── Compatibility warnings ──
+    if let Some(ref compat) = ui.compatibility {
+        if compat.level == Some(UiCompatibilityLevel::Native) && !compat.uses_sip_components {
+            result.add_warning(
+                "UiCompatibility level is 'native' but uses_sip_components is false. \
+                 Native plugins should use SIP components."
+            );
+        }
+        if compat.level == Some(UiCompatibilityLevel::Native) && compat.allows_global_css {
+            result.add_warning(
+                "UiCompatibility level is 'native' but allows_global_css is true. \
+                 Native plugins should avoid global CSS to prevent style conflicts."
+            );
+        }
+    }
+
+    // ── Route layout validation ──
+    const VALID_LAYOUTS: &[&str] = &["sip-page", "sip-dashboard", "sip-settings", "embedded", "standalone"];
+    for route in &ui.routes {
+        if let Some(ref layout) = route.layout {
+            if !VALID_LAYOUTS.contains(&layout.as_str()) {
+                result.add_error(format!(
+                    "UiRouteDef '{}' has invalid layout '{}'. Must be one of: {:?}",
+                    route.id, layout, VALID_LAYOUTS
+                ));
+            }
+        }
     }
 }
 
@@ -279,6 +316,8 @@ mod tests {
                 dev_url: Some("http://localhost:3000".into()),
                 production_mount: Some("/".into()),
                 api_base_env: Some("NEXT_PUBLIC_API_URL".into()),
+                enabled: true,
+                ..Default::default()
             }),
             navigation: vec![
                 NavigationItem {
@@ -467,5 +506,129 @@ mod tests {
         };
         let result = validate_manifest(&manifest);
         assert!(result.valid, "Migration permissions should be valid: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_compatibility_native_without_components_warns() {
+        let mut manifest = make_ui_manifest();
+        manifest.ui.as_mut().unwrap().compatibility = Some(UiCompatibility {
+            level: Some(UiCompatibilityLevel::Native),
+            uses_sip_components: false,
+            uses_theme_tokens: true,
+            allows_global_css: false,
+            ..Default::default()
+        });
+        let result = validate_manifest(&manifest);
+        assert!(result.valid);
+        assert!(result.warnings.iter().any(|w| w.contains("uses_sip_components")));
+    }
+
+    #[test]
+    fn test_compatibility_native_with_global_css_warns() {
+        let mut manifest = make_ui_manifest();
+        manifest.ui.as_mut().unwrap().compatibility = Some(UiCompatibility {
+            level: Some(UiCompatibilityLevel::Native),
+            uses_sip_components: true,
+            uses_theme_tokens: true,
+            allows_global_css: true,
+            ..Default::default()
+        });
+        let result = validate_manifest(&manifest);
+        assert!(result.valid);
+        assert!(result.warnings.iter().any(|w| w.contains("global_css")));
+    }
+
+    #[test]
+    fn test_route_with_valid_layout() {
+        let mut manifest = make_ui_manifest();
+        manifest.ui.as_mut().unwrap().routes = vec![
+            UiRouteDef {
+                id: "settings".into(),
+                path: "/settings".into(),
+                component: Some("SettingsPage".into()),
+                layout: Some("sip-settings".into()),
+                title: Some("Settings".into()),
+                breadcrumb: None,
+                required_permissions: vec![],
+            },
+        ];
+        let result = validate_manifest(&manifest);
+        assert!(result.valid, "Expected valid: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_route_with_invalid_layout() {
+        let mut manifest = make_ui_manifest();
+        manifest.ui.as_mut().unwrap().routes = vec![
+            UiRouteDef {
+                id: "custom".into(),
+                path: "/custom".into(),
+                component: None,
+                layout: Some("invalid-layout".into()),
+                title: None,
+                breadcrumb: None,
+                required_permissions: vec![],
+            },
+        ];
+        let result = validate_manifest(&manifest);
+        assert!(!result.valid);
+        assert!(result.errors.iter().any(|e| e.contains("invalid-layout")));
+    }
+
+    #[test]
+    fn test_manifest_with_theme_config() {
+        let mut manifest = make_ui_manifest();
+        manifest.ui.as_mut().unwrap().theme = Some(UiThemeConfig {
+            inherits: None,
+            supports_dark_mode: true,
+            supports_density: true,
+            supports_accent_color: true,
+            uses_design_tokens: true,
+        });
+        let result = validate_manifest(&manifest);
+        assert!(result.valid, "Expected valid: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_manifest_with_routes_and_actions() {
+        let mut manifest = make_ui_manifest();
+        manifest.ui.as_mut().unwrap().routes = vec![
+            UiRouteDef {
+                id: "dashboard-overview".into(),
+                path: "/dashboard/overview".into(),
+                component: Some("OverviewCard".into()),
+                layout: Some("sip-dashboard".into()),
+                title: Some("Overview".into()),
+                breadcrumb: None,
+                required_permissions: vec!["dashboard:read".into()],
+            },
+        ];
+        manifest.ui.as_mut().unwrap().actions = vec![
+            UiActionDef {
+                id: "export-report".into(),
+                label: "Export Report".into(),
+                icon: Some("download".into()),
+                route: Some("/export/report".into()),
+                placement: vec!["toolbar".into(), "context-menu".into()],
+                required_permissions: vec!["export:create".into()],
+            },
+        ];
+        let result = validate_manifest(&manifest);
+        assert!(result.valid, "Expected valid: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_compatible_level_no_warnings() {
+        let mut manifest = make_ui_manifest();
+        manifest.ui.as_mut().unwrap().compatibility = Some(UiCompatibility {
+            level: Some(UiCompatibilityLevel::Compatible),
+            uses_sip_components: false,
+            uses_theme_tokens: false,
+            allows_global_css: true,
+            ..Default::default()
+        });
+        let result = validate_manifest(&manifest);
+        assert!(result.valid);
+        assert!(!result.warnings.iter().any(|w| w.contains("uses_sip_components") || w.contains("global_css")));
     }
 }

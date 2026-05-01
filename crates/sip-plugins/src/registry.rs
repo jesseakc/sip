@@ -255,6 +255,8 @@ mod tests {
                 dev_url: Some("http://localhost:3000".into()),
                 production_mount: Some("/".into()),
                 api_base_env: Some("NEXT_PUBLIC_API_URL".into()),
+                enabled: true,
+                ..Default::default()
             }),
             navigation: vec![
                 crate::manifest::NavigationItem {
@@ -354,6 +356,87 @@ entrypoint = "/"
         let manifest = load_manifest_from_str(toml_str).unwrap();
         assert_eq!(manifest.id, "test-plugin");
         assert_eq!(manifest.plugin_type, crate::manifest::PluginType::Ui);
+    }
+
+    #[test]
+    fn test_load_manifest_with_compatibility_theme_routes_actions() {
+        let toml_str = r#"
+id = "rich-ui-plugin"
+name = "Rich UI Plugin"
+version = "2.0.0"
+plugin_type = "ui"
+
+[ui]
+kind = "web"
+framework = "react"
+entrypoint = "/rich"
+enabled = true
+description = "A rich UI plugin"
+icon = "star"
+category = "analytics"
+
+[ui.compatibility]
+level = "native"
+sip_ui_version = "0.1.0"
+requires_shell = true
+uses_sip_components = true
+uses_theme_tokens = true
+allows_global_css = false
+
+[ui.theme]
+supports_dark_mode = true
+supports_density = true
+supports_accent_color = true
+uses_design_tokens = true
+
+[[ui.routes]]
+id = "analytics"
+path = "/analytics"
+component = "AnalyticsPage"
+layout = "sip-dashboard"
+title = "Analytics"
+required_permissions = ["analytics:read"]
+
+[[ui.actions]]
+id = "refresh-dashboard"
+label = "Refresh"
+icon = "refresh-cw"
+route = "/refresh"
+placement = ["toolbar"]
+required_permissions = ["dashboard:refresh"]
+"#;
+        let manifest = load_manifest_from_str(toml_str).unwrap();
+        assert_eq!(manifest.id, "rich-ui-plugin");
+        assert_eq!(manifest.plugin_type, crate::manifest::PluginType::Ui);
+
+        let ui = manifest.ui.as_ref().unwrap();
+        assert!(ui.enabled);
+        assert_eq!(ui.description.as_deref(), Some("A rich UI plugin"));
+        assert_eq!(ui.icon.as_deref(), Some("star"));
+        assert_eq!(ui.category.as_deref(), Some("analytics"));
+
+        let compat = ui.compatibility.as_ref().unwrap();
+        assert_eq!(compat.level, Some(crate::manifest::UiCompatibilityLevel::Native));
+        assert_eq!(compat.sip_ui_version.as_deref(), Some("0.1.0"));
+        assert!(compat.requires_shell);
+        assert!(compat.uses_sip_components);
+        assert!(compat.uses_theme_tokens);
+        assert!(!compat.allows_global_css);
+
+        let theme = ui.theme.as_ref().unwrap();
+        assert!(theme.supports_dark_mode);
+        assert!(theme.supports_density);
+        assert!(theme.supports_accent_color);
+        assert!(theme.uses_design_tokens);
+
+        assert_eq!(ui.routes.len(), 1);
+        assert_eq!(ui.routes[0].id, "analytics");
+        assert_eq!(ui.routes[0].path, "/analytics");
+        assert_eq!(ui.routes[0].layout.as_deref(), Some("sip-dashboard"));
+
+        assert_eq!(ui.actions.len(), 1);
+        assert_eq!(ui.actions[0].id, "refresh-dashboard");
+        assert_eq!(ui.actions[0].label, "Refresh");
     }
 
     #[test]

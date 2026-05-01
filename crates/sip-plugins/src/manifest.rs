@@ -90,8 +90,10 @@ pub struct NavigationSection {
     pub items: Vec<NavigationItem>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UiConfig {
+    #[serde(default)]
+    pub enabled: bool,
     pub kind: UiKind,
     #[serde(default)]
     pub framework: Option<UiFramework>,
@@ -103,6 +105,20 @@ pub struct UiConfig {
     pub production_mount: Option<String>,
     #[serde(default)]
     pub api_base_env: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
+    #[serde(default)]
+    pub compatibility: Option<UiCompatibility>,
+    #[serde(default)]
+    pub theme: Option<UiThemeConfig>,
+    #[serde(default)]
+    pub routes: Vec<UiRouteDef>,
+    #[serde(default)]
+    pub actions: Vec<UiActionDef>,
 }
 
 // ─── Backend Extension ──────────────────────────────────────────────────────
@@ -190,6 +206,82 @@ pub struct IntegrationDef {
     pub provider: String,
     #[serde(default)]
     pub config_schema: Option<serde_json::Value>,
+}
+
+// ─── UI Compatibility Level ───────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum UiCompatibilityLevel {
+    Native,
+    Compatible,
+    Standalone,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UiCompatibility {
+    #[serde(default)]
+    pub level: Option<UiCompatibilityLevel>,
+    #[serde(default)]
+    pub sip_ui_version: Option<String>,
+    #[serde(default = "default_true")]
+    pub requires_shell: bool,
+    #[serde(default)]
+    pub uses_sip_components: bool,
+    #[serde(default)]
+    pub uses_theme_tokens: bool,
+    #[serde(default = "default_true")]
+    pub allows_global_css: bool,
+}
+
+// ─── UI Theme ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UiThemeConfig {
+    #[serde(default)]
+    pub inherits: Option<String>,
+    #[serde(default)]
+    pub supports_dark_mode: bool,
+    #[serde(default)]
+    pub supports_density: bool,
+    #[serde(default)]
+    pub supports_accent_color: bool,
+    #[serde(default)]
+    pub uses_design_tokens: bool,
+}
+
+// ─── UI Route ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UiRouteDef {
+    pub id: String,
+    pub path: String,
+    #[serde(default)]
+    pub component: Option<String>,
+    #[serde(default)]
+    pub layout: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub breadcrumb: Option<String>,
+    #[serde(default)]
+    pub required_permissions: Vec<String>,
+}
+
+// ─── UI Action ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UiActionDef {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub route: Option<String>,
+    #[serde(default)]
+    pub placement: Vec<String>,
+    #[serde(default)]
+    pub required_permissions: Vec<String>,
 }
 
 // ─── Resources ──────────────────────────────────────────────────────────────
@@ -433,6 +525,9 @@ impl PluginManifest {
                 entrypoint: u.entrypoint.clone(),
                 dev_url: u.dev_url.clone(),
                 production_mount: u.production_mount.clone(),
+                enabled: u.enabled,
+                compatibility: u.compatibility.clone(),
+                theme: u.theme.clone(),
             }),
             navigation: self.navigation.clone(),
             resources: self.resources.iter().map(|r| ResourceDef {
@@ -485,6 +580,10 @@ pub struct PublicUiInfo {
     pub entrypoint: Option<String>,
     pub dev_url: Option<String>,
     pub production_mount: Option<String>,
+    #[serde(default)]
+    pub enabled: bool,
+    pub compatibility: Option<UiCompatibility>,
+    pub theme: Option<UiThemeConfig>,
 }
 
 // ─── Default ────────────────────────────────────────────────────────────────

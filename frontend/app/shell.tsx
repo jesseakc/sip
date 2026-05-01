@@ -58,11 +58,13 @@ const ICON_MAP: Record<string, LucideIcon> = {
   'file-text': FileText,
   'settings': Settings,
   'git-branch': GitBranch,
+  'puzzle': Package,       // fallback for generic plugin icons
+  'database-zap': GitBranch, // Migration Studio
 };
 
 function resolveIcon(iconName: string | null | undefined): LucideIcon {
   if (!iconName) return LayoutDashboard;
-  return ICON_MAP[iconName] || LayoutDashboard;
+  return ICON_MAP[iconName] || Package;
 }
 
 // ─── API NavItem type ──────────────────────────────────────────────────────────

@@ -1,0 +1,215 @@
+# generic-cmms-csv — Maps standard CMMS CSV columns to SIP assets and work orders.
+# Use this template when importing maintenance data from common CMMS exports
+# (Fiix, MaintainX, UpKeep, eMaint, spreadsheets, etc.).
+
+[template]
+id = "generic-cmms-csv"
+name = "Generic CMMS CSV Import"
+description = "Maps standard CMMS CSV columns to SIP assets and work orders. Handles asset details, serial numbers, status, criticality, warranty, and related work orders."
+source_system = "csv"
+version = "1.0"
+
+# ── Asset ──────────────────────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "asset"
+source_fields = [
+    "name",
+    "asset_name",
+    "equipment_name",
+    "machine_name",
+    "description",
+]
+
+[[mappings.fields]]
+source = "name"
+target = "name"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "external_id"
+target = "external_id"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "serial_number"
+target = "serial_number"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "description"
+target = "notes"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "status"
+target = "status"
+required = false
+transform = "normalize_status"
+
+[[mappings.fields]]
+source = "criticality"
+target = "criticality"
+required = false
+transform = "normalize_priority"
+
+[[mappings.fields]]
+source = "purchase_date"
+target = "purchase_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "warranty_expiry"
+target = "warranty_expiry"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "location"
+target = "location_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "location_name"
+target = "location_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "location_path"
+target = "location_external_id"
+required = false
+transform = "create_location_hierarchy"
+
+[[mappings.fields]]
+source = "asset_type"
+target = "asset_type_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "manufacturer"
+target = "manufacturer_name"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "model"
+target = "model_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "parent_asset"
+target = "parent_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "tags"
+target = "tags"
+required = false
+transform = "split_field"
+
+[[mappings.fields]]
+source = "custom_attributes"
+target = "custom_attributes"
+required = false
+transform = "parse_json_field"
+
+# ── Work Order ─────────────────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "work_order"
+source_fields = [
+    "work_order_number",
+    "wonum",
+    "wo_number",
+    "order_number",
+    "title",
+    "description",
+]
+
+[[mappings.fields]]
+source = "title"
+target = "title"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "external_id"
+target = "external_id"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "description"
+target = "description"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "priority"
+target = "priority"
+required = false
+transform = "normalize_priority"
+
+[[mappings.fields]]
+source = "status"
+target = "status"
+required = false
+transform = "normalize_status"
+
+[[mappings.fields]]
+source = "type"
+target = "work_order_type"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "asset_name"
+target = "asset_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "asset_id"
+target = "asset_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "due_date"
+target = "due_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "completed_date"
+target = "completed_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "resolution_notes"
+target = "resolution_notes"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "assigned_to"
+target = "assigned_to_email"
+required = false
+transform = "normalize_email"
+
+[[mappings.fields]]
+source = "labor_hours"
+target = "labor_hours"
+required = false
+transform = "convert_blank_to_null"

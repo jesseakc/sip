@@ -1,0 +1,180 @@
+# salesforce-service-cloud — Maps Salesforce Service Cloud Case exports to SIP Work Orders.
+# Supports the standard Salesforce Case object schema.
+# Export format: "Export All" from Case list view (CSV), or REST API JSON response.
+
+[template]
+id = "salesforce-service-cloud"
+name = "Salesforce Service Cloud → SIP Work Orders"
+description = "Maps Salesforce Service Cloud Case fields to SIP work orders. Handles CaseNumber, Priority, Status, Asset.Name, Account.Name, and standard date fields."
+source_system = "salesforce"
+version = "1.0"
+
+# ── Work Order ─────────────────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "work_order"
+source_fields = [
+    "CaseNumber",
+    "Case Number",
+    "casenumber",
+    "number",
+    "Id",
+]
+
+[[mappings.fields]]
+source = "CaseNumber"
+target = "title"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "Id"
+target = "external_id"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "Description"
+target = "description"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "Subject"
+target = "title"
+required = false
+transform = "trim_clean_text"
+fallback = true
+
+[[mappings.fields]]
+source = "Priority"
+target = "priority"
+required = false
+transform = "normalize_priority"
+config = { lookup = { Critical = "critical", High = "high", Medium = "medium", Low = "low" } }
+
+[[mappings.fields]]
+source = "Status"
+target = "status"
+required = false
+transform = "normalize_status"
+config = { lookup = { New = "draft", "In Progress" = "open", "On Hold" = "on_hold", "Escalated" = "open", Closed = "completed", Resolved = "closed" } }
+
+[[mappings.fields]]
+source = "Type"
+target = "work_order_type"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "Origin"
+target = "source_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "Asset.Name"
+target = "asset_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "AssetId"
+target = "asset_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "Account.Name"
+target = "customer_name"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "AccountId"
+target = "customer_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "Contact.Email"
+target = "contact_email"
+required = false
+transform = "normalize_email"
+
+[[mappings.fields]]
+source = "SuppliedEmail"
+target = "contact_email"
+required = false
+transform = "normalize_email"
+
+[[mappings.fields]]
+source = "CreatedDate"
+target = "due_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "ClosedDate"
+target = "completed_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "Resolution__c"
+target = "resolution_notes"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "Entitlement.Name"
+target = "entitlement_name"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "Case.Owner.Name"
+target = "assigned_to_email"
+required = false
+transform = "normalize_email"
+
+# ── Asset (from Case.Asset) ────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "asset"
+source_fields = [
+    "Asset.Name",
+    "AssetId",
+    "asset_name",
+    "asset",
+]
+
+[[mappings.fields]]
+source = "Asset.Name"
+target = "name"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "AssetId"
+target = "external_id"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "Asset.SerialNumber"
+target = "serial_number"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "Asset.Status"
+target = "status"
+required = false
+transform = "normalize_status"
+
+[[mappings.fields]]
+source = "Asset.Description"
+target = "notes"
+required = false
+transform = "convert_blank_to_null"

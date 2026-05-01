@@ -1,0 +1,179 @@
+# generic-crm-csv — Maps standard CRM CSV columns to SIP customers and contacts.
+# Use this template when importing customer/contact data from common CRM exports
+# (HubSpot, Zoho, Pipedrive, spreadsheets, etc.).
+
+[template]
+id = "generic-crm-csv"
+name = "Generic CRM CSV Import"
+description = "Maps standard CRM CSV columns to SIP customers and contacts. Handles company name, address, phone, email, website, and related contacts."
+source_system = "csv"
+version = "1.0"
+
+# ── Customer ───────────────────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "customer"
+source_fields = [
+    "company",
+    "customer",
+    "account_name",
+    "organization",
+    "company_name",
+    "client",
+    "business_name",
+]
+
+[[mappings.fields]]
+source = "company"
+target = "name"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "account_number"
+target = "account_number"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "external_id"
+target = "external_id"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "address"
+target = "address_line1"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "address_line1"
+target = "address_line1"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "address_line2"
+target = "address_line2"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "city"
+target = "city"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "state"
+target = "state"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "zip"
+target = "postal_code"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "postal_code"
+target = "postal_code"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "country"
+target = "country"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "phone"
+target = "phone"
+required = false
+transform = "normalize_phone"
+
+[[mappings.fields]]
+source = "email"
+target = "email"
+required = false
+transform = "normalize_email"
+
+[[mappings.fields]]
+source = "website"
+target = "website"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "notes"
+target = "notes"
+required = false
+transform = "convert_blank_to_null"
+
+# ── Contact ────────────────────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "contact"
+source_fields = [
+    "first_name",
+    "firstname",
+    "fname",
+    "given_name",
+]
+
+[[mappings.fields]]
+source = "first_name"
+target = "first_name"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "last_name"
+target = "last_name"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "email"
+target = "email"
+required = true
+transform = "normalize_email"
+
+[[mappings.fields]]
+source = "phone"
+target = "phone"
+required = false
+transform = "normalize_phone"
+
+[[mappings.fields]]
+source = "title"
+target = "title"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "department"
+target = "department"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "company"
+target = "customer_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "external_id"
+target = "external_id"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "notes"
+target = "notes"
+required = false
+transform = "convert_blank_to_null"

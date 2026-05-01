@@ -2454,6 +2454,155 @@ impl MigrationService {
             staged.push(staged_record);
         }
 
+        for staged_rec in staged.iter_mut() {
+            let canonical: serde_json::Value = staged_rec.canonical_data.clone();
+
+            match staged_rec.target_entity_type.as_str() {
+                "asset" => {
+                    if canonical.get("name").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
+                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "name", "Asset name is required"));
+                    }
+                }
+                "work_order" => {
+                    if canonical.get("title").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
+                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "title", "Work order title is required"));
+                    }
+                }
+                "location" => {
+                    if canonical.get("name").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
+                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "name", "Location name is required"));
+                    }
+                }
+                "part" => {
+                    if canonical.get("name").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
+                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "name", "Part name is required"));
+                    }
+                    if canonical.get("part_number").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
+                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "part_number", "Part number is required"));
+                    }
+                }
+                _ => {}
+            }
+
+            for date_field in &["purchase_date", "warranty_expiry", "due_date", "completed_date"] {
+                if let Some(val) = canonical.get(date_field).and_then(|v| v.as_str()) {
+                    if !val.is_empty()
+                        && chrono::DateTime::parse_from_rfc3339(val).is_err()
+                        && chrono::NaiveDate::parse_from_str(val, "%Y-%m-%d").is_err()
+                    {
+                        issues.push(Self::create_issue(
+                            ctx.organization_id,
+                            job_id,
+                            staged_rec.id,
+                            "warning",
+                            date_field,
+                            &format!("Date '{}' is not in ISO 8601 format", val),
+                        ));
+                    }
+                }
+            }
+
+            if let Some(status) = canonical.get("status").and_then(|v| v.as_str()) {
+                let valid_statuses = [
+                    "operational", "degraded", "down", "maintenance", "retired",
+                    "draft", "open", "in_progress", "on_hold", "completed",
+                    "reviewed", "closed", "cancelled",
+                ];
+                if !valid_statuses.contains(&status.to_lowercase().as_str()) {
+                    issues.push(Self::create_issue(
+                        ctx.organization_id,
+                        job_id,
+                        staged_rec.id,
+                        "warning",
+                        "status",
+                        &format!("Unknown status '{}'", status),
+                    ));
+                }
+            }
+            if let Some(priority) = canonical.get("priority").and_then(|v| v.as_str()) {
+                let valid_priorities = ["critical", "high", "medium", "low", "routine"];
+                if !valid_priorities.contains(&priority.to_lowercase().as_str()) {
+                    issues.push(Self::create_issue(
+                        ctx.organization_id,
+                        job_id,
+                        staged_rec.id,
+                        "warning",
+                        "priority",
+                        &format!("Unknown priority '{}'", priority),
+                    ));
+                }
+            }
+            if let Some(criticality) = canonical.get("criticality").and_then(|v| v.as_str()) {
+                let valid_criticalities = ["critical", "high", "medium", "low"];
+                if !valid_criticalities.contains(&criticality.to_lowercase().as_str()) {
+                    issues.push(Self::create_issue(
+                        ctx.organization_id,
+                        job_id,
+                        staged_rec.id,
+                        "warning",
+                        "criticality",
+                        &format!("Unknown criticality '{}'", criticality),
+                    ));
+                }
+            }
+
+            if let Some(ext_id) = canonical.get("external_id").and_then(|v| v.as_str()) {
+                if !ext_id.is_empty() {
+                    let existing = sqlx::query_scalar::<_, i64>(
+                        "SELECT COUNT(*) FROM migration_external_id_maps WHERE organization_id = $1 AND source_external_id = $2",
+                    )
+                    .bind(Uuid::from(ctx.organization_id))
+                    .bind(ext_id)
+                    .fetch_one(&self.pool)
+                    .await
+                    .unwrap_or(0);
+                    if existing > 0 {
+                        issues.push(Self::create_issue(
+                            ctx.organization_id,
+                            job_id,
+                            staged_rec.id,
+                            "warning",
+                            "external_id",
+                            &format!("External ID '{}' already exists in SIP", ext_id),
+                        ));
+                    }
+                }
+            }
+
+            if staged_rec.target_entity_type == "asset" {
+                if let Some(sn) = canonical.get("serial_number").and_then(|v| v.as_str()) {
+                    if !sn.is_empty() {
+                        let existing = sqlx::query_scalar::<_, i64>(
+                            "SELECT COUNT(*) FROM assets WHERE organization_id = $1 AND serial_number = $2",
+                        )
+                        .bind(Uuid::from(ctx.organization_id))
+                        .bind(sn)
+                        .fetch_one(&self.pool)
+                        .await
+                        .unwrap_or(0);
+                        if existing > 0 {
+                            issues.push(Self::create_issue(
+                                ctx.organization_id,
+                                job_id,
+                                staged_rec.id,
+                                "warning",
+                                "serial_number",
+                                &format!("Serial number '{}' already exists in SIP assets", sn),
+                            ));
+                        }
+                    }
+                }
+            }
+
+            let has_blocking = issues.iter().any(|i| {
+                i.staged_record_id == staged_rec.id
+                    && (i.severity == "blocking" || i.severity == "error")
+            });
+            if has_blocking {
+                staged_rec.status = "invalid".to_string();
+            }
+        }
+
         if !staged.is_empty() {
             repo.create_staged_records(ctx, &staged).await?;
         }
@@ -2474,6 +2623,26 @@ impl MigrationService {
         )
         .await?;
         Ok(issues)
+    }
+
+    fn create_issue(
+        org_id: OrganizationId,
+        job_id: MigrationJobId,
+        staged_id: MigrationStagedRecordId,
+        severity: &str,
+        field: &str,
+        message: &str,
+    ) -> MigrationValidationIssue {
+        MigrationValidationIssue {
+            id: MigrationValidationIssueId::new(),
+            organization_id: org_id,
+            job_id,
+            staged_record_id: staged_id,
+            severity: severity.to_string(),
+            field: field.to_string(),
+            message: message.to_string(),
+            created_at: Utc::now(),
+        }
     }
 
     pub async fn dry_run(

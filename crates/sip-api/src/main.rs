@@ -102,6 +102,8 @@ fn register_default_navigation(registry: &mut PluginRegistry) {
             dev_url: Some("http://localhost:3000".into()),
             production_mount: Some("/".into()),
             api_base_env: Some("NEXT_PUBLIC_API_URL".into()),
+            enabled: true,
+            ..Default::default()
         }),
         navigation: vec![
             nav_item("dashboard", "Dashboard", "/", "layout-dashboard", "dashboard:read", 10),
@@ -259,7 +261,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/ui/plugins", get(routes::plugins::list_ui_plugins))
         .route("/api/v1/ui/capabilities", get(routes::plugins::get_ui_capabilities))
         .route("/api/v1/ui/extension-points", get(routes::plugins::get_extension_points))
-        .route("/api/v1/ui/navigation", get(routes::plugins::get_ui_navigation));
+        .route("/api/v1/ui/navigation", get(routes::plugins::get_ui_navigation))
+        .route("/api/v1/ui/theme", get(routes::plugins::get_ui_theme));
 
     // Navigation endpoint always available (without plugins feature, falls back to embedded defaults)
     #[cfg(not(feature = "plugins"))]

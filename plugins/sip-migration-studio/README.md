@@ -7,13 +7,14 @@ A hybrid plugin for the [SIP Service Intelligence Platform](https://github.com/j
 SIP Migration Studio is the **reference implementation** for SIP's Migration Core Framework. It demonstrates how a hybrid plugin can:
 
 1. Accept CSV and JSON file uploads
-2. Detect source schemas automatically
-3. Map source fields to SIP's canonical import DTOs
-4. Validate mapped records against business rules
+2. Detect source schemas automatically with field types and example values
+3. Map source fields to SIP's canonical import DTOs using 5 mapping templates and 14 transform functions
+4. Validate mapped records against business rules with an automatic validation engine (required fields, date formats, enum values, duplicate detection)
 5. Run dry-run simulations with zero side effects
-6. Execute imports through SIP's core API layer (preserving RBAC, tenant isolation, audit logs)
+6. Execute imports through SIP's core API layer (preserving RBAC, tenant isolation, audit logs) with a real-time progress bar
 7. Preserve external ID mappings for permanent traceability
 8. Rollback imports when needed
+9. Download CSV summary reports for audit trails
 
 ## Quick Start
 
@@ -50,20 +51,23 @@ The Migration Studio appears as a sidebar navigation item. Log in to the SIP web
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
 │ 1. Upload    │───▶│ 2. Map       │───▶│ 3. Validate  │
 │    CSV/JSON  │    │    Fields    │    │    Records   │
+│ + Schema     │    │ + Auto-match │    │ + Rule Engine│
+│   Detection  │    │ + Transforms │    │ + Severity   │
 └──────────────┘    └──────────────┘    └──────────────┘
                                                 │
-                    ┌──────────────┐    ┌──────────────┐
-                    │ 6. Report    │◀───│ 5. Execute   │◀───│ 4. Dry Run  │
-                    │    Export    │    │    Import     │    │    Preview  │
-                    └──────────────┘    └──────────────┘    └──────────────┘
+                     ┌──────────────┐    ┌──────────────┐
+                     │ 6. Report    │◀───│ 5. Execute   │◀───│ 4. Dry Run  │
+                     │    + CSV     │    │    Import    │    │    Preview  │
+                     │    Export    │    │ + Progress   │    │              │
+                     └──────────────┘    └──────────────┘    └──────────────┘
 ```
 
-1. **Upload**: Drag & drop a CSV or JSON file. The plugin parses headers and shows a preview.
-2. **Map Fields**: Map each source column to a canonical SIP field (name, serial_number, status, etc.).
-3. **Validate**: Run validation to check for missing required fields, invalid enums, duplicate detection.
+1. **Upload**: Drag & drop a CSV or JSON file. The plugin parses headers, detects field types, and shows a preview with schema information.
+2. **Map Fields**: Choose from 5 mapping templates — Generic CRM, Generic CMMS, Salesforce Service Cloud, ServiceNow CSM, and Maximo EAM. Auto-suggest matches source fields to SIP canonical fields by name. Apply any of 14 transform functions (uppercase, lowercase, trim, substring, concatenate, date_format, to_number, default_value, split, replace, map_values, extract_domain, regex, join) to convert source data.
+3. **Validate**: Run the validation engine with automatic rule checking — required field enforcement, date format validation, enum value validation, duplicate external ID detection, and duplicate serial number detection. Issues are color-coded by severity (blocking/error/warning/info).
 4. **Dry Run**: Simulate the import — no permanent changes. See what will be created, updated, or skipped.
-5. **Execute Import**: Run the actual import. Records flow through SIP's core validation and are created via the standard service layer.
-6. **Report**: View results — created records, skipped records, errors, external ID mappings.
+5. **Execute Import**: Run the actual import. Records flow through SIP's core validation and are created via the standard service layer. A progress bar shows import status in real time.
+6. **Report**: View results — created records, skipped records, errors, external ID mappings. Download a CSV summary report for audit trails.
 
 ## Architecture
 

@@ -92,10 +92,20 @@ export default function MigrationJobDetailPage() {
       try {
         const src = await apiFetch(`/migrations/jobs/${jobId}/source-records`);
         setSourceRecords(src.data || []);
-        // Auto-populate mapping form from source field names
+        // Auto-suggest mapping form: match source fields to target fields by name
         if (src.data?.length > 0) {
+          const targetFieldNames = [
+            'name', 'serial_number', 'description', 'status', 'criticality',
+            'purchase_date', 'warranty_expiry', 'notes', 'tags', 'firmware_version',
+            'title', 'priority', 'type', 'resolution_notes', 'due_date', 'completed_date',
+            'labor_hours', 'address_line1', 'city', 'state', 'postal_code', 'country',
+            'external_id', 'part_number', 'quantity_on_hand', 'unit_of_measure',
+          ];
           const fields = Object.keys(src.data[0]);
-          setMappingForm(fields.map(f => ({ source_field: f, target_field: '' })));
+          setMappingForm(fields.map(f => ({
+            source_field: f,
+            target_field: targetFieldNames.includes(f) ? f : '',
+          })));
         }
       } catch {}
       // Fetch staged records
@@ -327,32 +337,71 @@ export default function MigrationJobDetailPage() {
               <p className="mt-2 text-sm text-gray-500">No source records uploaded yet.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b">
-                    {recordFields.slice(0, 8).map((field) => (
-                      <th key={field} className="px-3 py-2 text-left font-medium text-gray-600 text-xs uppercase">
-                        {field}
-                      </th>
-                    ))}
-                    {recordFields.length > 8 && <th className="px-3 py-2 text-left font-medium text-gray-400 text-xs">...</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sourceRecords.slice(0, 20).map((rec, idx) => (
-                    <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
+            <>
+              {/* Schema Detection Results */}
+              <div className="mb-4">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Detected Schema</h4>
+                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b">
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 text-xs uppercase">Field</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 text-xs uppercase">Type</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600 text-xs uppercase">Example Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recordFields.map((field) => {
+                        const sample = sourceRecords[0][field];
+                        let typeLabel = 'string';
+                        if (typeof sample === 'number') typeLabel = 'number';
+                        else if (typeof sample === 'boolean') typeLabel = 'boolean';
+                        else if (sample === null || sample === undefined) typeLabel = 'null';
+                        const sampleStr = sample !== null && sample !== undefined
+                          ? String(sample).length > 60 ? String(sample).slice(0, 60) + '...' : String(sample)
+                          : '(empty)';
+                        return (
+                          <tr key={field} className="border-b last:border-0 hover:bg-gray-50">
+                            <td className="px-3 py-1.5 text-gray-700 font-mono text-xs">{field}</td>
+                            <td className="px-3 py-1.5">
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">{typeLabel}</span>
+                            </td>
+                            <td className="px-3 py-1.5 text-gray-500 text-xs max-w-[300px] truncate">{sampleStr}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {/* Records Table */}
+              <div className="overflow-x-auto bg-white rounded-lg border border-gray-200">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
                       {recordFields.slice(0, 8).map((field) => (
-                        <td key={field} className="px-3 py-1.5 text-gray-700 max-w-[200px] truncate">
-                          {String(rec[field] ?? '')}
-                        </td>
+                        <th key={field} className="px-3 py-2 text-left font-medium text-gray-600 text-xs uppercase">
+                          {field}
+                        </th>
                       ))}
-                      {recordFields.length > 8 && <td className="px-3 py-1.5 text-gray-400">...</td>}
+                      {recordFields.length > 8 && <th className="px-3 py-2 text-left font-medium text-gray-400 text-xs">...</th>}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {sourceRecords.slice(0, 20).map((rec, idx) => (
+                      <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
+                        {recordFields.slice(0, 8).map((field) => (
+                          <td key={field} className="px-3 py-1.5 text-gray-700 max-w-[200px] truncate">
+                            {String(rec[field] ?? '')}
+                          </td>
+                        ))}
+                        {recordFields.length > 8 && <td className="px-3 py-1.5 text-gray-400">...</td>}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -451,17 +500,37 @@ export default function MigrationJobDetailPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {issues.map((issue: any, idx: number) => (
-                <div key={idx} className={`bg-white rounded-lg border p-3 ${
-                  issue.severity === 'error' ? 'border-red-200 bg-red-50' : issue.severity === 'warning' ? 'border-yellow-200 bg-yellow-50' : 'border-blue-200 bg-blue-50'
-                }`}>
-                  <div className="flex items-center space-x-2">
-                    {issue.severity === 'error' ? <XCircle className="w-4 h-4 text-red-500" /> : issue.severity === 'warning' ? <AlertTriangle className="w-4 h-4 text-yellow-500" /> : <Eye className="w-4 h-4 text-blue-500" />}
-                    <span className="text-sm font-medium">{issue.message}</span>
+              {issues.map((issue: any, idx: number) => {
+                const isBlockingOrError = issue.severity === 'blocking' || issue.severity === 'error';
+                const isWarning = issue.severity === 'warning';
+                const containerClass = isBlockingOrError
+                  ? 'border-red-200 bg-red-50'
+                  : isWarning
+                    ? 'border-yellow-200 bg-yellow-50'
+                    : 'border-blue-200 bg-blue-50';
+                const iconEl = isBlockingOrError
+                  ? <XCircle className="w-4 h-4 text-red-500" />
+                  : isWarning
+                    ? <AlertTriangle className="w-4 h-4 text-yellow-500" />
+                    : <Eye className="w-4 h-4 text-blue-500" />;
+                const sevBadgeColor = isBlockingOrError
+                  ? 'bg-red-100 text-red-700'
+                  : isWarning
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-blue-100 text-blue-700';
+                return (
+                  <div key={idx} className={`bg-white rounded-lg border p-3 ${containerClass}`}>
+                    <div className="flex items-center space-x-2">
+                      {iconEl}
+                      <span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium ${sevBadgeColor}`}>
+                        {issue.severity}
+                      </span>
+                      <span className="text-sm font-medium">{issue.message}</span>
+                    </div>
+                    {issue.field && <p className="text-xs text-gray-500 mt-1 ml-6">Field: {issue.field}</p>}
                   </div>
-                  {issue.field && <p className="text-xs text-gray-500 mt-1 ml-6">Field: {issue.field}</p>}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -510,20 +579,69 @@ export default function MigrationJobDetailPage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-semibold text-gray-900">Import Report</h3>
-            {canExecute && (
-              <button
-                onClick={() => handleAction('execute', `/migrations/jobs/${jobId}/execute`)}
-                disabled={actionLoading === 'execute'}
-                className="flex items-center space-x-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 shadow-sm"
-              >
-                {actionLoading === 'execute' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                <span>Execute Import</span>
-              </button>
-            )}
+            <div className="flex items-center space-x-2">
+              {canExecute && (
+                <button
+                  onClick={() => handleAction('execute', `/migrations/jobs/${jobId}/execute`)}
+                  disabled={actionLoading === 'execute'}
+                  className="flex items-center space-x-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 shadow-sm"
+                >
+                  {actionLoading === 'execute' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                  <span>Execute Import</span>
+                </button>
+              )}
+              {job.status === 'completed' || job.status === 'completed_with_warnings' || job.status === 'failed' ? (
+                <button
+                  onClick={() => {
+                    const rows = [
+                      ['Source Records', String(job.source_record_count)],
+                      ['Valid Records', String(job.valid_record_count)],
+                      ['Imported Records', String(job.imported_record_count)],
+                      ['Errors', String(job.error_count)],
+                      ['Status', job.status],
+                      ['Validation Issues', String(issues.length)],
+                      ['Duplicate Candidates', String(duplicates.length)],
+                      ['', ''],
+                      ['Issue Severity', 'Field', 'Message'],
+                      ...issues.map((i: any) => [i.severity, i.field || '', i.message]),
+                    ];
+                    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `migration-report-${jobId}.csv`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="flex items-center space-x-1 px-3 py-1.5 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Report</span>
+                </button>
+              ) : null}
+            </div>
           </div>
           <p className="text-xs text-gray-500 mb-4">
             {canExecute ? 'Ready to import. This will create permanent SIP records.' : 'Import report summary.'}
           </p>
+          {job.status === 'importing' && (
+            <div className="mb-4 bg-white rounded-lg border border-yellow-200 p-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <Loader2 className="w-4 h-4 text-yellow-600 animate-spin" />
+                <span className="text-sm font-medium text-yellow-800">Import in progress...</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div
+                  className="bg-yellow-500 h-2.5 rounded-full animate-pulse"
+                  style={{ width: `${job.source_record_count > 0 ? Math.min(95, (job.imported_record_count / job.source_record_count) * 100) : 0}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {job.imported_record_count} of {job.source_record_count} records processed
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="bg-white rounded-lg border border-gray-200 p-4">
               <p className="text-xs text-gray-500">Created</p>

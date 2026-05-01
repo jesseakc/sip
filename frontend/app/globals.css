@@ -2,26 +2,149 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIP Design Tokens — v1.0.0
+   All plugins should reference these tokens, not hardcoded values.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  /* ── Colors ─────────────────────────────────────────── */
+  --sip-color-background: #f9fafb;
+  --sip-color-surface: #ffffff;
+  --sip-color-surface-muted: #f3f4f6;
+  --sip-color-surface-hover: #f9fafb;
+  --sip-color-border: #e5e7eb;
+  --sip-color-border-light: #f3f4f6;
+  --sip-color-text: #111827;
+  --sip-color-text-muted: #6b7280;
+  --sip-color-text-inverse: #ffffff;
+
+  --sip-color-primary: #2563eb;
+  --sip-color-primary-hover: #1d4ed8;
+  --sip-color-primary-light: #eff6ff;
+  --sip-color-primary-text: #1e40af;
+
+  --sip-color-danger: #dc2626;
+  --sip-color-danger-hover: #b91c1c;
+  --sip-color-danger-light: #fef2f2;
+
+  --sip-color-warning: #d97706;
+  --sip-color-warning-light: #fffbeb;
+
+  --sip-color-success: #16a34a;
+  --sip-color-success-light: #f0fdf4;
+
+  --sip-color-info: #0891b2;
+  --sip-color-info-light: #ecfeff;
+
+  /* ── Border Radius ───────────────────────────────────── */
+  --sip-radius-sm: 0.25rem;
+  --sip-radius-md: 0.375rem;
+  --sip-radius-lg: 0.5rem;
+  --sip-radius-xl: 0.75rem;
+  --sip-radius-full: 9999px;
+
+  /* ── Spacing ─────────────────────────────────────────── */
+  --sip-spacing-xs: 0.25rem;
+  --sip-spacing-sm: 0.5rem;
+  --sip-spacing-md: 1rem;
+  --sip-spacing-lg: 1.5rem;
+  --sip-spacing-xl: 2rem;
+  --sip-spacing-2xl: 3rem;
+
+  /* ── Typography ──────────────────────────────────────── */
+  --sip-font-sans: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --sip-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sip-font-size-xs: 0.75rem;
+  --sip-font-size-sm: 0.875rem;
+  --sip-font-size-base: 1rem;
+  --sip-font-size-lg: 1.125rem;
+  --sip-font-size-xl: 1.25rem;
+  --sip-font-size-2xl: 1.5rem;
+
+  /* ── Shadows ─────────────────────────────────────────── */
+  --sip-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --sip-shadow-popover: 0 4px 6px rgba(0, 0, 0, 0.07), 0 10px 15px rgba(0, 0, 0, 0.1);
+
+  /* ── Layout ──────────────────────────────────────────── */
+  --sip-layout-sidebar-width: 16rem;
+  --sip-layout-topbar-height: 4rem;
+  --sip-layout-content-width: 72rem;
+
+  /* ── Transitions ─────────────────────────────────────── */
+  --sip-transition-fast: 150ms ease;
+  --sip-transition-normal: 200ms ease;
 }
+
+/* ── Dark Mode ─────────────────────────────────────────────────────────── */
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+    --sip-color-background: #111827;
+    --sip-color-surface: #1f2937;
+    --sip-color-surface-muted: #374151;
+    --sip-color-surface-hover: #2d3748;
+    --sip-color-border: #4b5563;
+    --sip-color-border-light: #374151;
+    --sip-color-text: #f9fafb;
+    --sip-color-text-muted: #9ca3af;
+    --sip-color-text-inverse: #111827;
+
+    --sip-color-primary: #3b82f6;
+    --sip-color-primary-hover: #60a5fa;
+    --sip-color-primary-light: #1e3a5f;
+    --sip-color-primary-text: #93c5fd;
+
+    --sip-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --sip-shadow-popover: 0 4px 6px rgba(0, 0, 0, 0.4);
   }
 }
 
+/* ── Density: Compact ──────────────────────────────────────────────────── */
+
+.density-compact {
+  --sip-spacing-md: 0.75rem;
+  --sip-spacing-lg: 1rem;
+  --sip-spacing-xl: 1.5rem;
+}
+
+/* ── Density: Spacious ──────────────────────────────────────────────────── */
+
+.density-spacious {
+  --sip-spacing-md: 1.25rem;
+  --sip-spacing-lg: 2rem;
+  --sip-spacing-xl: 2.5rem;
+}
+
+/* ── Base Styles ───────────────────────────────────────────────────────── */
+
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  color: var(--sip-color-text);
+  background: var(--sip-color-background);
+  font-family: var(--sip-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Plugin CSS Boundary ────────────────────────────────────────────────── */
+
+[data-sip-plugin] {
+  /* Plugin root — styles should be scoped under this selector */
+  isolation: isolate;
+}
+
+/* ── Utility Token Classes ──────────────────────────────────────────────── */
+
+.sip-surface {
+  background: var(--sip-color-surface);
+  border: 1px solid var(--sip-color-border);
+  border-radius: var(--sip-radius-lg);
+}
+
+.sip-surface-muted {
+  background: var(--sip-color-surface-muted);
+}
+
+.sip-border {
+  border: 1px solid var(--sip-color-border);
 }

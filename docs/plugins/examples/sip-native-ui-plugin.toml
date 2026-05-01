@@ -1,0 +1,256 @@
+# Example SIP-native hybrid plugin manifest.
+# This file demonstrates every available UI plugin field.
+# Copy this as a starting point for your own plugin.
+
+# ── Identity (top-level fields) ────────────────────────────────────────
+
+id = "example-sip-plugin"
+name = "Example SIP Plugin"
+version = "1.0.0"
+description = "A reference SIP-native hybrid plugin showing all UI options."
+author = "SIP Community"
+license = "AGPL-3.0-or-later"
+sip_version = "0.1.0"
+plugin_type = "hybrid"
+enabled_by_default = true
+
+dependencies = []            # Plugin IDs this plugin depends on
+permissions = ["example:read", "example:write", "example:manage"]
+api_scopes = ["example:api"]
+capabilities = ["reports"]
+
+# ── Config Schema ───────────────────────────────────────────────────────
+
+[config_schema]
+schema = { type = "object", properties = { enabled_feature = { type = "string", default = "all" } } }
+
+# ── UI Section ──────────────────────────────────────────────────────────
+
+[ui]
+enabled = true
+kind = "web"
+framework = "react"
+entrypoint = "/"
+dev_url = "http://localhost:3001"
+production_mount = "/"
+api_base_env = "NEXT_PUBLIC_API_URL"
+description = "Example plugin demonstrating the SIP UI contract."
+icon = "puzzle"
+category = "admin"
+
+# ── UI Compatibility ────────────────────────────────────────────────────
+
+[ui.compatibility]
+level = "native"
+sip_ui_version = "^1.0.0"
+requires_shell = true
+uses_sip_components = true
+uses_theme_tokens = true
+allows_global_css = false
+
+# ── UI Theme ────────────────────────────────────────────────────────────
+
+[ui.theme]
+inherits = "sip-core"
+supports_dark_mode = true
+supports_density = true
+supports_accent_color = true
+uses_design_tokens = true
+
+# ── Navigation ──────────────────────────────────────────────────────────
+
+[[navigation]]
+id = "example-section"
+label = "Example Plugin"
+path = "/example"
+icon = "puzzle"
+order = 90
+permission = "example:read"
+
+[[navigation.children]]
+id = "example-dashboard"
+label = "Dashboard"
+path = "/example"
+permission = "example:read"
+
+[[navigation.children]]
+id = "example-settings"
+label = "Settings"
+path = "/example/settings"
+permission = "example:manage"
+
+# ── Routes ──────────────────────────────────────────────────────────────
+
+[[ui.routes]]
+id = "example-home"
+path = "/example"
+component = "ExampleDashboard"
+layout = "sip-page"
+title = "Example Plugin"
+breadcrumb = "Dashboard"
+required_permissions = ["example:read"]
+
+[[ui.routes]]
+id = "example-detail"
+path = "/example/:id"
+component = "ExampleDetail"
+layout = "sip-page"
+title = "Example Detail"
+breadcrumb = "Detail"
+required_permissions = ["example:read"]
+
+[[ui.routes]]
+id = "example-settings-page"
+path = "/example/settings"
+component = "ExampleSettings"
+layout = "sip-settings"
+title = "Example Settings"
+breadcrumb = "Settings"
+required_permissions = ["example:manage"]
+
+# ── Actions ─────────────────────────────────────────────────────────────
+
+[[ui.actions]]
+id = "example.quick-action"
+label = "Example Quick Action"
+icon = "zap"
+route = "/example/action"
+placement = ["command_palette"]
+required_permissions = ["example:read"]
+
+[[ui.actions]]
+id = "example.export-report"
+label = "Export Report"
+icon = "download"
+route = "/example/export"
+placement = ["toolbar", "context-menu"]
+required_permissions = ["example:export"]
+
+# ── Extension Points ────────────────────────────────────────────────────
+
+[[extension_points]]
+id = "dashboard.cards"
+type = "ui"
+metadata = { component = "ExampleMetricCard", order = 99, label = "Example Metrics" }
+
+[[extension_points]]
+id = "settings.sections"
+type = "ui"
+metadata = { component = "ExampleSettingsSection", order = 50, label = "Example Config" }
+
+[[extension_points]]
+id = "asset.detail.tabs"
+type = "ui"
+metadata = { tab_id = "example-tab", label = "Example Data", order = 60 }
+
+# ── Resources ───────────────────────────────────────────────────────────
+
+[[resources]]
+id = "example_item"
+label = "Example Item"
+plural_label = "Example Items"
+route_base = "/example/items"
+icon = "puzzle"
+search_fields = ["name", "description"]
+default_sort = "name"
+
+[[resources.columns]]
+field = "name"
+label = "Name"
+sortable = true
+
+[[resources.columns]]
+field = "status"
+label = "Status"
+sortable = true
+filterable = true
+
+[[resources.columns]]
+field = "created_at"
+label = "Created"
+sortable = true
+width = "160px"
+
+[[resources.permissions]]
+action = "read"
+scope = "org"
+
+[[resources.permissions]]
+action = "write"
+scope = "org"
+
+[[resources.permissions]]
+action = "delete"
+scope = "org"
+
+[[resources.actions]]
+id = "archive"
+label = "Archive"
+permission = "example:write"
+confirmation = "Archive this item?"
+
+[[resources.actions]]
+id = "export"
+label = "Export CSV"
+permission = "example:export"
+
+[[resources.filters]]
+id = "status"
+label = "Status"
+type = "select"
+options = { active = "Active", archived = "Archived", draft = "Draft" }
+
+# ── Backend ─────────────────────────────────────────────────────────────
+
+[backend]
+api_routes = ["/api/v1/example"]
+
+[[backend.jobs]]
+id = "example-cleanup"
+name = "Example Cleanup Job"
+description = "Removes stale example records"
+schedule = "0 2 * * *"
+
+[[backend.automations]]
+id = "example-on-create"
+name = "On Example Created"
+description = "Triggers when a new example item is created"
+trigger = "example_item.created"
+action = "send_notification"
+
+[[backend.webhooks]]
+id = "example-webhook"
+name = "Example Webhook"
+description = "Fires on item creation"
+event = "example_item.created"
+url = "https://my-service.example.com/hook"
+secret_env = "EXAMPLE_WEBHOOK_SECRET"
+
+[[backend.mcp_tools]]
+id = "search-examples"
+name = "Search Examples"
+description = "Search example items by name or status"
+input_schema = { type = "object", properties = { query = { type = "string", description = "Search query" }, status = { type = "string", enum = ["active", "archived", "draft"] } }, required = [] }
+
+[[backend.ai_tools]]
+id = "summarize-examples"
+name = "Summarize Examples"
+description = "Generate a summary of example items matching a filter"
+function = "summarize_examples"
+parameters = { type = "object", properties = { status = { type = "string" }, limit = { type = "integer", default = 10 } } }
+
+[[backend.external_integrations]]
+id = "example-slack"
+name = "Slack Integration"
+description = "Posts example events to a Slack channel"
+provider = "slack"
+config_schema = { type = "object", properties = { channel = { type = "string", description = "Slack channel name" }, webhook_url = { type = "string", format = "uri" } }, required = ["webhook_url"] }
+
+# ── Marketplace ─────────────────────────────────────────────────────────
+
+[marketplace]
+category = "ui"
+tags = ["official", "web", "example", "reference"]
+homepage = "https://github.com/jesseakc/sip"
+repository = "https://github.com/jesseakc/sip"
+support_email = "plugins@example.com"

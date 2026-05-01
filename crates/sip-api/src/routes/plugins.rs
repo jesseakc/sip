@@ -121,3 +121,48 @@ pub async fn get_extension_points(
         }
     }))
 }
+
+/// GET /api/v1/ui/theme
+/// Returns theme metadata for the SIP Core UI.
+pub async fn get_ui_theme(
+    State(_state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    Json(json!({
+        "data": {
+            "theme": "sip-core",
+            "mode": "system",
+            "density": "comfortable",
+            "supportsDarkMode": true,
+            "supportsAccentColor": true,
+            "tokensVersion": "1.0.0",
+            "tokens": {
+                "colors": {
+                    "background": "#f9fafb",
+                    "surface": "#ffffff",
+                    "surfaceMuted": "#f3f4f6",
+                    "border": "#e5e7eb",
+                    "text": "#111827",
+                    "textMuted": "#6b7280",
+                    "primary": "#2563eb",
+                    "primaryHover": "#1d4ed8",
+                    "danger": "#dc2626",
+                    "warning": "#d97706",
+                    "success": "#16a34a"
+                },
+                "radius": {
+                    "sm": "0.25rem",
+                    "md": "0.375rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem"
+                },
+                "spacing": {
+                    "xs": "0.25rem",
+                    "sm": "0.5rem",
+                    "md": "1rem",
+                    "lg": "1.5rem",
+                    "xl": "2rem"
+                }
+            }
+        }
+    }))
+}

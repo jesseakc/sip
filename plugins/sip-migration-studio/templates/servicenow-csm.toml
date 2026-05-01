@@ -1,0 +1,212 @@
+# servicenow-csm — Maps ServiceNow CSM incident exports to SIP Work Orders.
+# Supports ServiceNow incident table exports (CSV or REST API JSON).
+# Handles ServiceNow's numeric priority/state enums (1-4, 1-7) with explicit mappings.
+
+[template]
+id = "servicenow-csm"
+name = "ServiceNow CSM → SIP Work Orders"
+description = "Maps ServiceNow CSM incident records to SIP work orders. Converts numeric priority (1-4) and state (1-7) enums to SIP canonical values."
+source_system = "servicenow"
+version = "1.0"
+
+# ── Work Order ─────────────────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "work_order"
+source_fields = [
+    "number",
+    "incident_number",
+    "task_number",
+    "sys_id",
+]
+
+[[mappings.fields]]
+source = "number"
+target = "title"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "sys_id"
+target = "external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "short_description"
+target = "description"
+required = true
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "description"
+target = "description"
+required = false
+transform = "convert_blank_to_null"
+fallback = true
+
+[[mappings.fields]]
+source = "priority"
+target = "priority"
+required = false
+transform = "normalize_priority"
+config = { lookup = { "1" = "critical", "2" = "high", "3" = "medium", "4" = "low", "5" = "low" } }
+
+[[mappings.fields]]
+source = "impact"
+target = "priority"
+required = false
+transform = "normalize_priority"
+config = { lookup = { "1" = "critical", "2" = "high", "3" = "medium" } }
+
+[[mappings.fields]]
+source = "urgency"
+target = "priority"
+required = false
+transform = "normalize_priority"
+config = { lookup = { "1" = "critical", "2" = "high", "3" = "medium" } }
+
+[[mappings.fields]]
+source = "state"
+target = "status"
+required = false
+transform = "normalize_status"
+config = { lookup = { "1" = "draft", "2" = "open", "3" = "on_hold", "4" = "on_hold", "5" = "on_hold", "6" = "completed", "7" = "closed", "8" = "closed" } }
+
+[[mappings.fields]]
+source = "category"
+target = "work_order_type"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "subcategory"
+target = "work_order_type"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "cmdb_ci.name"
+target = "asset_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "cmdb_ci.sys_id"
+target = "asset_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "assignment_group.name"
+target = "assignment_group"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "assigned_to.email"
+target = "assigned_to_email"
+required = false
+transform = "normalize_email"
+
+[[mappings.fields]]
+source = "caller.email"
+target = "contact_email"
+required = false
+transform = "normalize_email"
+
+[[mappings.fields]]
+source = "opened_at"
+target = "due_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "closed_at"
+target = "completed_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "resolved_at"
+target = "completed_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "close_notes"
+target = "resolution_notes"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "work_notes"
+target = "resolution_notes"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "location.name"
+target = "location_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "company.name"
+target = "customer_name"
+required = false
+transform = "trim_clean_text"
+
+# ── Asset (from cmdb_ci) ───────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "asset"
+source_fields = [
+    "cmdb_ci.name",
+    "cmdb_ci.sys_id",
+    "cmdb_ci.Serial Number",
+    "cmdb_ci.Manufacturer",
+    "cmdb_ci.Model",
+]
+
+[[mappings.fields]]
+source = "cmdb_ci.name"
+target = "name"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "cmdb_ci.sys_id"
+target = "external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "cmdb_ci.serial_number"
+target = "serial_number"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "cmdb_ci.manufacturer.name"
+target = "manufacturer_name"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "cmdb_ci.model_id.name"
+target = "model_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "cmdb_ci.operational_status"
+target = "status"
+required = false
+transform = "normalize_status"
+
+[[mappings.fields]]
+source = "cmdb_ci.location.name"
+target = "location_external_id"
+required = false
+transform = "trim_clean_text"

@@ -1,0 +1,275 @@
+# maximo-eam — Maps IBM Maximo EAM exports to SIP Assets and Work Orders.
+# Supports Maximo data exports from the MXAPI REST API, SQL export, or MIF flat files.
+# Field names use standard Maximo database column naming (UPPERCASE).
+
+[template]
+id = "maximo-eam"
+name = "IBM Maximo EAM → SIP Assets & Work Orders"
+description = "Maps IBM Maximo Enterprise Asset Management exports to SIP assets and work orders. Uses standard Maximo database column names (ASSETNUM, WONUM, etc.)."
+source_system = "maximo"
+version = "1.0"
+
+# ── Asset ──────────────────────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "asset"
+source_fields = [
+    "ASSETNUM",
+    "assetnum",
+    "asset_number",
+    "ASSETID",
+    "assetid",
+]
+
+[[mappings.fields]]
+source = "ASSETNUM"
+target = "name"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "ASSETID"
+target = "external_id"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "SERIALNUM"
+target = "serial_number"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "DESCRIPTION"
+target = "notes"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "STATUS"
+target = "status"
+required = false
+transform = "normalize_status"
+config = { lookup = { OPERATING = "operational", NOTREADY = "down", DECOMMISSIONED = "retired" } }
+
+[[mappings.fields]]
+source = "LOCATION"
+target = "location_external_id"
+required = false
+transform = "create_location_hierarchy"
+
+[[mappings.fields]]
+source = "LOCDESC"
+target = "location_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "MANUFACTURER"
+target = "manufacturer_name"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "MODELNUM"
+target = "model_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "ASSETTYPE"
+target = "asset_type_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "PURCHASEDATE"
+target = "purchase_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "WARRANTYEXPDATE"
+target = "warranty_expiry"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "INSTALLDATE"
+target = "purchase_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "PRIORITY"
+target = "criticality"
+required = false
+transform = "normalize_priority"
+
+[[mappings.fields]]
+source = "PARENT"
+target = "parent_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "PARENTASSET"
+target = "parent_external_id"
+required = false
+transform = "create_asset_hierarchy"
+
+# ── Work Order ─────────────────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "work_order"
+source_fields = [
+    "WONUM",
+    "wonum",
+    "wo_number",
+    "WORKORDERID",
+    "workorderid",
+]
+
+[[mappings.fields]]
+source = "WONUM"
+target = "title"
+required = true
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "WORKORDERID"
+target = "external_id"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "DESCRIPTION"
+target = "description"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "DESCRIPTION_LONGDESCRIPTION"
+target = "description"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "WOPRIORITY"
+target = "priority"
+required = false
+transform = "normalize_priority"
+config = { lookup = { "1" = "critical", "2" = "high", "3" = "medium", "4" = "low" } }
+
+[[mappings.fields]]
+source = "STATUS"
+target = "status"
+required = false
+transform = "normalize_status"
+config = { lookup = { WAPPR = "draft", APPR = "open", INPRG = "open", WSCH = "draft", COMP = "completed", CLOSE = "closed", CAN = "closed" } }
+
+[[mappings.fields]]
+source = "WOCLASS"
+target = "work_order_type"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "WORKTYPE"
+target = "work_order_type"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "ASSETNUM"
+target = "asset_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "LOCATION"
+target = "location_external_id"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "REPORTDATE"
+target = "due_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "TARGSTARTDATE"
+target = "due_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "ACTFINISH"
+target = "completed_date"
+required = false
+transform = "normalize_date"
+
+[[mappings.fields]]
+source = "ACTLABHRS"
+target = "labor_hours"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "SOLUTION"
+target = "resolution_notes"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "FAILURECODE"
+target = "failure_code"
+required = false
+transform = "trim_clean_text"
+
+[[mappings.fields]]
+source = "PERSONID"
+target = "assigned_to_email"
+required = false
+transform = "normalize_email"
+
+[[mappings.fields]]
+source = "REPORTEDBY"
+target = "contact_email"
+required = false
+transform = "normalize_email"
+
+# ── Location ───────────────────────────────────────────────────────────────────
+
+[[mappings]]
+target_entity = "location"
+source_fields = [
+    "LOCATION",
+    "location",
+    "LOCCODE",
+]
+
+[[mappings.fields]]
+source = "LOCATION"
+target = "name"
+required = true
+transform = "create_location_hierarchy"
+
+[[mappings.fields]]
+source = "LOCDESC"
+target = "notes"
+required = false
+transform = "convert_blank_to_null"
+
+[[mappings.fields]]
+source = "LOCATION.STATUS"
+target = "active"
+required = false
+transform = "normalize_status"
+
+[[mappings.fields]]
+source = "PARENTLOC"
+target = "parent_external_id"
+required = false
+transform = "trim_clean_text"
