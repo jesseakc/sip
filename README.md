@@ -177,7 +177,8 @@ The SIP architecture treats the platform as a **harness layer** between humans, 
 | **AI / Memory** | SIPmem engine (Rust) | Typed memory, fact ledger, verification pipeline, pluggable retrievers |
 | **Cache** | Redis/Valkey | Session store, rate limiting |
 | **Object Storage** | MinIO (self-hosted) | Document uploads, extracted text |
-| **Plugins** | TOML manifests + Rust registry | UI plugins, functional plugins, hybrid plugins |
+| **Plugins** | TOML manifests + Rust registry | UI, functional, and hybrid plugins with declarative navigation |
+| **UI Components** | React + Tailwind + design tokens | Shared SIP UI kit (11 components), theme tokens, dark mode |
 | **Deployment** | Docker Compose | 6 containers, single `docker compose up` |
 
 ### Plugin Architecture
@@ -190,6 +191,8 @@ SIP supports three plugin types:
 - **UI plugins** — contribute navigation, routes, dashboards, forms, and extension points
 - **Functional plugins** — contribute backend logic, API routes, jobs, automations, integrations, AI tools, and MCP tools
 - **Hybrid plugins** — contribute both UI and backend capabilities
+
+UI plugins declare a **compatibility level**: `native` (uses SIP shell, tokens, and components), `compatible` (uses SIP navigation but may have custom styling), or `standalone` (externally hosted, visually isolated). See [UI Plugins docs](./docs/plugins/ui-plugins.md).
 
 Each plugin is defined by a `plugin.toml` manifest in its own directory under `plugins/`:
 ```
@@ -360,6 +363,8 @@ The seed migration creates a complete demo organization. Use these credentials:
 | 17 | **Seed data** | Demo org, 35 assets, 50 work orders across all states, 8 users across all roles, 2 teams, 5 schedules, 2 inspections, 3 documents, AI conversation. |
 | 18 | **Plugin framework** | TOML manifest registry. UI/functional/hybrid plugin types. First-party frontend shipped as `sip-core-ui` plugin. Plugin discovery API endpoints. Sidebar navigation driven by plugin registry. Declarative extension points (35 defined). Manifest validation (unique IDs, semver, dependency checks, navigation validation). |
 | 19 | **Migration Core** | Full migration pipeline: 11 entities, canonical import DTOs, 16 API endpoints, field mappings, source→SIP external ID mapping, dry-run/import/rollback, 8 plugin extension points. RLS on all tables. Gated behind plugins feature flag. |
+| 20 | **SIPmem evidence engine** | 14 typed memory categories, Fact Ledger (atomic claims), TemporalResolver (valid_from/to/stale), VerificationEngine (pluggable verifiers), 10 retrieval recipes, ContradictionRecord persistence, SipmemPipeline orchestration. 50 tests. |
+| 21 | **UI Plugin Platform** | Manifest contract: UiCompatibility (native/compatible/standalone), UiThemeConfig, UiRouteDef, UiActionDef. Design tokens v1.0 (30+ CSS custom properties, dark mode, density modes). 11 shared SIP UI components (SipPage, SipCard, SipButton, SipBadge, SipAlert, etc.). /api/v1/ui/theme endpoint. Example native plugin manifest. |
 
 ### 🚧 Deferred to Later Phases
 
@@ -898,8 +903,6 @@ Every tenant-owned table has RLS enabled with `organization_id = current_org_id(
 
 ---
 
----
-
 ## Documentation
 
 | Document | Description |
@@ -913,11 +916,22 @@ Every tenant-owned table has RLS enabled with `organization_id = current_org_id(
 | [Extension Points](./docs/plugins/extension-points.md) | 35 UI injection slots + 8 migration slots |
 | [Plugin Examples](./docs/plugins/examples.md) | 5 walkthroughs for common plugin types |
 | [Plugin API](./docs/plugins/api-reference.md) | Plugin discovery REST endpoints |
+| [UI Plugins](./docs/plugins/ui-plugins.md) | Building SIP-native UI plugins |
+| [Theme Contract](./docs/plugins/theme-contract.md) | Design tokens, dark mode, density |
+| [Navigation](./docs/plugins/navigation.md) | Plugin-driven sidebar navigation |
+| [UI Checklist](./docs/plugins/sip-native-ui-checklist.md) | Pre-ship checklist for UI plugins |
+| **SIPmem** | |
+| [SIPmem Architecture](./docs/sipmem/architecture.md) | Evidence engine pipeline |
+| [Verification Loop](./docs/sipmem/verification-loop.md) | Claim verification + contradiction detection |
+| [Temporal Memory](./docs/sipmem/temporal-memory.md) | Time-scoped facts + pruning |
+| [Retrieval Recipes](./docs/sipmem/retrieval-recipes.md) | 10 query recipes + router |
+| [Plugin Contracts](./docs/sipmem/plugin-contracts.md) | Implementing retrievers + verifiers |
 | **Migration** | |
 | [Migration Overview](./docs/migrations/overview.md) | Migration Core Framework overview |
 | [Migration API](./docs/migrations/api-reference.md) | Migration REST endpoints |
 | [External ID Mapping](./docs/migrations/external-id-mapping.md) | Source→SIP traceability |
 | [Migration Studio](./plugins/sip-migration-studio/README.md) | Reference hybrid import plugin |
+| [Transform Functions](./plugins/sip-migration-studio/docs/transform-functions.md) | 14 field transform functions |
 
 ## License
 

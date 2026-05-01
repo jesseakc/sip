@@ -140,8 +140,8 @@
 | D16 | Plugin manifest and lifecycle foundation | ✅ (implemented early) |
 | D17 | Reference plugins (CSV import, dashboard) | 🚧 (`sip-migration-studio` plugin built — CSV/JSON import, mapping wizard, dry run, execute UI) |
 | D18 | Basic UI extension points | ✅ (35 extension points defined) |
-| D19 | LLM provider abstraction (LiteLLM, per-tenant config) | 🚧 (provider trait done; per-tenant tbd) |
-| D20 | Improved RAG pipeline (re-ranking, hybrid search) | ⬜ |
+| D19 | LLM provider abstraction (LiteLLM, per-tenant config) | 🚧 (provider trait done, OpenAI supported; Anthropic/Bedrock/Azure stubbed) |
+| D20 | Improved RAG pipeline (re-ranking, hybrid search) | 🚧 (SIPmem v2 rebuilt — evidence engine, 10 recipes, temporal resolver, contradiction detection; re-ranking deferred) |
 | D21 | Document chunking and embedding refinements | ⬜ |
 | D22 | Optional external event bus (NATS JetStream) | ⬜ |
 | D23 | Basic automation engine | ⬜ |
@@ -396,4 +396,4 @@
 
 ---
 
-_Last updated: 2026-04-30_
+_Last updated: 2026-05-01_
