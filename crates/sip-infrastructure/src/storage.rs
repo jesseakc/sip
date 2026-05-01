@@ -3,7 +3,12 @@ use anyhow::Result;
 pub struct ObjectStorage;
 
 impl ObjectStorage {
-    pub fn new(_endpoint: &str, _bucket: &str, _access_key: &str, _secret_key: &str) -> Result<Self> {
+    pub fn new(
+        _endpoint: &str,
+        _bucket: &str,
+        _access_key: &str,
+        _secret_key: &str,
+    ) -> Result<Self> {
         Ok(Self)
     }
 

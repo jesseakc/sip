@@ -5,8 +5,8 @@ use uuid::Uuid;
 use crate::id::{
     MigrationBatchId, MigrationCheckpointId, MigrationDuplicateCandidateId,
     MigrationExternalIdMapId, MigrationFieldMappingId, MigrationImportResultId, MigrationJobId,
-    MigrationRunId, MigrationSourceRecordId, MigrationStagedRecordId,
-    MigrationValidationIssueId, OrganizationId, UserId,
+    MigrationRunId, MigrationSourceRecordId, MigrationStagedRecordId, MigrationValidationIssueId,
+    OrganizationId, UserId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,16 +34,34 @@ impl MigrationJobStatus {
                 | (MigrationJobStatus::Uploaded, MigrationJobStatus::Cancelled)
                 | (MigrationJobStatus::Mapped, MigrationJobStatus::Validated)
                 | (MigrationJobStatus::Mapped, MigrationJobStatus::Cancelled)
-                | (MigrationJobStatus::Validated, MigrationJobStatus::ReadyForImport)
+                | (
+                    MigrationJobStatus::Validated,
+                    MigrationJobStatus::ReadyForImport
+                )
                 | (MigrationJobStatus::Validated, MigrationJobStatus::Cancelled)
-                | (MigrationJobStatus::ReadyForImport, MigrationJobStatus::Importing)
-                | (MigrationJobStatus::ReadyForImport, MigrationJobStatus::Cancelled)
+                | (
+                    MigrationJobStatus::ReadyForImport,
+                    MigrationJobStatus::Importing
+                )
+                | (
+                    MigrationJobStatus::ReadyForImport,
+                    MigrationJobStatus::Cancelled
+                )
                 | (MigrationJobStatus::Importing, MigrationJobStatus::Completed)
-                | (MigrationJobStatus::Importing, MigrationJobStatus::CompletedWithWarnings)
+                | (
+                    MigrationJobStatus::Importing,
+                    MigrationJobStatus::CompletedWithWarnings
+                )
                 | (MigrationJobStatus::Importing, MigrationJobStatus::Failed)
                 | (MigrationJobStatus::Importing, MigrationJobStatus::Cancelled)
-                | (MigrationJobStatus::Completed, MigrationJobStatus::RolledBack)
-                | (MigrationJobStatus::CompletedWithWarnings, MigrationJobStatus::RolledBack)
+                | (
+                    MigrationJobStatus::Completed,
+                    MigrationJobStatus::RolledBack
+                )
+                | (
+                    MigrationJobStatus::CompletedWithWarnings,
+                    MigrationJobStatus::RolledBack
+                )
                 | (MigrationJobStatus::Failed, MigrationJobStatus::Draft)
                 | (MigrationJobStatus::Cancelled, MigrationJobStatus::Draft)
         )
@@ -414,8 +432,7 @@ mod tests {
         assert!(MigrationJobStatus::Uploaded.can_transition_to(MigrationJobStatus::Mapped));
         assert!(MigrationJobStatus::Mapped.can_transition_to(MigrationJobStatus::Validated));
         assert!(MigrationJobStatus::Validated.can_transition_to(MigrationJobStatus::ReadyForImport));
-        assert!(MigrationJobStatus::ReadyForImport
-            .can_transition_to(MigrationJobStatus::Importing));
+        assert!(MigrationJobStatus::ReadyForImport.can_transition_to(MigrationJobStatus::Importing));
         assert!(MigrationJobStatus::Importing.can_transition_to(MigrationJobStatus::Completed));
         assert!(MigrationJobStatus::Importing
             .can_transition_to(MigrationJobStatus::CompletedWithWarnings));

@@ -24,7 +24,16 @@ pub async fn list_models(
     Extension(ctx): Extension<TenantContext>,
     Query(query): Query<ListModelsQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let manufacturer_id = query.manufacturer_id.map(|s| s.parse::<ManufacturerId>()).transpose().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let manufacturer_id = query
+        .manufacturer_id
+        .map(|s| s.parse::<ManufacturerId>())
+        .transpose()
+        .map_err(|e: uuid::Error| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
     let repo = PgAssetModelRepository::new(state.pool.clone());
     let service = AssetModelService::new(repo);
     match service.list(&ctx, manufacturer_id).await {
@@ -40,7 +49,10 @@ pub async fn list_models(
                 "updated_at": m.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -49,7 +61,12 @@ pub async fn get_model(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let model_id = id.parse::<AssetModelId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let model_id = id.parse::<AssetModelId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgAssetModelRepository::new(state.pool.clone());
     let service = AssetModelService::new(repo);
     match service.get(&ctx, model_id).await {
@@ -69,8 +86,14 @@ pub async fn get_model(
                 "updated_at": m.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Model not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Model not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -87,12 +110,38 @@ pub async fn create_model(
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateModelRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let manufacturer_id: ManufacturerId = req.manufacturer_id.parse().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let asset_type_id: sip_domain::id::AssetTypeId = req.asset_type_id.parse().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let manufacturer_id: ManufacturerId =
+        req.manufacturer_id.parse().map_err(|e: uuid::Error| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
+    let asset_type_id: sip_domain::id::AssetTypeId =
+        req.asset_type_id.parse().map_err(|e: uuid::Error| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
     let repo = PgAssetModelRepository::new(state.pool.clone());
     let service = AssetModelService::new(repo);
-    match service.create(&ctx, manufacturer_id, req.name, req.model_number, asset_type_id).await {
-        Ok(m) => Ok(Json(json!({"data": {"id": m.id.to_string(), "name": m.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+    match service
+        .create(
+            &ctx,
+            manufacturer_id,
+            req.name,
+            req.model_number,
+            asset_type_id,
+        )
+        .await
+    {
+        Ok(m) => Ok(Json(
+            json!({"data": {"id": m.id.to_string(), "name": m.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

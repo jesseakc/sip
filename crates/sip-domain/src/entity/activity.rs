@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::id::{ActivityId, AgentIdentityId, OrganizationId, PluginId};
 use crate::entity::work_order::ActorType;
+use crate::id::{ActivityId, AgentIdentityId, OrganizationId, PluginId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ActivitySource {

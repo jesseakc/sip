@@ -192,10 +192,7 @@ mod tests {
     #[test]
     fn test_time_range_end_none() {
         let start = chrono::Utc::now();
-        let range = TimeRange {
-            start,
-            end: None,
-        };
+        let range = TimeRange { start, end: None };
         assert_eq!(range.start, start);
         assert!(range.end.is_none());
     }

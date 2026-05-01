@@ -30,7 +30,10 @@ impl std::fmt::Display for Environment {
 
 impl Environment {
     pub fn is_development_like(&self) -> bool {
-        matches!(self, Environment::Local | Environment::Development | Environment::Test)
+        matches!(
+            self,
+            Environment::Local | Environment::Development | Environment::Test
+        )
     }
 
     pub fn is_production(&self) -> bool {
@@ -383,19 +386,21 @@ fn default_log_level() -> String {
 // ─── Config loading ─────────────────────────────────────────────────────────
 
 /// Load config with precedence: hardcoded defaults → Sip.toml → SIP_ env vars
-pub fn load_config() -> Result<AppConfig, figment::Error> {
+pub fn load_config() -> Result<AppConfig, Box<figment::Error>> {
     Figment::new()
         .merge(Toml::file("Sip.toml"))
         .merge(Env::prefixed("SIP_"))
         .extract()
+        .map_err(Box::new)
 }
 
 /// Load config from a specific TOML file path (useful for testing)
-pub fn load_config_from(path: &str) -> Result<AppConfig, figment::Error> {
+pub fn load_config_from(path: &str) -> Result<AppConfig, Box<figment::Error>> {
     Figment::new()
         .merge(Toml::file(path))
         .merge(Env::prefixed("SIP_"))
         .extract()
+        .map_err(Box::new)
 }
 
 /// Load config for the SIP configuration sub-section from env vars only
@@ -404,11 +409,11 @@ pub fn load_config_from(path: &str) -> Result<AppConfig, figment::Error> {
 ///
 /// This is a convenience: in Docker, users set SIP_DATABASE_URL, SIP_AI_ENABLED,
 /// SIP_LLM_PROVIDER, etc. directly as env vars.
-pub fn load_config_docker() -> Result<AppConfig, figment::Error> {
-    // In Docker, we rely entirely on env vars (no Sip.toml present)
+pub fn load_config_docker() -> Result<AppConfig, Box<figment::Error>> {
     Figment::new()
         .merge(Env::prefixed("SIP_"))
         .extract()
+        .map_err(Box::new)
 }
 
 // ─── Backward-compatible flat env mapping ───────────────────────────────────
@@ -482,8 +487,7 @@ pub fn validate_config(config: &AppConfig) -> ConfigValidation {
     }
 
     // ── Object Storage ──
-    if config.object_storage.is_some() {
-        let os = config.object_storage.as_ref().unwrap();
+    if let Some(os) = config.object_storage.as_ref() {
         if os.enabled {
             if os.endpoint.is_empty() {
                 errors.push("Object storage is enabled but endpoint is empty".into());
@@ -518,39 +522,41 @@ pub fn validate_config(config: &AppConfig) -> ConfigValidation {
                     errors.push("Ollama provider selected but SIP_OLLAMA_URL is empty".into());
                 }
             }
-            LlmProviderType::OpenAI => {
-                match &config.ai.openai {
-                    Some(oc) if oc.api_key.is_empty() => {
-                        errors.push("OpenAI provider selected but SIP_OPENAI_API_KEY is empty".into());
-                    }
-                    None => {
-                        errors.push("OpenAI provider selected but no OpenAI config provided".into());
-                    }
-                    _ => {}
+            LlmProviderType::OpenAI => match &config.ai.openai {
+                Some(oc) if oc.api_key.is_empty() => {
+                    errors.push("OpenAI provider selected but SIP_OPENAI_API_KEY is empty".into());
                 }
-            }
-            LlmProviderType::Anthropic => {
-                match &config.ai.anthropic {
-                    Some(ac) if ac.api_key.is_empty() => {
-                        errors.push("Anthropic provider selected but SIP_ANTHROPIC_API_KEY is empty".into());
-                    }
-                    None => {
-                        errors.push("Anthropic provider selected but no Anthropic config provided".into());
-                    }
-                    _ => {}
+                None => {
+                    errors.push("OpenAI provider selected but no OpenAI config provided".into());
                 }
-            }
-            LlmProviderType::OpenRouter => {
-                match &config.ai.openrouter {
-                    Some(oc) if oc.api_key.is_empty() => {
-                        errors.push("OpenRouter provider selected but SIP_OPENROUTER_API_KEY is empty".into());
-                    }
-                    None => {
-                        errors.push("OpenRouter provider selected but no OpenRouter config provided".into());
-                    }
-                    _ => {}
+                _ => {}
+            },
+            LlmProviderType::Anthropic => match &config.ai.anthropic {
+                Some(ac) if ac.api_key.is_empty() => {
+                    errors.push(
+                        "Anthropic provider selected but SIP_ANTHROPIC_API_KEY is empty".into(),
+                    );
                 }
-            }
+                None => {
+                    errors.push(
+                        "Anthropic provider selected but no Anthropic config provided".into(),
+                    );
+                }
+                _ => {}
+            },
+            LlmProviderType::OpenRouter => match &config.ai.openrouter {
+                Some(oc) if oc.api_key.is_empty() => {
+                    errors.push(
+                        "OpenRouter provider selected but SIP_OPENROUTER_API_KEY is empty".into(),
+                    );
+                }
+                None => {
+                    errors.push(
+                        "OpenRouter provider selected but no OpenRouter config provided".into(),
+                    );
+                }
+                _ => {}
+            },
             LlmProviderType::AzureOpenAI => {
                 match &config.ai.azure_openai {
                     Some(ac) => {
@@ -565,32 +571,35 @@ pub fn validate_config(config: &AppConfig) -> ConfigValidation {
                         }
                     }
                     None => {
-                        errors.push("Azure OpenAI provider selected but no Azure config provided".into());
+                        errors.push(
+                            "Azure OpenAI provider selected but no Azure config provided".into(),
+                        );
                     }
                 }
             }
-            LlmProviderType::Bedrock => {
-                match &config.ai.bedrock {
-                    Some(bc) if bc.model_id.is_empty() => {
-                        errors.push("Bedrock provider selected but SIP_BEDROCK_MODEL_ID is empty".into());
-                    }
-                    None => {
-                        errors.push("Bedrock provider selected but no Bedrock config provided".into());
-                    }
-                    _ => {}
+            LlmProviderType::Bedrock => match &config.ai.bedrock {
+                Some(bc) if bc.model_id.is_empty() => {
+                    errors
+                        .push("Bedrock provider selected but SIP_BEDROCK_MODEL_ID is empty".into());
                 }
-            }
-            LlmProviderType::CustomHttp => {
-                match &config.ai.custom_http {
-                    Some(cc) if cc.base_url.is_empty() => {
-                        errors.push("Custom HTTP provider selected but SIP_CUSTOM_LLM_BASE_URL is empty".into());
-                    }
-                    None => {
-                        errors.push("Custom HTTP provider selected but no custom HTTP config provided".into());
-                    }
-                    _ => {}
+                None => {
+                    errors.push("Bedrock provider selected but no Bedrock config provided".into());
                 }
-            }
+                _ => {}
+            },
+            LlmProviderType::CustomHttp => match &config.ai.custom_http {
+                Some(cc) if cc.base_url.is_empty() => {
+                    errors.push(
+                        "Custom HTTP provider selected but SIP_CUSTOM_LLM_BASE_URL is empty".into(),
+                    );
+                }
+                None => {
+                    errors.push(
+                        "Custom HTTP provider selected but no custom HTTP config provided".into(),
+                    );
+                }
+                _ => {}
+            },
         }
     } else {
         // AI disabled — ensure provider is set to disabled (or warn)
@@ -607,11 +616,13 @@ pub fn validate_config(config: &AppConfig) -> ConfigValidation {
             warnings.push("RAG feature enabled but AI is disabled — RAG will not function".into());
         }
     }
-    if config.features.semantic_search_enabled && !config.ai.enabled {
-        if is_strict {
-            warnings.push("Semantic search requires AI for embeddings. Enable AI or disable semantic search.".into());
+    if config.features.semantic_search_enabled && !config.ai.enabled
+        && is_strict {
+            warnings.push(
+                "Semantic search requires AI for embeddings. Enable AI or disable semantic search."
+                    .into(),
+            );
         }
-    }
     if config.features.document_ingestion_enabled && config.object_storage.is_none() {
         if is_strict {
             errors.push("Document ingestion requires object storage configuration".into());
@@ -634,11 +645,16 @@ pub fn validate_config(config: &AppConfig) -> ConfigValidation {
         }
         // Require HTTPS
         if !config.security.require_https {
-            warnings.push("SIP_REQUIRE_HTTPS is not enabled in production. Consider enabling it.".into());
+            warnings.push(
+                "SIP_REQUIRE_HTTPS is not enabled in production. Consider enabling it.".into(),
+            );
         }
         // Rate limiting should be reasonable
         if config.security.rate_limit_rpm >= 1000 {
-            warnings.push("Rate limit is very high for production. Consider lowering SIP_RATE_LIMIT_RPM.".into());
+            warnings.push(
+                "Rate limit is very high for production. Consider lowering SIP_RATE_LIMIT_RPM."
+                    .into(),
+            );
         }
     }
 
@@ -835,7 +851,11 @@ pub fn config_status(config: &AppConfig) -> ConfigStatus {
         LlmProviderType::OpenAI => config.ai.openai.as_ref().map(|o| o.model.clone()),
         LlmProviderType::Anthropic => config.ai.anthropic.as_ref().map(|a| a.model.clone()),
         LlmProviderType::OpenRouter => config.ai.openrouter.as_ref().map(|o| o.model.clone()),
-        LlmProviderType::AzureOpenAI => config.ai.azure_openai.as_ref().map(|a| a.deployment.clone()),
+        LlmProviderType::AzureOpenAI => config
+            .ai
+            .azure_openai
+            .as_ref()
+            .map(|a| a.deployment.clone()),
         LlmProviderType::Bedrock => config.ai.bedrock.as_ref().map(|b| b.model_id.clone()),
         LlmProviderType::CustomHttp => config.ai.custom_http.as_ref().map(|c| c.model.clone()),
         LlmProviderType::Disabled => None,
@@ -858,11 +878,17 @@ pub fn config_status(config: &AppConfig) -> ConfigStatus {
     check_feature!(config.features.rag_enabled, "rag");
     check_feature!(config.features.graph_enabled, "graph");
     check_feature!(config.features.plugin_system_enabled, "plugin_system");
-    check_feature!(config.features.document_ingestion_enabled, "document_ingestion");
+    check_feature!(
+        config.features.document_ingestion_enabled,
+        "document_ingestion"
+    );
     check_feature!(config.features.semantic_search_enabled, "semantic_search");
     check_feature!(config.features.dispatch_enabled, "dispatch");
     check_feature!(config.features.parts_inventory_enabled, "parts_inventory");
-    check_feature!(config.features.disposables_tracking_enabled, "disposables_tracking");
+    check_feature!(
+        config.features.disposables_tracking_enabled,
+        "disposables_tracking"
+    );
     check_feature!(config.features.billing_enabled, "billing");
     check_feature!(config.features.api_docs_enabled, "api_docs");
     check_feature!(config.features.marketplace_enabled, "marketplace");
@@ -890,11 +916,18 @@ mod tests {
     #[test]
     fn test_default_config_is_loaded() {
         let config = Figment::new().extract::<AppConfig>();
-        assert!(config.is_ok(), "Should load with defaults: {:?}", config.err());
+        assert!(
+            config.is_ok(),
+            "Should load with defaults: {:?}",
+            config.err()
+        );
         let c = config.unwrap();
         assert_eq!(c.env, Environment::Development);
         assert_eq!(c.server.port, 8000);
-        assert!(c.database.is_none(), "Database should be None when not configured");
+        assert!(
+            c.database.is_none(),
+            "Database should be None when not configured"
+        );
     }
 
     #[test]
@@ -1039,7 +1072,10 @@ mod tests {
     fn test_ai_disabled_validation() {
         let mut config = AppConfig {
             env: Environment::Development,
-            server: ServerConfig { host: "0.0.0.0".into(), port: 8000 },
+            server: ServerConfig {
+                host: "0.0.0.0".into(),
+                port: 8000,
+            },
             database: Some(DatabaseConfig {
                 url: "postgres://localhost/db".into(),
                 max_connections: 10,
@@ -1061,8 +1097,17 @@ mod tests {
                 request_logging_enabled: false,
                 default_temperature: 0.2,
                 default_max_tokens: 4096,
-                ollama: OllamaConfig { url: String::new(), model: String::new(), embedding_model: String::new() },
-                openai: None, anthropic: None, openrouter: None, azure_openai: None, bedrock: None, custom_http: None,
+                ollama: OllamaConfig {
+                    url: String::new(),
+                    model: String::new(),
+                    embedding_model: String::new(),
+                },
+                openai: None,
+                anthropic: None,
+                openrouter: None,
+                azure_openai: None,
+                bedrock: None,
+                custom_http: None,
             },
             features: FeatureConfig {
                 ai_chat_enabled: false,
@@ -1092,14 +1137,21 @@ mod tests {
         };
 
         let validation = validate_config(&config);
-        assert!(validation.is_valid(), "AI-disabled config should be valid: {:?}", validation.errors);
+        assert!(
+            validation.is_valid(),
+            "AI-disabled config should be valid: {:?}",
+            validation.errors
+        );
     }
 
     #[test]
     fn test_openai_missing_key_validation() {
         let mut config = AppConfig {
             env: Environment::Production,
-            server: ServerConfig { host: "0.0.0.0".into(), port: 8000 },
+            server: ServerConfig {
+                host: "0.0.0.0".into(),
+                port: 8000,
+            },
             database: Some(DatabaseConfig {
                 url: "postgres://localhost/db".into(),
                 max_connections: 10,
@@ -1121,21 +1173,36 @@ mod tests {
                 request_logging_enabled: false,
                 default_temperature: 0.2,
                 default_max_tokens: 4096,
-                ollama: OllamaConfig { url: String::new(), model: String::new(), embedding_model: String::new() },
+                ollama: OllamaConfig {
+                    url: String::new(),
+                    model: String::new(),
+                    embedding_model: String::new(),
+                },
                 openai: Some(OpenAIConfig {
                     api_key: String::new(),
                     base_url: None,
                     model: "gpt-4o".into(),
                 }),
-                anthropic: None, openrouter: None, azure_openai: None, bedrock: None, custom_http: None,
+                anthropic: None,
+                openrouter: None,
+                azure_openai: None,
+                bedrock: None,
+                custom_http: None,
             },
             features: FeatureConfig {
-                ai_chat_enabled: true, rag_enabled: false, graph_enabled: true,
-                plugin_system_enabled: false, document_ingestion_enabled: false,
-                semantic_search_enabled: false, dispatch_enabled: true,
-                parts_inventory_enabled: true, disposables_tracking_enabled: false,
-                billing_enabled: false, api_docs_enabled: true,
-                marketplace_enabled: false, experimental_enabled: false,
+                ai_chat_enabled: true,
+                rag_enabled: false,
+                graph_enabled: true,
+                plugin_system_enabled: false,
+                document_ingestion_enabled: false,
+                semantic_search_enabled: false,
+                dispatch_enabled: true,
+                parts_inventory_enabled: true,
+                disposables_tracking_enabled: false,
+                billing_enabled: false,
+                api_docs_enabled: true,
+                marketplace_enabled: false,
+                experimental_enabled: false,
             },
             security: SecurityConfig {
                 cors_allowed_origins: vec!["https://sip.example.com".into()],
@@ -1150,10 +1217,14 @@ mod tests {
         };
 
         let validation = validate_config(&config);
-        assert!(!validation.is_valid(), "Should have errors for missing API key");
+        assert!(
+            !validation.is_valid(),
+            "Should have errors for missing API key"
+        );
         assert!(
             validation.errors.iter().any(|e| e.contains("API_KEY")),
-            "Should mention API key: {:?}", validation.errors
+            "Should mention API key: {:?}",
+            validation.errors
         );
     }
 
@@ -1161,7 +1232,10 @@ mod tests {
     fn test_feature_dependency_validation() {
         let mut config = AppConfig {
             env: Environment::Staging,
-            server: ServerConfig { host: "0.0.0.0".into(), port: 8000 },
+            server: ServerConfig {
+                host: "0.0.0.0".into(),
+                port: 8000,
+            },
             database: Some(DatabaseConfig {
                 url: "postgres://localhost/db".into(),
                 max_connections: 10,
@@ -1177,18 +1251,38 @@ mod tests {
             ai: AiConfig {
                 enabled: false,
                 provider: LlmProviderType::Disabled,
-                timeout_seconds: 60, max_retries: 2, streaming_enabled: true,
-                request_logging_enabled: false, default_temperature: 0.2, default_max_tokens: 4096,
-                ollama: OllamaConfig { url: String::new(), model: String::new(), embedding_model: String::new() },
-                openai: None, anthropic: None, openrouter: None, azure_openai: None, bedrock: None, custom_http: None,
+                timeout_seconds: 60,
+                max_retries: 2,
+                streaming_enabled: true,
+                request_logging_enabled: false,
+                default_temperature: 0.2,
+                default_max_tokens: 4096,
+                ollama: OllamaConfig {
+                    url: String::new(),
+                    model: String::new(),
+                    embedding_model: String::new(),
+                },
+                openai: None,
+                anthropic: None,
+                openrouter: None,
+                azure_openai: None,
+                bedrock: None,
+                custom_http: None,
             },
             features: FeatureConfig {
-                ai_chat_enabled: false, rag_enabled: true, graph_enabled: true,
-                plugin_system_enabled: false, document_ingestion_enabled: false,
-                semantic_search_enabled: true, dispatch_enabled: true,
-                parts_inventory_enabled: true, disposables_tracking_enabled: false,
-                billing_enabled: false, api_docs_enabled: true,
-                marketplace_enabled: false, experimental_enabled: false,
+                ai_chat_enabled: false,
+                rag_enabled: true,
+                graph_enabled: true,
+                plugin_system_enabled: false,
+                document_ingestion_enabled: false,
+                semantic_search_enabled: true,
+                dispatch_enabled: true,
+                parts_inventory_enabled: true,
+                disposables_tracking_enabled: false,
+                billing_enabled: false,
+                api_docs_enabled: true,
+                marketplace_enabled: false,
+                experimental_enabled: false,
             },
             security: SecurityConfig {
                 cors_allowed_origins: vec!["https://sip.example.com".into()],
@@ -1206,7 +1300,8 @@ mod tests {
         // RAG without AI in staging
         assert!(
             !validation.is_valid() || validation.errors.iter().any(|e| e.contains("RAG")),
-            "RAG without AI should cause error in staging: {:?}", validation.errors
+            "RAG without AI should cause error in staging: {:?}",
+            validation.errors
         );
     }
 
@@ -1214,7 +1309,10 @@ mod tests {
     fn test_production_jwt_placeholder() {
         let mut config = AppConfig {
             env: Environment::Production,
-            server: ServerConfig { host: "0.0.0.0".into(), port: 8000 },
+            server: ServerConfig {
+                host: "0.0.0.0".into(),
+                port: 8000,
+            },
             database: Some(DatabaseConfig {
                 url: "postgres://localhost/db".into(),
                 max_connections: 10,
@@ -1228,19 +1326,40 @@ mod tests {
                 refresh_expiration_seconds: 604800,
             }),
             ai: AiConfig {
-                enabled: false, provider: LlmProviderType::Disabled,
-                timeout_seconds: 60, max_retries: 2, streaming_enabled: true,
-                request_logging_enabled: false, default_temperature: 0.2, default_max_tokens: 4096,
-                ollama: OllamaConfig { url: String::new(), model: String::new(), embedding_model: String::new() },
-                openai: None, anthropic: None, openrouter: None, azure_openai: None, bedrock: None, custom_http: None,
+                enabled: false,
+                provider: LlmProviderType::Disabled,
+                timeout_seconds: 60,
+                max_retries: 2,
+                streaming_enabled: true,
+                request_logging_enabled: false,
+                default_temperature: 0.2,
+                default_max_tokens: 4096,
+                ollama: OllamaConfig {
+                    url: String::new(),
+                    model: String::new(),
+                    embedding_model: String::new(),
+                },
+                openai: None,
+                anthropic: None,
+                openrouter: None,
+                azure_openai: None,
+                bedrock: None,
+                custom_http: None,
             },
             features: FeatureConfig {
-                ai_chat_enabled: false, rag_enabled: false, graph_enabled: true,
-                plugin_system_enabled: false, document_ingestion_enabled: false,
-                semantic_search_enabled: false, dispatch_enabled: true,
-                parts_inventory_enabled: true, disposables_tracking_enabled: false,
-                billing_enabled: false, api_docs_enabled: true,
-                marketplace_enabled: false, experimental_enabled: false,
+                ai_chat_enabled: false,
+                rag_enabled: false,
+                graph_enabled: true,
+                plugin_system_enabled: false,
+                document_ingestion_enabled: false,
+                semantic_search_enabled: false,
+                dispatch_enabled: true,
+                parts_inventory_enabled: true,
+                disposables_tracking_enabled: false,
+                billing_enabled: false,
+                api_docs_enabled: true,
+                marketplace_enabled: false,
+                experimental_enabled: false,
             },
             security: SecurityConfig {
                 cors_allowed_origins: vec!["https://sip.example.com".into()],
@@ -1255,32 +1374,53 @@ mod tests {
         };
 
         let validation = validate_config(&config);
-        assert!(validation.errors.iter().any(|e| e.contains("JWT secret")),
-            "Placeholder JWT in prod should error: {:?}", validation.errors);
+        assert!(
+            validation.errors.iter().any(|e| e.contains("JWT secret")),
+            "Placeholder JWT in prod should error: {:?}",
+            validation.errors
+        );
     }
 
     #[test]
     fn test_config_status_no_secrets() {
         let config = AppConfig {
             env: Environment::Development,
-            server: ServerConfig { host: "0.0.0.0".into(), port: 8000 },
+            server: ServerConfig {
+                host: "0.0.0.0".into(),
+                port: 8000,
+            },
             database: Some(DatabaseConfig {
                 url: "postgres://sip:secret@localhost/db".into(),
                 max_connections: 10,
                 connect_timeout_seconds: 5,
             }),
-            redis: None, object_storage: None,
+            redis: None,
+            object_storage: None,
             auth: Some(AuthConfig {
                 jwt_secret: "a-reasonable-jwt-secret-that-is-long".into(),
                 jwt_expiration_seconds: 900,
                 refresh_expiration_seconds: 604800,
             }),
             ai: AiConfig {
-                enabled: false, provider: LlmProviderType::Disabled,
-                timeout_seconds: 60, max_retries: 2, streaming_enabled: true,
-                request_logging_enabled: false, default_temperature: 0.2, default_max_tokens: 4096,
-                ollama: OllamaConfig { url: String::new(), model: String::new(), embedding_model: String::new() },
-                openai: None, anthropic: None, openrouter: None, azure_openai: None, bedrock: None, custom_http: None,
+                enabled: false,
+                provider: LlmProviderType::Disabled,
+                timeout_seconds: 60,
+                max_retries: 2,
+                streaming_enabled: true,
+                request_logging_enabled: false,
+                default_temperature: 0.2,
+                default_max_tokens: 4096,
+                ollama: OllamaConfig {
+                    url: String::new(),
+                    model: String::new(),
+                    embedding_model: String::new(),
+                },
+                openai: None,
+                anthropic: None,
+                openrouter: None,
+                azure_openai: None,
+                bedrock: None,
+                custom_http: None,
             },
             features: FeatureConfig::default(),
             security: SecurityConfig {
@@ -1297,7 +1437,10 @@ mod tests {
 
         let status = config_status(&config);
         let json_str = serde_json::to_string(&status).unwrap();
-        assert!(!json_str.contains("a-reasonable-jwt-secret-that-is-long"), "JWT secret value leaked");
+        assert!(
+            !json_str.contains("a-reasonable-jwt-secret-that-is-long"),
+            "JWT secret value leaked"
+        );
         // Check that the DB password is not present (the field name jwt_secret is expected)
         assert!(!json_str.contains("sip:secret@"), "DB password leaked");
     }

@@ -32,7 +32,7 @@ impl MemoryRouter for DefaultRouter {
             .inner
             .select(query)
             .cloned()
-            .unwrap_or_else(|| RetrievalRecipe::troubleshooting_similarity());
+            .unwrap_or_else(RetrievalRecipe::troubleshooting_similarity);
 
         Ok(ExecutionPlan {
             query: query.clone(),
@@ -77,7 +77,9 @@ mod tests {
     #[tokio::test]
     async fn test_router_selects_recipe() {
         let router = DefaultRouter::new();
-        let plan = router.route(&make_query("root cause of pump failure")).await;
+        let plan = router
+            .route(&make_query("root cause of pump failure"))
+            .await;
         assert!(plan.is_ok());
         let plan = plan.unwrap();
         assert_eq!(plan.recipe_name, "root_cause_candidate");
@@ -121,7 +123,10 @@ mod tests {
     #[tokio::test]
     async fn test_router_execution_plan_structure() {
         let router = DefaultRouter::new();
-        let plan = router.route(&make_query("firmware version check")).await.unwrap();
+        let plan = router
+            .route(&make_query("firmware version check"))
+            .await
+            .unwrap();
         assert_eq!(plan.recipe_name, "firmware_specific");
         assert_eq!(plan.steps.len(), 1);
         assert!(plan.steps[0].parallel);

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::id::{AssetPartId, AssetId, OrganizationId, PartId};
+use crate::id::{AssetId, AssetPartId, OrganizationId, PartId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssetPart {

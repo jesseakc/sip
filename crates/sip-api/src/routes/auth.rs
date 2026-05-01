@@ -7,6 +7,7 @@ use serde_json::json;
 use sip_application::services::AuthService;
 use sip_domain::tenant::TenantContext;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::AppState;
 
@@ -28,13 +29,34 @@ pub async fn login(
 ) -> Result<Json<LoginResponse>, (StatusCode, Json<serde_json::Value>)> {
     let auth = AuthService::new(
         state.pool.clone(),
-        state.config.auth.as_ref().map(|a| a.jwt_secret.clone()).unwrap_or_default(),
-        state.config.auth.as_ref().map(|a| a.jwt_expiration_seconds).unwrap_or(900),
-        state.config.auth.as_ref().map(|a| a.refresh_expiration_seconds).unwrap_or(604800),
+        state
+            .config
+            .auth
+            .as_ref()
+            .map(|a| a.jwt_secret.clone())
+            .unwrap_or_default(),
+        state
+            .config
+            .auth
+            .as_ref()
+            .map(|a| a.jwt_expiration_seconds)
+            .unwrap_or(900),
+        state
+            .config
+            .auth
+            .as_ref()
+            .map(|a| a.refresh_expiration_seconds)
+            .unwrap_or(604800),
     );
     match auth.login(&req.email, &req.password).await {
-        Ok((token, refresh)) => Ok(Json(LoginResponse { token, refresh_token: refresh })),
-        Err(e) => Err((StatusCode::UNAUTHORIZED, Json(json!({"error": {"code": "UNAUTHORIZED", "message": e.to_string()}})))),
+        Ok((token, refresh)) => Ok(Json(LoginResponse {
+            token,
+            refresh_token: refresh,
+        })),
+        Err(e) => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": {"code": "UNAUTHORIZED", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -49,13 +71,31 @@ pub async fn refresh(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let auth = AuthService::new(
         state.pool.clone(),
-        state.config.auth.as_ref().map(|a| a.jwt_secret.clone()).unwrap_or_default(),
-        state.config.auth.as_ref().map(|a| a.jwt_expiration_seconds).unwrap_or(900),
-        state.config.auth.as_ref().map(|a| a.refresh_expiration_seconds).unwrap_or(604800),
+        state
+            .config
+            .auth
+            .as_ref()
+            .map(|a| a.jwt_secret.clone())
+            .unwrap_or_default(),
+        state
+            .config
+            .auth
+            .as_ref()
+            .map(|a| a.jwt_expiration_seconds)
+            .unwrap_or(900),
+        state
+            .config
+            .auth
+            .as_ref()
+            .map(|a| a.refresh_expiration_seconds)
+            .unwrap_or(604800),
     );
     match auth.refresh(&req.refresh_token).await {
         Ok(token) => Ok(Json(json!({"data": {"token": token}}))),
-        Err(e) => Err((StatusCode::UNAUTHORIZED, Json(json!({"error": {"code": "UNAUTHORIZED", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": {"code": "UNAUTHORIZED", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -64,12 +104,35 @@ pub async fn logout() -> Result<Json<serde_json::Value>, (StatusCode, Json<serde
 }
 
 pub async fn me(
+    State(state): State<Arc<AppState>>,
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    Ok(Json(json!({
-        "id": ctx.user_id.map(|id| id.to_string()).unwrap_or_default(),
-        "organization_id": ctx.organization_id.to_string(),
-        "role": "UNKNOWN",
-        "permissions": ctx.permissions,
-    })))
+    let user_id = match ctx.user_id {
+        Some(id) => id,
+        None => return Err((StatusCode::UNAUTHORIZED, Json(json!({"error": {"code": "UNAUTHORIZED", "message": "No user in token"}})))),
+    };
+
+    // Look up user from database to get name and email
+    let row = sqlx::query_as::<_, (String, String, String)>(
+        "SELECT email, name, role FROM users WHERE id = $1 AND organization_id = $2"
+    )
+    .bind(Uuid::from(user_id))
+    .bind(Uuid::from(ctx.organization_id))
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}}))))?;
+
+    match row {
+        Some((email, name, role)) => Ok(Json(json!({
+            "data": {
+                "id": user_id.to_string(),
+                "email": email,
+                "name": name,
+                "role": role,
+                "organization_id": ctx.organization_id.to_string(),
+                "permissions": ctx.permissions,
+            }
+        }))),
+        None => Err((StatusCode::UNAUTHORIZED, Json(json!({"error": {"code": "UNAUTHORIZED", "message": "User not found"}})))),
+    }
 }

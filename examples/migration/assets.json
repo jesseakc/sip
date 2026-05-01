@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Pump Station 4",
+    "serial_number": "PS-004-2023",
+    "description": "Cooling water pump station",
+    "status": "operational",
+    "criticality": "high",
+    "purchase_date": "2023-08-10",
+    "warranty_expiry": "2028-08-10"
+  },
+  {
+    "name": "Generator Backup G2",
+    "serial_number": "GEN-G2-2022",
+    "description": "Diesel backup generator 250kW",
+    "status": "operational",
+    "criticality": "critical",
+    "purchase_date": "2022-11-20",
+    "warranty_expiry": "2027-11-20"
+  },
+  {
+    "name": "Boiler B3",
+    "serial_number": "BOL-B3-2021",
+    "description": "Process steam boiler",
+    "status": "operational",
+    "criticality": "high",
+    "purchase_date": "2021-06-01",
+    "warranty_expiry": "2026-06-01"
+  },
+  {
+    "name": "Chiller Plant C2",
+    "serial_number": "CH-C2-2024",
+    "description": "Process cooling chiller 100 ton",
+    "status": "operational",
+    "criticality": "high",
+    "purchase_date": "2024-01-15",
+    "warranty_expiry": "2029-01-15"
+  },
+  {
+    "name": "Air Handler AHU-12",
+    "serial_number": "AHU-12-2024",
+    "description": "Office wing air handler",
+    "status": "operational",
+    "criticality": "medium",
+    "purchase_date": "2024-04-01",
+    "warranty_expiry": "2029-04-01"
+  }
+]

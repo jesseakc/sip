@@ -50,8 +50,8 @@ mod tests {
 
     #[test]
     fn id_display_and_from_uuid_roundtrip() {
-        use uuid::Uuid;
         use crate::id::{AssetId, WorkOrderId};
+        use uuid::Uuid;
 
         let uuid = Uuid::new_v4();
         let asset_id: AssetId = uuid.into();

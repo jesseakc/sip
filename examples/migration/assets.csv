@@ -1,0 +1,6 @@
+name,serial_number,description,status,criticality,purchase_date,warranty_expiry
+CNC Machine 1,CNC-001-2024,5-axis CNC machining center,operational,high,2024-01-15,2029-01-15
+Conveyor A,CONV-A-2023,Main assembly line conveyor,operational,medium,2023-06-01,2028-06-01
+Air Compressor 3,AC-003-2024,Shop air compressor 50HP,maintenance,low,2024-03-10,2029-03-10
+Robot Arm R1,ROB-R1-2024,Welding robot arm,operational,high,2024-02-20,2029-02-20
+HVAC Rooftop 2,HVAC-R2-2022,Rooftop HVAC unit,degraded,medium,2022-09-15,2027-09-15

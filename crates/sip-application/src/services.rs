@@ -1,7 +1,7 @@
-use chrono::{Utc, Datelike};
+use chrono::{Datelike, Utc};
 use serde::Serialize;
 use sip_ai::{CompletionOptions, LlmProvider};
-use sip_auth::{encode_jwt, decode_jwt, Claims, verify_password};
+use sip_auth::{decode_jwt, encode_jwt, verify_password, Claims};
 use sip_domain::{
     entity::activity::{Activity, ActivitySource},
     entity::ai_conversation::{AIConversation, AIMessage, AIRetrievalTrace, RetrieverType, Source},
@@ -9,30 +9,47 @@ use sip_domain::{
     entity::asset_model::{AssetModel, LifecycleStatus},
     entity::asset_type::AssetType,
     entity::document::{Document, DocumentSourceType, DocumentType, ProcessingStatus, Visibility},
+    entity::inspection::{ChecklistResult, Inspection, InspectionChecklistItem},
     entity::location::{Location, LocationType},
     entity::manufacturer::Manufacturer,
     entity::migration::{
-        MigrationBatch, MigrationCheckpoint,
         MigrationDuplicateCandidate, MigrationExternalIdMap,
-        MigrationFieldMapping, MigrationImportResult, MigrationJob,
-        MigrationJobStatus, MigrationRun, MigrationRunStatus, MigrationRunType,
-        MigrationSourceRecord, MigrationStagedRecord,
-        MigrationValidationIssue,
+        MigrationFieldMapping, MigrationImportResult, MigrationJob, MigrationJobStatus,
+        MigrationRun, MigrationRunStatus, MigrationRunType, MigrationSourceRecord,
+        MigrationStagedRecord, MigrationValidationIssue,
     },
     entity::organization::Organization,
-    entity::part::PartUsage,
     entity::part::Part,
+    entity::part::PartUsage,
+    entity::schedule::{Schedule, ScheduleTriggerType},
     entity::team::Team,
     entity::user::{User, UserRole},
-    entity::schedule::{Schedule, ScheduleTriggerType},
-    entity::work_order::{ActorType, WorkOrder, WorkOrderStatus, WorkOrderPriority, WorkOrderType, WorkOrderSourceType, WorkOrderAssignment, WorkOrderStatusHistory},
-    entity::inspection::{Inspection, InspectionChecklistItem, ChecklistResult},
+    entity::work_order::{
+        ActorType, WorkOrder, WorkOrderAssignment, WorkOrderPriority, WorkOrderSourceType,
+        WorkOrderStatus, WorkOrderStatusHistory, WorkOrderType,
+    },
     error::SipError,
-    id::{ActivityId, AgentIdentityId, AIConversationId, AIMessageId, AIRetrievalTraceId, AssetId, AssetModelId, AssetTypeId, DocumentId, InspectionChecklistItemId, InspectionId, LocationId, ManufacturerId, MigrationBatchId, MigrationCheckpointId, MigrationDuplicateCandidateId, MigrationExternalIdMapId, MigrationFieldMappingId, MigrationImportResultId, MigrationJobId, MigrationRunId, MigrationSourceRecordId, MigrationStagedRecordId, MigrationValidationIssueId, OrganizationId, PartId, ScheduleId, TeamId, UserId, WorkOrderId, WorkOrderAssignmentId, WorkOrderStatusHistoryId},
-    repository::{ActivityRepository, AIConversationRepository, AssetRepository, DocumentRepository, InspectionRepository, PartRepository, ScheduleRepository, WorkOrderAssignmentRepository, PartUsageRepository, WorkOrderStatusHistoryRepository},
+    id::{
+        AIConversationId, AIMessageId, AIRetrievalTraceId, ActivityId, AgentIdentityId, AssetId,
+        AssetModelId, AssetTypeId, DocumentId, InspectionChecklistItemId, InspectionId, LocationId,
+        ManufacturerId,
+        MigrationExternalIdMapId, MigrationImportResultId, MigrationJobId,
+        MigrationRunId, MigrationSourceRecordId, MigrationStagedRecordId,
+        MigrationValidationIssueId, OrganizationId, PartId, ScheduleId, TeamId, UserId,
+        WorkOrderAssignmentId, WorkOrderId, WorkOrderStatusHistoryId,
+    },
+    repository::{
+        AIConversationRepository, ActivityRepository, AssetRepository, DocumentRepository,
+        InspectionRepository, PartRepository, PartUsageRepository, ScheduleRepository,
+        WorkOrderAssignmentRepository, WorkOrderStatusHistoryRepository,
+    },
     tenant::TenantContext,
 };
-use sip_infrastructure::repositories::{PgAIConversationRepository, PgActivityRepository, PgUserRepository, PgOrganizationRepository, PgLocationRepository, PgAssetTypeRepository, PgManufacturerRepository, PgAssetModelRepository, PgTeamRepository, PgMigrationRepository};
+use sip_infrastructure::repositories::{
+    PgAIConversationRepository, PgActivityRepository, PgAssetModelRepository,
+    PgAssetTypeRepository, PgLocationRepository, PgManufacturerRepository, PgMigrationRepository,
+    PgOrganizationRepository, PgTeamRepository, PgUserRepository,
+};
 use sip_tenancy::set_rls_org_pool;
 use sqlx::PgPool;
 use std::str::FromStr;
@@ -47,7 +64,12 @@ pub struct AuthService {
 }
 
 impl AuthService {
-    pub fn new(pool: PgPool, jwt_secret: String, jwt_expiration: u64, refresh_expiration: u64) -> Self {
+    pub fn new(
+        pool: PgPool,
+        jwt_secret: String,
+        jwt_expiration: u64,
+        refresh_expiration: u64,
+    ) -> Self {
         Self {
             user_repo: sip_infrastructure::repositories::PgUserRepository::new(pool),
             jwt_secret,
@@ -57,9 +79,14 @@ impl AuthService {
     }
 
     pub async fn login(&self, email: &str, password: &str) -> Result<(String, String), SipError> {
-        let (user, pass_hash) = self.user_repo.get_by_email(email).await?
+        let (user, pass_hash) = self
+            .user_repo
+            .get_by_email(email)
+            .await?
             .ok_or(SipError::PermissionDenied)?;
-        if !verify_password(password, &pass_hash).map_err(|e| SipError::Validation(e.to_string()))? {
+        if !verify_password(password, &pass_hash)
+            .map_err(|e| SipError::Validation(e.to_string()))?
+        {
             return Err(SipError::PermissionDenied);
         }
         let permissions = role_permissions(&user.role);
@@ -71,24 +98,36 @@ impl AuthService {
             exp: (chrono::Utc::now().timestamp() as u64 + self.jwt_expiration) as usize,
             iat: chrono::Utc::now().timestamp() as usize,
         };
-        let token = encode_jwt(&claims, &self.jwt_secret).map_err(|e| SipError::Validation(e.to_string()))?;
-        let refresh = encode_jwt(&Claims {
-            sub: user.id.to_string(),
-            org_id: user.organization_id.to_string(),
-            role: format!("{:?}", user.role).to_uppercase(),
-            permissions: vec![],
-            exp: (chrono::Utc::now().timestamp() as u64 + self.refresh_expiration) as usize,
-            iat: chrono::Utc::now().timestamp() as usize,
-        }, &self.jwt_secret).map_err(|e| SipError::Validation(e.to_string()))?;
+        let token = encode_jwt(&claims, &self.jwt_secret)
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let refresh = encode_jwt(
+            &Claims {
+                sub: user.id.to_string(),
+                org_id: user.organization_id.to_string(),
+                role: format!("{:?}", user.role).to_uppercase(),
+                permissions: vec![],
+                exp: (chrono::Utc::now().timestamp() as u64 + self.refresh_expiration) as usize,
+                iat: chrono::Utc::now().timestamp() as usize,
+            },
+            &self.jwt_secret,
+        )
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok((token, refresh))
     }
 
     pub async fn refresh(&self, refresh_token: &str) -> Result<String, SipError> {
-        let claims = decode_jwt(refresh_token, &self.jwt_secret).map_err(|e| SipError::Validation(e.to_string()))?;
-        let user_id = UserId::from_str(&claims.sub).map_err(|e| SipError::Validation(e.to_string()))?;
-        let org_id = OrganizationId::from_str(&claims.org_id).map_err(|e| SipError::Validation(e.to_string()))?;
+        let claims = decode_jwt(refresh_token, &self.jwt_secret)
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let user_id =
+            UserId::from_str(&claims.sub).map_err(|e| SipError::Validation(e.to_string()))?;
+        let org_id = OrganizationId::from_str(&claims.org_id)
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let ctx = TenantContext::new(org_id, Some(user_id));
-        let user = self.user_repo.get(&ctx, user_id).await?.ok_or(SipError::PermissionDenied)?;
+        let user = self
+            .user_repo
+            .get(&ctx, user_id)
+            .await?
+            .ok_or(SipError::PermissionDenied)?;
         let permissions = role_permissions(&user.role);
         let new_claims = Claims {
             sub: user.id.to_string(),
@@ -102,11 +141,17 @@ impl AuthService {
     }
 
     pub async fn me(&self, token: &str) -> Result<User, SipError> {
-        let claims = decode_jwt(token, &self.jwt_secret).map_err(|e| SipError::Validation(e.to_string()))?;
-        let user_id = UserId::from_str(&claims.sub).map_err(|e| SipError::Validation(e.to_string()))?;
-        let org_id = OrganizationId::from_str(&claims.org_id).map_err(|e| SipError::Validation(e.to_string()))?;
+        let claims =
+            decode_jwt(token, &self.jwt_secret).map_err(|e| SipError::Validation(e.to_string()))?;
+        let user_id =
+            UserId::from_str(&claims.sub).map_err(|e| SipError::Validation(e.to_string()))?;
+        let org_id = OrganizationId::from_str(&claims.org_id)
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let ctx = TenantContext::new(org_id, Some(user_id)).with_permissions(claims.permissions);
-        self.user_repo.get(&ctx, user_id).await?.ok_or(SipError::PermissionDenied)
+        self.user_repo
+            .get(&ctx, user_id)
+            .await?
+            .ok_or(SipError::PermissionDenied)
     }
 }
 
@@ -114,31 +159,97 @@ fn role_permissions(role: &UserRole) -> Vec<String> {
     match role {
         UserRole::Admin => vec!["*".to_string()],
         UserRole::Manager => vec![
-            "org:read", "org:manage", "asset:create", "asset:update", "asset:read", "asset:archive",
-            "work_order:create", "work_order:update", "work_order:read", "work_order:cancel",
-            "work_order:assign", "work_order:review", "schedule:manage", "schedule:read",
-            "user:read", "user:manage", "team:manage", "part:manage", "part:read", "document:upload",
-            "document:read", "document:archive", "activity:read", "ai:query",
-            "migration:create", "migration:read", "migration:map", "migration:validate",
-            "migration:dry_run", "migration:execute", "migration:rollback", "migration:delete",
+            "org:read",
+            "org:manage",
+            "asset:create",
+            "asset:update",
+            "asset:read",
+            "asset:archive",
+            "work_order:create",
+            "work_order:update",
+            "work_order:read",
+            "work_order:cancel",
+            "work_order:assign",
+            "work_order:review",
+            "schedule:manage",
+            "schedule:read",
+            "user:read",
+            "user:manage",
+            "team:manage",
+            "part:manage",
+            "part:read",
+            "document:upload",
+            "document:read",
+            "document:archive",
+            "activity:read",
+            "ai:query",
+            "migration:create",
+            "migration:read",
+            "migration:map",
+            "migration:validate",
+            "migration:dry_run",
+            "migration:execute",
+            "migration:rollback",
+            "migration:delete",
             "migration:view_raw_source",
-        ].into_iter().map(|s| s.to_string()).collect(),
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect(),
         UserRole::Technician => vec![
-            "org:read", "asset:read", "work_order:create", "work_order:update", "work_order:read",
-            "schedule:read", "user:read", "part:consume", "part:read", "document:upload",
-            "document:read", "ai:query",
-        ].into_iter().map(|s| s.to_string()).collect(),
+            "org:read",
+            "asset:read",
+            "work_order:create",
+            "work_order:update",
+            "work_order:read",
+            "schedule:read",
+            "user:read",
+            "part:consume",
+            "part:read",
+            "document:upload",
+            "document:read",
+            "ai:query",
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect(),
         UserRole::Viewer => vec![
-            "org:read", "asset:read", "work_order:read", "schedule:read", "user:read",
-            "part:read", "document:read", "ai:query",
-        ].into_iter().map(|s| s.to_string()).collect(),
+            "org:read",
+            "asset:read",
+            "work_order:read",
+            "schedule:read",
+            "user:read",
+            "part:read",
+            "document:read",
+            "ai:query",
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect(),
         UserRole::Vendor => vec![
-            "asset:read", "work_order:read", "part:read", "document:read", "ai:query",
-        ].into_iter().map(|s| s.to_string()).collect(),
+            "asset:read",
+            "work_order:read",
+            "part:read",
+            "document:read",
+            "ai:query",
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect(),
         UserRole::Auditor => vec![
-            "org:read", "asset:read", "work_order:read", "schedule:read", "user:read",
-            "part:read", "document:read", "activity:read", "ai:query",
-        ].into_iter().map(|s| s.to_string()).collect(),
+            "org:read",
+            "asset:read",
+            "work_order:read",
+            "schedule:read",
+            "user:read",
+            "part:read",
+            "document:read",
+            "activity:read",
+            "ai:query",
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect(),
     }
 }
 
@@ -151,7 +262,11 @@ impl<R: sip_domain::repository::AssetRepository> AssetService<R> {
         Self { repo }
     }
 
-    pub async fn create(&self, ctx: &TenantContext, input: CreateAssetInput) -> Result<Asset, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        input: CreateAssetInput,
+    ) -> Result<Asset, SipError> {
         ctx.require_permission("asset:create")?;
         let asset = Asset {
             id: AssetId::new(),
@@ -190,11 +305,23 @@ impl<R: sip_domain::repository::AssetRepository> AssetService<R> {
         self.repo.list_assets(ctx).await
     }
 
-    pub async fn update_status(&self, ctx: &TenantContext, id: AssetId, status: AssetStatus) -> Result<Asset, SipError> {
+    pub async fn update_status(
+        &self,
+        ctx: &TenantContext,
+        id: AssetId,
+        status: AssetStatus,
+    ) -> Result<Asset, SipError> {
         ctx.require_permission("asset:update")?;
-        let current = self.repo.get_asset(ctx, id).await?.ok_or(SipError::Validation("Asset not found".into()))?;
+        let current = self
+            .repo
+            .get_asset(ctx, id)
+            .await?
+            .ok_or(SipError::Validation("Asset not found".into()))?;
         if !current.status.can_transition_to(status) {
-            return Err(SipError::invalid_state_transition_asset(current.status, status));
+            return Err(SipError::invalid_state_transition_asset(
+                current.status,
+                status,
+            ));
         }
         let patch = serde_json::json!({"status": format!("{:?}", status).to_uppercase()});
         self.repo.update_asset(ctx, id, 1, patch).await
@@ -205,7 +332,11 @@ impl<R: sip_domain::repository::AssetRepository> AssetService<R> {
         self.repo.archive_asset(ctx, id).await
     }
 
-    pub async fn list_children(&self, ctx: &TenantContext, parent_id: AssetId) -> Result<Vec<Asset>, SipError> {
+    pub async fn list_children(
+        &self,
+        ctx: &TenantContext,
+        parent_id: AssetId,
+    ) -> Result<Vec<Asset>, SipError> {
         ctx.require_permission("asset:read")?;
         self.repo.list_children(ctx, parent_id).await
     }
@@ -237,7 +368,7 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         let max = self.repo.get_max_display_number_for_year(ctx, year).await?;
         let next_num = match max {
             Some(num) => {
-                let suffix = num.split('-').last().unwrap_or("0");
+                let suffix = num.split('-').next_back().unwrap_or("0");
                 suffix.parse::<i32>().unwrap_or(0) + 1
             }
             None => 1,
@@ -245,7 +376,11 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         Ok(format!("WO-{}-{:05}", year, next_num))
     }
 
-    pub async fn create(&self, ctx: &TenantContext, input: CreateWorkOrderInput) -> Result<WorkOrder, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        input: CreateWorkOrderInput,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:create")?;
         let wo = WorkOrder {
             id: WorkOrderId::new(),
@@ -288,7 +423,11 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         self.repo.create_work_order(ctx, &wo).await
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: WorkOrderId) -> Result<Option<WorkOrder>, SipError> {
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+    ) -> Result<Option<WorkOrder>, SipError> {
         ctx.require_permission("work_order:read")?;
         self.repo.get_work_order(ctx, id).await
     }
@@ -298,20 +437,39 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         self.repo.list_work_orders(ctx).await
     }
 
-    pub async fn transition(&self, ctx: &TenantContext, id: WorkOrderId, new_status: WorkOrderStatus, resolution_notes: Option<String>) -> Result<WorkOrder, SipError> {
+    pub async fn transition(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        new_status: WorkOrderStatus,
+        resolution_notes: Option<String>,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:update")?;
-        let current = self.repo.get_work_order(ctx, id).await?.ok_or(SipError::Validation("Work order not found".into()))?;
+        let current = self
+            .repo
+            .get_work_order(ctx, id)
+            .await?
+            .ok_or(SipError::Validation("Work order not found".into()))?;
         if !current.status.can_transition_to(new_status) {
-            return Err(SipError::invalid_state_transition_work_order(current.status, new_status));
+            return Err(SipError::invalid_state_transition_work_order(
+                current.status,
+                new_status,
+            ));
         }
         let mut patch = serde_json::json!({"status": format!("{:?}", new_status).to_uppercase()});
         if let Some(notes) = resolution_notes {
             patch["resolution_notes"] = serde_json::json!(notes);
         }
-        self.repo.update_work_order(ctx, id, current.version, patch).await
+        self.repo
+            .update_work_order(ctx, id, current.version, patch)
+            .await
     }
 
-    pub async fn list_by_asset(&self, ctx: &TenantContext, asset_id: AssetId) -> Result<Vec<WorkOrder>, SipError> {
+    pub async fn list_by_asset(
+        &self,
+        ctx: &TenantContext,
+        asset_id: AssetId,
+    ) -> Result<Vec<WorkOrder>, SipError> {
         ctx.require_permission("work_order:read")?;
         self.repo.list_work_orders_by_asset(ctx, asset_id).await
     }
@@ -325,16 +483,25 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         activity_repo: &A,
         history_repo: &H,
     ) -> Result<WorkOrder, SipError> {
-        let current = self.repo.get_work_order(ctx, id).await?.ok_or(SipError::Validation("Work order not found".into()))?;
+        let current = self
+            .repo
+            .get_work_order(ctx, id)
+            .await?
+            .ok_or(SipError::Validation("Work order not found".into()))?;
         let old_status = current.status;
         if !old_status.can_transition_to(new_status) {
-            return Err(SipError::invalid_state_transition_work_order(old_status, new_status));
+            return Err(SipError::invalid_state_transition_work_order(
+                old_status, new_status,
+            ));
         }
         let mut patch = serde_json::json!({"status": format!("{:?}", new_status).to_uppercase()});
         if let Some(ref notes) = resolution_notes {
             patch["resolution_notes"] = serde_json::json!(notes);
         }
-        let wo = self.repo.update_work_order(ctx, id, current.version, patch).await?;
+        let wo = self
+            .repo
+            .update_work_order(ctx, id, current.version, patch)
+            .await?;
 
         let _ = activity_repo.create_activity(ctx, &Activity {
             id: ActivityId::new(),
@@ -357,120 +524,271 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
             created_at: Utc::now(),
         }).await;
 
-        let _ = history_repo.create_status_history(ctx, &WorkOrderStatusHistory {
-            id: WorkOrderStatusHistoryId::new(),
-            organization_id: ctx.organization_id,
-            work_order_id: wo.id,
-            from_status: Some(old_status),
-            to_status: new_status,
-            changed_by_id: ctx.user_id,
-            actor_type: ActorType::Human,
-            agent_identity_id: None,
-            plugin_id: None,
-            reason: resolution_notes,
-            created_at: Utc::now(),
-        }).await;
+        let _ = history_repo
+            .create_status_history(
+                ctx,
+                &WorkOrderStatusHistory {
+                    id: WorkOrderStatusHistoryId::new(),
+                    organization_id: ctx.organization_id,
+                    work_order_id: wo.id,
+                    from_status: Some(old_status),
+                    to_status: new_status,
+                    changed_by_id: ctx.user_id,
+                    actor_type: ActorType::Human,
+                    agent_identity_id: None,
+                    plugin_id: None,
+                    reason: resolution_notes,
+                    created_at: Utc::now(),
+                },
+            )
+            .await;
 
         Ok(wo)
     }
 
-    pub async fn publish<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(&self, ctx: &TenantContext, id: WorkOrderId, activity_repo: &A, history_repo: &H) -> Result<WorkOrder, SipError> {
+    pub async fn publish<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        activity_repo: &A,
+        history_repo: &H,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:update")?;
-        self.do_lifecycle_transition(ctx, id, WorkOrderStatus::Open, None, activity_repo, history_repo).await
+        self.do_lifecycle_transition(
+            ctx,
+            id,
+            WorkOrderStatus::Open,
+            None,
+            activity_repo,
+            history_repo,
+        )
+        .await
     }
 
-    pub async fn start<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(&self, ctx: &TenantContext, id: WorkOrderId, activity_repo: &A, history_repo: &H) -> Result<WorkOrder, SipError> {
+    pub async fn start<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        activity_repo: &A,
+        history_repo: &H,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:update")?;
-        self.do_lifecycle_transition(ctx, id, WorkOrderStatus::InProgress, None, activity_repo, history_repo).await
+        self.do_lifecycle_transition(
+            ctx,
+            id,
+            WorkOrderStatus::InProgress,
+            None,
+            activity_repo,
+            history_repo,
+        )
+        .await
     }
 
-    pub async fn hold<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(&self, ctx: &TenantContext, id: WorkOrderId, activity_repo: &A, history_repo: &H) -> Result<WorkOrder, SipError> {
+    pub async fn hold<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        activity_repo: &A,
+        history_repo: &H,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:update")?;
-        self.do_lifecycle_transition(ctx, id, WorkOrderStatus::OnHold, None, activity_repo, history_repo).await
+        self.do_lifecycle_transition(
+            ctx,
+            id,
+            WorkOrderStatus::OnHold,
+            None,
+            activity_repo,
+            history_repo,
+        )
+        .await
     }
 
-    pub async fn resume<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(&self, ctx: &TenantContext, id: WorkOrderId, activity_repo: &A, history_repo: &H) -> Result<WorkOrder, SipError> {
+    pub async fn resume<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        activity_repo: &A,
+        history_repo: &H,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:update")?;
-        self.do_lifecycle_transition(ctx, id, WorkOrderStatus::InProgress, None, activity_repo, history_repo).await
+        self.do_lifecycle_transition(
+            ctx,
+            id,
+            WorkOrderStatus::InProgress,
+            None,
+            activity_repo,
+            history_repo,
+        )
+        .await
     }
 
-    pub async fn complete<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(&self, ctx: &TenantContext, id: WorkOrderId, resolution_notes: Option<String>, activity_repo: &A, history_repo: &H) -> Result<WorkOrder, SipError> {
+    pub async fn complete<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        resolution_notes: Option<String>,
+        activity_repo: &A,
+        history_repo: &H,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:update")?;
-        self.do_lifecycle_transition(ctx, id, WorkOrderStatus::Completed, resolution_notes, activity_repo, history_repo).await
+        self.do_lifecycle_transition(
+            ctx,
+            id,
+            WorkOrderStatus::Completed,
+            resolution_notes,
+            activity_repo,
+            history_repo,
+        )
+        .await
     }
 
-    pub async fn review<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(&self, ctx: &TenantContext, id: WorkOrderId, activity_repo: &A, history_repo: &H) -> Result<WorkOrder, SipError> {
+    pub async fn review<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        activity_repo: &A,
+        history_repo: &H,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:review")?;
-        self.do_lifecycle_transition(ctx, id, WorkOrderStatus::Reviewed, None, activity_repo, history_repo).await
+        self.do_lifecycle_transition(
+            ctx,
+            id,
+            WorkOrderStatus::Reviewed,
+            None,
+            activity_repo,
+            history_repo,
+        )
+        .await
     }
 
-    pub async fn close<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(&self, ctx: &TenantContext, id: WorkOrderId, activity_repo: &A, history_repo: &H) -> Result<WorkOrder, SipError> {
+    pub async fn close<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        activity_repo: &A,
+        history_repo: &H,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:update")?;
-        self.do_lifecycle_transition(ctx, id, WorkOrderStatus::Closed, None, activity_repo, history_repo).await
+        self.do_lifecycle_transition(
+            ctx,
+            id,
+            WorkOrderStatus::Closed,
+            None,
+            activity_repo,
+            history_repo,
+        )
+        .await
     }
 
-    pub async fn cancel<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(&self, ctx: &TenantContext, id: WorkOrderId, activity_repo: &A, history_repo: &H) -> Result<WorkOrder, SipError> {
+    pub async fn cancel<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        activity_repo: &A,
+        history_repo: &H,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:cancel")?;
-        self.do_lifecycle_transition(ctx, id, WorkOrderStatus::Cancelled, None, activity_repo, history_repo).await
+        self.do_lifecycle_transition(
+            ctx,
+            id,
+            WorkOrderStatus::Cancelled,
+            None,
+            activity_repo,
+            history_repo,
+        )
+        .await
     }
 
-    pub async fn archive<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(&self, ctx: &TenantContext, id: WorkOrderId, activity_repo: &A, history_repo: &H) -> Result<WorkOrder, SipError> {
+    pub async fn archive<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        activity_repo: &A,
+        history_repo: &H,
+    ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:update")?;
-        let current = self.repo.get_work_order(ctx, id).await?.ok_or(SipError::Validation("Work order not found".into()))?;
+        let current = self
+            .repo
+            .get_work_order(ctx, id)
+            .await?
+            .ok_or(SipError::Validation("Work order not found".into()))?;
         let old_status = current.status;
         let archived_by_id = ctx.user_id.ok_or(SipError::PermissionDenied)?;
-        let wo = self.repo.archive_work_order(ctx, id, archived_by_id).await?;
+        let wo = self
+            .repo
+            .archive_work_order(ctx, id, archived_by_id)
+            .await?;
 
-        let _ = activity_repo.create_activity(ctx, &Activity {
-            id: ActivityId::new(),
-            organization_id: ctx.organization_id,
-            actor_id: ctx.user_id,
-            actor_type: ActorType::Human,
-            agent_identity_id: None,
-            plugin_id: None,
-            entity_type: "work_order".to_string(),
-            entity_id: wo.id.into(),
-            action: "work_order.archived".to_string(),
-            changes: None,
-            request_id: None,
-            correlation_id: None,
-            source: ActivitySource::Api,
-            reason: None,
-            metadata: Some(serde_json::json!({"from": format!("{:?}", old_status), "to": "ARCHIVED"})),
-            ip_address: None,
-            user_agent: None,
-            created_at: Utc::now(),
-        }).await;
+        let _ = activity_repo
+            .create_activity(
+                ctx,
+                &Activity {
+                    id: ActivityId::new(),
+                    organization_id: ctx.organization_id,
+                    actor_id: ctx.user_id,
+                    actor_type: ActorType::Human,
+                    agent_identity_id: None,
+                    plugin_id: None,
+                    entity_type: "work_order".to_string(),
+                    entity_id: wo.id.into(),
+                    action: "work_order.archived".to_string(),
+                    changes: None,
+                    request_id: None,
+                    correlation_id: None,
+                    source: ActivitySource::Api,
+                    reason: None,
+                    metadata: Some(
+                        serde_json::json!({"from": format!("{:?}", old_status), "to": "ARCHIVED"}),
+                    ),
+                    ip_address: None,
+                    user_agent: None,
+                    created_at: Utc::now(),
+                },
+            )
+            .await;
 
-        let _ = history_repo.create_status_history(ctx, &WorkOrderStatusHistory {
-            id: WorkOrderStatusHistoryId::new(),
-            organization_id: ctx.organization_id,
-            work_order_id: wo.id,
-            from_status: Some(old_status),
-            to_status: WorkOrderStatus::Closed,
-            changed_by_id: ctx.user_id,
-            actor_type: ActorType::Human,
-            agent_identity_id: None,
-            plugin_id: None,
-            reason: None,
-            created_at: Utc::now(),
-        }).await;
+        let _ = history_repo
+            .create_status_history(
+                ctx,
+                &WorkOrderStatusHistory {
+                    id: WorkOrderStatusHistoryId::new(),
+                    organization_id: ctx.organization_id,
+                    work_order_id: wo.id,
+                    from_status: Some(old_status),
+                    to_status: WorkOrderStatus::Closed,
+                    changed_by_id: ctx.user_id,
+                    actor_type: ActorType::Human,
+                    agent_identity_id: None,
+                    plugin_id: None,
+                    reason: None,
+                    created_at: Utc::now(),
+                },
+            )
+            .await;
 
         Ok(wo)
     }
 
     pub async fn reopen<A: ActivityRepository, H: WorkOrderStatusHistoryRepository>(
-        &self, ctx: &TenantContext, id: WorkOrderId,
-        activity_repo: &A, history_repo: &H,
-        resume_in_progress: bool
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        activity_repo: &A,
+        history_repo: &H,
+        resume_in_progress: bool,
     ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:update")?;
 
-        let current = self.repo.get_work_order(ctx, id).await?
+        let current = self
+            .repo
+            .get_work_order(ctx, id)
+            .await?
             .ok_or(SipError::Validation("Work order not found".into()))?;
 
         if current.status != WorkOrderStatus::Closed {
-            return Err(SipError::Validation("Only CLOSED work orders can be reopened".into()));
+            return Err(SipError::Validation(
+                "Only CLOSED work orders can be reopened".into(),
+            ));
         }
 
         let new_status = if resume_in_progress {
@@ -486,7 +804,10 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
             "last_reopened_by_id": ctx.user_id.map(|id| id.to_string()).unwrap_or_default(),
         });
 
-        let wo = self.repo.update_work_order(ctx, id, current.version, patch).await?;
+        let wo = self
+            .repo
+            .update_work_order(ctx, id, current.version, patch)
+            .await?;
 
         let _ = activity_repo.create_activity(ctx, &Activity {
             id: ActivityId::new(),
@@ -509,49 +830,89 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
             created_at: Utc::now(),
         }).await;
 
-        let _ = history_repo.create_status_history(ctx, &WorkOrderStatusHistory {
-            id: WorkOrderStatusHistoryId::new(),
-            organization_id: ctx.organization_id,
-            work_order_id: id,
-            from_status: Some(current.status),
-            to_status: new_status,
-            changed_by_id: ctx.user_id,
-            actor_type: ActorType::Human,
-            agent_identity_id: None,
-            plugin_id: None,
-            reason: Some("Work order reopened".to_string()),
-            created_at: Utc::now(),
-        }).await;
+        let _ = history_repo
+            .create_status_history(
+                ctx,
+                &WorkOrderStatusHistory {
+                    id: WorkOrderStatusHistoryId::new(),
+                    organization_id: ctx.organization_id,
+                    work_order_id: id,
+                    from_status: Some(current.status),
+                    to_status: new_status,
+                    changed_by_id: ctx.user_id,
+                    actor_type: ActorType::Human,
+                    agent_identity_id: None,
+                    plugin_id: None,
+                    reason: Some("Work order reopened".to_string()),
+                    created_at: Utc::now(),
+                },
+            )
+            .await;
 
         Ok(wo)
     }
 
-    pub async fn list_assignments<A: WorkOrderAssignmentRepository>(&self, ctx: &TenantContext, work_order_id: WorkOrderId, assignment_repo: &A) -> Result<Vec<WorkOrderAssignment>, SipError> {
+    pub async fn list_assignments<A: WorkOrderAssignmentRepository>(
+        &self,
+        ctx: &TenantContext,
+        work_order_id: WorkOrderId,
+        assignment_repo: &A,
+    ) -> Result<Vec<WorkOrderAssignment>, SipError> {
         ctx.require_permission("work_order:read")?;
-        assignment_repo.list_assignments_by_work_order(ctx, work_order_id).await
+        assignment_repo
+            .list_assignments_by_work_order(ctx, work_order_id)
+            .await
     }
 
-    pub async fn create_assignment<A: WorkOrderAssignmentRepository>(&self, ctx: &TenantContext, assignment: WorkOrderAssignment, assignment_repo: &A) -> Result<WorkOrderAssignment, SipError> {
+    pub async fn create_assignment<A: WorkOrderAssignmentRepository>(
+        &self,
+        ctx: &TenantContext,
+        assignment: WorkOrderAssignment,
+        assignment_repo: &A,
+    ) -> Result<WorkOrderAssignment, SipError> {
         ctx.require_permission("work_order:assign")?;
         assignment_repo.create_assignment(ctx, &assignment).await
     }
 
-    pub async fn delete_assignment<A: WorkOrderAssignmentRepository>(&self, ctx: &TenantContext, id: WorkOrderAssignmentId, assignment_repo: &A) -> Result<(), SipError> {
+    pub async fn delete_assignment<A: WorkOrderAssignmentRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderAssignmentId,
+        assignment_repo: &A,
+    ) -> Result<(), SipError> {
         ctx.require_permission("work_order:assign")?;
         assignment_repo.delete_assignment(ctx, id).await
     }
 
-    pub async fn list_parts<P: PartUsageRepository>(&self, ctx: &TenantContext, work_order_id: WorkOrderId, part_repo: &P) -> Result<Vec<PartUsage>, SipError> {
+    pub async fn list_parts<P: PartUsageRepository>(
+        &self,
+        ctx: &TenantContext,
+        work_order_id: WorkOrderId,
+        part_repo: &P,
+    ) -> Result<Vec<PartUsage>, SipError> {
         ctx.require_permission("part:read")?;
-        part_repo.list_part_usage_by_work_order(ctx, work_order_id).await
+        part_repo
+            .list_part_usage_by_work_order(ctx, work_order_id)
+            .await
     }
 
-    pub async fn add_part<P: PartUsageRepository>(&self, ctx: &TenantContext, usage: PartUsage, part_repo: &P) -> Result<PartUsage, SipError> {
+    pub async fn add_part<P: PartUsageRepository>(
+        &self,
+        ctx: &TenantContext,
+        usage: PartUsage,
+        part_repo: &P,
+    ) -> Result<PartUsage, SipError> {
         ctx.require_permission("part:consume")?;
         part_repo.create_part_usage(ctx, &usage).await
     }
 
-    pub async fn update_assignment<A: WorkOrderAssignmentRepository>(&self, ctx: &TenantContext, id: WorkOrderAssignmentId, status: sip_domain::entity::work_order::AssignmentStatus, assignment_repo: &A) -> Result<WorkOrderAssignment, SipError> {
+    pub async fn update_assignment<A: WorkOrderAssignmentRepository>(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderAssignmentId,
+        status: sip_domain::entity::work_order::AssignmentStatus,
+        assignment_repo: &A,
+    ) -> Result<WorkOrderAssignment, SipError> {
         ctx.require_permission("work_order:assign")?;
         assignment_repo.update_assignment(ctx, id, status).await
     }
@@ -573,17 +934,29 @@ pub struct CreateWorkOrderInput {
 #[serde(tag = "type")]
 pub enum AIStreamEvent {
     #[serde(rename = "context")]
-    Context { records_queried: i32, paths: Vec<String> },
+    Context {
+        records_queried: i32,
+        paths: Vec<String>,
+    },
     #[serde(rename = "chunk")]
     Chunk { text: String },
     #[serde(rename = "verification")]
-    Verification { checks_passed: i32, checks_total: i32, status: String },
+    Verification {
+        checks_passed: i32,
+        checks_total: i32,
+        status: String,
+    },
     #[serde(rename = "done")]
-    Done { sources: Vec<Source>, verification_status: String, retrieval_paths: Vec<String> },
+    Done {
+        sources: Vec<Source>,
+        verification_status: String,
+        retrieval_paths: Vec<String>,
+    },
     #[serde(rename = "error")]
     Error { message: String },
 }
 
+#[allow(dead_code)]
 struct ContextResult {
     context_text: String,
     records_queried: usize,
@@ -598,6 +971,7 @@ struct FetchResult {
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
+#[allow(dead_code)]
 struct SearchResultRow {
     source_type: String,
     source_id: Uuid,
@@ -627,7 +1001,11 @@ impl<R: DocumentRepository> DocumentService<R> {
         Self { repo }
     }
 
-    pub async fn create(&self, ctx: &TenantContext, input: CreateDocumentInput) -> Result<Document, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        input: CreateDocumentInput,
+    ) -> Result<Document, SipError> {
         ctx.require_permission("document:upload")?;
         let doc = Document {
             id: DocumentId::new(),
@@ -663,7 +1041,11 @@ impl<R: DocumentRepository> DocumentService<R> {
         self.repo.create_document(ctx, &doc).await
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: DocumentId) -> Result<Option<Document>, SipError> {
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: DocumentId,
+    ) -> Result<Option<Document>, SipError> {
         ctx.require_permission("document:read")?;
         self.repo.get_document(ctx, id).await
     }
@@ -673,7 +1055,12 @@ impl<R: DocumentRepository> DocumentService<R> {
         self.repo.list_documents(ctx).await
     }
 
-    pub async fn archive(&self, ctx: &TenantContext, id: DocumentId, reason: &str) -> Result<Document, SipError> {
+    pub async fn archive(
+        &self,
+        ctx: &TenantContext,
+        id: DocumentId,
+        reason: &str,
+    ) -> Result<Document, SipError> {
         ctx.require_permission("document:archive")?;
         let archived_by_id = ctx.user_id.ok_or(SipError::PermissionDenied)?;
         self.repo.archive(ctx, id, archived_by_id, reason).await
@@ -713,9 +1100,16 @@ impl<R: ActivityRepository> ActivityService<R> {
         self.repo.list_activities(ctx).await
     }
 
-    pub async fn list_by_entity(&self, ctx: &TenantContext, entity_type: &str, entity_id: uuid::Uuid) -> Result<Vec<Activity>, SipError> {
+    pub async fn list_by_entity(
+        &self,
+        ctx: &TenantContext,
+        entity_type: &str,
+        entity_id: uuid::Uuid,
+    ) -> Result<Vec<Activity>, SipError> {
         ctx.require_permission("activity:read")?;
-        self.repo.list_activities_by_entity(ctx, entity_type, entity_id).await
+        self.repo
+            .list_activities_by_entity(ctx, entity_type, entity_id)
+            .await
     }
 }
 
@@ -754,7 +1148,10 @@ pub struct AIService {
 
 impl AIService {
     pub fn new(provider: Box<dyn LlmProvider>, pool: PgPool) -> Self {
-        Self { provider: Arc::from(provider), pool }
+        Self {
+            provider: Arc::from(provider),
+            pool,
+        }
     }
 
     pub async fn chat_stream(
@@ -788,7 +1185,9 @@ impl AIService {
             )
             .await
             {
-                let _ = tx.send(AIStreamEvent::Error { message: e.to_string() });
+                let _ = tx.send(AIStreamEvent::Error {
+                    message: e.to_string(),
+                });
             }
         });
 
@@ -804,8 +1203,9 @@ impl AIService {
         let ai_repo = PgAIConversationRepository::new(self.pool.clone());
 
         let conversation_id = match conversation_id {
-            Some(id) => AIConversationId::from_str(&id)
-                .map_err(|e| SipError::Validation(e.to_string()))?,
+            Some(id) => {
+                AIConversationId::from_str(&id).map_err(|e| SipError::Validation(e.to_string()))?
+            }
             None => {
                 let user_id = ctx.user_id.ok_or(SipError::PermissionDenied)?;
                 let conversation = AIConversation {
@@ -834,38 +1234,80 @@ impl AIService {
         let context = self.build_context(ctx, message).await?;
         let records_queried = context.records_queried;
 
-        Ok((conversation_id, context.context_text, records_queried, context.retrieval_paths))
+        Ok((
+            conversation_id,
+            context.context_text,
+            records_queried,
+            context.retrieval_paths,
+        ))
     }
 
     fn classify_query(query: &str) -> ClassifiedQuery {
         let q = query.to_lowercase();
 
-        let question_type = if q.contains("serial") || q.contains("status of") || q.contains("assigned to")
-            || q.contains("model number") || q.contains("firmware") || q.contains("who owns") {
+        let question_type = if q.contains("serial")
+            || q.contains("status of")
+            || q.contains("assigned to")
+            || q.contains("model number")
+            || q.contains("firmware")
+            || q.contains("who owns")
+        {
             QuestionType::ExactFact
-        } else if q.contains("similar") || q.contains("pattern") || q.contains("symptom")
-            || q.contains("seen before") || q.contains("like this") || q.contains("same issue") {
+        } else if q.contains("similar")
+            || q.contains("pattern")
+            || q.contains("symptom")
+            || q.contains("seen before")
+            || q.contains("like this")
+            || q.contains("same issue")
+        {
             QuestionType::Similarity
-        } else if q.contains("depends on") || q.contains("connected to") || q.contains("uses same")
-            || q.contains("powered by") || q.contains("controlled by") || q.contains("related") {
+        } else if q.contains("depends on")
+            || q.contains("connected to")
+            || q.contains("uses same")
+            || q.contains("powered by")
+            || q.contains("controlled by")
+            || q.contains("related")
+        {
             QuestionType::Relationship
-        } else if q.contains("what changed") || q.contains("since") || q.contains("last time")
-            || q.contains("history of") || q.contains("over time") || q.contains("trend") {
+        } else if q.contains("what changed")
+            || q.contains("since")
+            || q.contains("last time")
+            || q.contains("history of")
+            || q.contains("over time")
+            || q.contains("trend")
+        {
             QuestionType::Temporal
-        } else if q.contains("manual") || q.contains("procedure") || q.contains("instruction")
-            || q.contains("how to") || q.contains("spec sheet") || q.contains("documentation") {
+        } else if q.contains("manual")
+            || q.contains("procedure")
+            || q.contains("instruction")
+            || q.contains("how to")
+            || q.contains("spec sheet")
+            || q.contains("documentation")
+        {
             QuestionType::DocumentQA
-        } else if q.contains("why") || q.contains("root cause") || q.contains("keeps failing")
-            || q.contains("cause of") || q.contains("reason for") {
+        } else if q.contains("why")
+            || q.contains("root cause")
+            || q.contains("keeps failing")
+            || q.contains("cause of")
+            || q.contains("reason for")
+        {
             QuestionType::RootCause
         } else {
             QuestionType::GeneralHybrid
         };
 
-        ClassifiedQuery { question_type, entities: vec![], time_filter: None }
+        ClassifiedQuery {
+            question_type,
+            entities: vec![],
+            time_filter: None,
+        }
     }
 
-    async fn build_context(&self, ctx: &TenantContext, query: &str) -> Result<ContextResult, SipError> {
+    async fn build_context(
+        &self,
+        ctx: &TenantContext,
+        query: &str,
+    ) -> Result<ContextResult, SipError> {
         set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
@@ -943,7 +1385,11 @@ impl AIService {
         })
     }
 
-    async fn fetch_exact_facts(&self, ctx: &TenantContext, query: &str) -> Result<FetchResult, SipError> {
+    async fn fetch_exact_facts(
+        &self,
+        ctx: &TenantContext,
+        query: &str,
+    ) -> Result<FetchResult, SipError> {
         let message_lower = query.to_lowercase();
 
         let mut parts = Vec::new();
@@ -959,15 +1405,24 @@ impl AIService {
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
 
-        let matching_assets: Vec<_> = asset_rows.iter()
-            .filter(|(_, name, _, _, sn)| message_lower.contains(&name.to_lowercase())
-                || sn.as_deref().map(|s| message_lower.contains(&s.to_lowercase())).unwrap_or(false))
+        let matching_assets: Vec<_> = asset_rows
+            .iter()
+            .filter(|(_, name, _, _, sn)| {
+                message_lower.contains(&name.to_lowercase())
+                    || sn
+                        .as_deref()
+                        .map(|s| message_lower.contains(&s.to_lowercase()))
+                        .unwrap_or(false)
+            })
             .collect();
 
         for (id, name, status, criticality, sn) in &matching_assets {
             parts.push(format!(
                 "Asset: {} (Status: {}, Criticality: {}, Serial: {})",
-                name, status, criticality.as_deref().unwrap_or("N/A"), sn.as_deref().unwrap_or("N/A")
+                name,
+                status,
+                criticality.as_deref().unwrap_or("N/A"),
+                sn.as_deref().unwrap_or("N/A")
             ));
             records += 1;
             sources.push(Source {
@@ -984,20 +1439,24 @@ impl AIService {
             });
 
             // Fetch work orders for this asset
-            let wos = sqlx::query_as::<_, (Uuid, String, String, String, Option<chrono::DateTime<Utc>>)>(
-                "SELECT id, title, status, priority, created_at FROM work_orders
-                 WHERE organization_id = $1 AND asset_id = $2 ORDER BY created_at DESC LIMIT 20"
-            )
-            .bind(Uuid::from(ctx.organization_id))
-            .bind(id)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+            let wos =
+                sqlx::query_as::<_, (Uuid, String, String, String, Option<chrono::DateTime<Utc>>)>(
+                    "SELECT id, title, status, priority, created_at FROM work_orders
+                 WHERE organization_id = $1 AND asset_id = $2 ORDER BY created_at DESC LIMIT 20",
+                )
+                .bind(Uuid::from(ctx.organization_id))
+                .bind(id)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
 
             for (wo_id, title, status, priority, created_at) in &wos {
                 parts.push(format!(
                     "Work Order {}: {} (Status: {}, Priority: {}, Created: {})",
-                    wo_id, title, status, priority,
+                    wo_id,
+                    title,
+                    status,
+                    priority,
                     created_at.map(|d| d.to_string()).unwrap_or_default()
                 ));
                 records += 1;
@@ -1016,10 +1475,18 @@ impl AIService {
             }
         }
 
-        Ok(FetchResult { parts, records, sources })
+        Ok(FetchResult {
+            parts,
+            records,
+            sources,
+        })
     }
 
-    async fn fetch_similar(&self, ctx: &TenantContext, query: &str) -> Result<FetchResult, SipError> {
+    async fn fetch_similar(
+        &self,
+        ctx: &TenantContext,
+        query: &str,
+    ) -> Result<FetchResult, SipError> {
         let mut parts = Vec::new();
         let mut records: usize = 0;
         let mut sources = Vec::new();
@@ -1029,7 +1496,8 @@ impl AIService {
         for vs in &vector_sources {
             parts.push(format!(
                 "Vector Match [{}]: {}",
-                vs.source_type, vs.quote.as_deref().unwrap_or(&vs.title)
+                vs.source_type,
+                vs.quote.as_deref().unwrap_or(&vs.title)
             ));
             records += 1;
             sources.push(Source {
@@ -1056,7 +1524,7 @@ impl AIService {
                      WHERE organization_id = $1
                      AND (LOWER(title) LIKE $2 OR LOWER(resolution_notes) LIKE $2)
                      AND created_at > NOW() - INTERVAL '180 days'
-                     ORDER BY created_at DESC LIMIT 10"
+                     ORDER BY created_at DESC LIMIT 10",
                 )
                 .bind(Uuid::from(ctx.organization_id))
                 .bind(format!("%{}%", keyword))
@@ -1067,7 +1535,10 @@ impl AIService {
                 for (id, title, status, notes) in &wos {
                     parts.push(format!(
                         "Similar Work Order {}: {} (Status: {}, Notes: {})",
-                        id, title, status, notes.as_deref().unwrap_or("N/A")
+                        id,
+                        title,
+                        status,
+                        notes.as_deref().unwrap_or("N/A")
                     ));
                     records += 1;
                     sources.push(Source {
@@ -1086,10 +1557,18 @@ impl AIService {
             }
         }
 
-        Ok(FetchResult { parts, records, sources })
+        Ok(FetchResult {
+            parts,
+            records,
+            sources,
+        })
     }
 
-    async fn fetch_related(&self, ctx: &TenantContext, query: &str) -> Result<FetchResult, SipError> {
+    async fn fetch_related(
+        &self,
+        ctx: &TenantContext,
+        query: &str,
+    ) -> Result<FetchResult, SipError> {
         let mut parts = Vec::new();
         let mut records: usize = 0;
         let mut sources = Vec::new();
@@ -1098,19 +1577,23 @@ impl AIService {
 
         // Find assets matching query and their related work orders
         let asset_rows = sqlx::query_as::<_, (Uuid, String, Option<Uuid>)>(
-            "SELECT id, name, location_id FROM assets WHERE organization_id = $1 LIMIT 200"
+            "SELECT id, name, location_id FROM assets WHERE organization_id = $1 LIMIT 200",
         )
         .bind(Uuid::from(ctx.organization_id))
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
 
-        let matched: Vec<_> = asset_rows.iter()
+        let matched: Vec<_> = asset_rows
+            .iter()
             .filter(|(_, name, _)| query_lower.contains(&name.to_lowercase()))
             .collect();
 
         for (id, name, location_id) in &matched {
-            parts.push(format!("Related Asset: {} (Location: {:?})", name, location_id));
+            parts.push(format!(
+                "Related Asset: {} (Location: {:?})",
+                name, location_id
+            ));
             records += 1;
             sources.push(Source {
                 id: id.to_string(),
@@ -1138,7 +1621,10 @@ impl AIService {
             .map_err(|e| SipError::Validation(e.to_string()))?;
 
             for (wo_id, title, status) in &wos {
-                parts.push(format!("Related Work Order {}: {} (Status: {})", wo_id, title, status));
+                parts.push(format!(
+                    "Related Work Order {}: {} (Status: {})",
+                    wo_id, title, status
+                ));
                 records += 1;
                 sources.push(Source {
                     id: wo_id.to_string(),
@@ -1155,10 +1641,18 @@ impl AIService {
             }
         }
 
-        Ok(FetchResult { parts, records, sources })
+        Ok(FetchResult {
+            parts,
+            records,
+            sources,
+        })
     }
 
-    async fn fetch_temporal(&self, ctx: &TenantContext, query: &str) -> Result<FetchResult, SipError> {
+    async fn fetch_temporal(
+        &self,
+        ctx: &TenantContext,
+        query: &str,
+    ) -> Result<FetchResult, SipError> {
         let mut parts = Vec::new();
         let mut records: usize = 0;
         let mut sources = Vec::new();
@@ -1167,14 +1661,15 @@ impl AIService {
 
         // Find target asset if referenced
         let asset_rows = sqlx::query_as::<_, (Uuid, String)>(
-            "SELECT id, name FROM assets WHERE organization_id = $1 LIMIT 200"
+            "SELECT id, name FROM assets WHERE organization_id = $1 LIMIT 200",
         )
         .bind(Uuid::from(ctx.organization_id))
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
 
-        let target_id = asset_rows.iter()
+        let target_id = asset_rows
+            .iter()
             .find(|(_, name)| query_lower.contains(&name.to_lowercase()))
             .map(|(id, _)| *id);
 
@@ -1183,7 +1678,7 @@ impl AIService {
             let history = sqlx::query_as::<_, (String, Option<String>, chrono::DateTime<Utc>)>(
                 "SELECT to_status::text, reason, created_at FROM work_order_status_history
                  WHERE work_order_id IN (SELECT id FROM work_orders WHERE asset_id = $1)
-                 ORDER BY created_at DESC LIMIT 20"
+                 ORDER BY created_at DESC LIMIT 20",
             )
             .bind(asset_id)
             .fetch_all(&self.pool)
@@ -1193,7 +1688,9 @@ impl AIService {
             for (to_status, reason, created_at) in &history {
                 parts.push(format!(
                     "Status Change: {} at {} (Reason: {})",
-                    to_status, created_at, reason.as_deref().unwrap_or("N/A")
+                    to_status,
+                    created_at,
+                    reason.as_deref().unwrap_or("N/A")
                 ));
                 records += 1;
                 sources.push(Source {
@@ -1215,7 +1712,7 @@ impl AIService {
         let activities = sqlx::query_as::<_, (String, String, String, chrono::DateTime<Utc>)>(
             "SELECT entity_type, entity_id::text, action, created_at FROM activities
              WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '90 days'
-             ORDER BY created_at DESC LIMIT 30"
+             ORDER BY created_at DESC LIMIT 30",
         )
         .bind(Uuid::from(ctx.organization_id))
         .fetch_all(&self.pool)
@@ -1242,10 +1739,18 @@ impl AIService {
             });
         }
 
-        Ok(FetchResult { parts, records, sources })
+        Ok(FetchResult {
+            parts,
+            records,
+            sources,
+        })
     }
 
-    async fn fetch_documents(&self, ctx: &TenantContext, query: &str) -> Result<FetchResult, SipError> {
+    async fn fetch_documents(
+        &self,
+        ctx: &TenantContext,
+        query: &str,
+    ) -> Result<FetchResult, SipError> {
         let mut parts = Vec::new();
         let mut records: usize = 0;
         let mut sources = Vec::new();
@@ -1262,7 +1767,7 @@ impl AIService {
                      WHERE organization_id = $1
                      AND (LOWER(name) LIKE $2 OR LOWER(COALESCE(text_content, '')) LIKE $2)
                      AND archived_at IS NULL
-                     LIMIT 10"
+                     LIMIT 10",
                 )
                 .bind(Uuid::from(ctx.organization_id))
                 .bind(format!("%{}%", keyword))
@@ -1271,7 +1776,12 @@ impl AIService {
                 .map_err(|e| SipError::Validation(e.to_string()))?;
 
                 for (id, name, doc_type, text_content) in &docs {
-                    let excerpt = text_content.as_deref().unwrap_or("").chars().take(200).collect::<String>();
+                    let excerpt = text_content
+                        .as_deref()
+                        .unwrap_or("")
+                        .chars()
+                        .take(200)
+                        .collect::<String>();
                     parts.push(format!(
                         "Document: {} (Type: {})\nExcerpt: {}",
                         name, doc_type, excerpt
@@ -1286,14 +1796,22 @@ impl AIService {
                         source_scope: Some("PRIVATE_TENANT".into()),
                         retrieval_type: Some("RAG".into()),
                         verified_by_sql: Some(true),
-                        quote: if !excerpt.is_empty() { Some(excerpt) } else { None },
+                        quote: if !excerpt.is_empty() {
+                            Some(excerpt)
+                        } else {
+                            None
+                        },
                         timestamp: None,
                     });
                 }
             }
         }
 
-        Ok(FetchResult { parts, records, sources })
+        Ok(FetchResult {
+            parts,
+            records,
+            sources,
+        })
     }
 
     async fn fetch_recent_work_orders(&self, ctx: &TenantContext) -> Result<FetchResult, SipError> {
@@ -1302,20 +1820,24 @@ impl AIService {
         let mut sources = Vec::new();
 
         // Recent work orders
-        let wos = sqlx::query_as::<_, (Uuid, String, String, String, Option<chrono::DateTime<Utc>>)>(
-            "SELECT id, title, status, priority, created_at FROM work_orders
+        let wos =
+            sqlx::query_as::<_, (Uuid, String, String, String, Option<chrono::DateTime<Utc>>)>(
+                "SELECT id, title, status, priority, created_at FROM work_orders
              WHERE organization_id = $1 AND created_at > NOW() - INTERVAL '30 days'
-             ORDER BY created_at DESC LIMIT 20"
-        )
-        .bind(Uuid::from(ctx.organization_id))
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| SipError::Validation(e.to_string()))?;
+             ORDER BY created_at DESC LIMIT 20",
+            )
+            .bind(Uuid::from(ctx.organization_id))
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
 
         for (id, title, status, priority, created_at) in &wos {
             parts.push(format!(
                 "Recent Work Order {}: {} (Status: {}, Priority: {}, Created: {})",
-                id, title, status, priority,
+                id,
+                title,
+                status,
+                priority,
                 created_at.map(|d| d.to_string()).unwrap_or_default()
             ));
             records += 1;
@@ -1337,7 +1859,7 @@ impl AIService {
         let assets = sqlx::query_as::<_, (Uuid, String, String, String)>(
             "SELECT id, name, status, criticality FROM assets
              WHERE organization_id = $1 AND status IN ('DOWN', 'DEGRADED')
-             LIMIT 20"
+             LIMIT 20",
         )
         .bind(Uuid::from(ctx.organization_id))
         .fetch_all(&self.pool)
@@ -1368,7 +1890,7 @@ impl AIService {
         let open_wos = sqlx::query_as::<_, (Uuid, String, String)>(
             "SELECT id, title, priority FROM work_orders
              WHERE organization_id = $1 AND status NOT IN ('COMPLETED', 'CLOSED', 'CANCELLED')
-             ORDER BY created_at DESC LIMIT 20"
+             ORDER BY created_at DESC LIMIT 20",
         )
         .bind(Uuid::from(ctx.organization_id))
         .fetch_all(&self.pool)
@@ -1395,7 +1917,11 @@ impl AIService {
             });
         }
 
-        Ok(FetchResult { parts, records, sources })
+        Ok(FetchResult {
+            parts,
+            records,
+            sources,
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1410,7 +1936,10 @@ impl AIService {
         pool: &PgPool,
         tx: tokio::sync::mpsc::UnboundedSender<AIStreamEvent>,
     ) -> Result<(), SipError> {
-        let _ = tx.send(AIStreamEvent::Context { records_queried: records_queried as i32, paths: retrieval_paths.clone() });
+        let _ = tx.send(AIStreamEvent::Context {
+            records_queried: records_queried as i32,
+            paths: retrieval_paths.clone(),
+        });
 
         // Load conversation history
         let recent_rows: Vec<(String, String)> = sqlx::query_as(
@@ -1426,9 +1955,7 @@ impl AIService {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let system_prompt = format!(
-            r#"You are a maintenance intelligence assistant for the SIP platform. Answer based ONLY on the context provided below. If the information is not in the context, say "I don't have enough information to answer that question." Do not fabricate."#
-        );
+        let system_prompt = r#"You are a maintenance intelligence assistant for the SIP platform. Answer based ONLY on the context provided below. If the information is not in the context, say "I don't have enough information to answer that question." Do not fabricate."#.to_string();
 
         let user_prompt = format!(
             r#"CONVERSATION HISTORY:
@@ -1482,10 +2009,15 @@ Respond with valid JSON in this exact format:
             stream: true,
         };
 
-        let mut chunk_rx = match provider.complete_stream(&system_prompt, &user_prompt, &options).await {
+        let mut chunk_rx = match provider
+            .complete_stream(&system_prompt, &user_prompt, &options)
+            .await
+        {
             Ok(rx) => rx,
             Err(e) => {
-                let _ = tx.send(AIStreamEvent::Error { message: e.to_string() });
+                let _ = tx.send(AIStreamEvent::Error {
+                    message: e.to_string(),
+                });
                 return Err(SipError::Validation(e.to_string()));
             }
         };
@@ -1499,33 +2031,39 @@ Respond with valid JSON in this exact format:
                     let _ = tx.send(AIStreamEvent::Chunk { text });
                 }
                 Err(e) => {
-                    let _ = tx.send(AIStreamEvent::Error { message: e.to_string() });
+                    let _ = tx.send(AIStreamEvent::Error {
+                        message: e.to_string(),
+                    });
                     return Err(SipError::Validation(e.to_string()));
                 }
             }
         }
 
         // Parse the full response to extract structured data
-        let structured: serde_json::Value = serde_json::from_str(&full_answer).unwrap_or_else(|_| {
-            serde_json::json!({
-                "answer": full_answer.clone(),
-                "confidence": 0.5,
-                "verification_status": "UNSUPPORTED",
-                "retrieval_paths": [],
-                "sources": [],
-                "verified_claims": [],
-                "unsupported_claims": [],
-                "contradicted_claims": [],
-                "recommended_actions": []
-            })
-        });
+        let structured: serde_json::Value =
+            serde_json::from_str(&full_answer).unwrap_or_else(|_| {
+                serde_json::json!({
+                    "answer": full_answer.clone(),
+                    "confidence": 0.5,
+                    "verification_status": "UNSUPPORTED",
+                    "retrieval_paths": [],
+                    "sources": [],
+                    "verified_claims": [],
+                    "unsupported_claims": [],
+                    "contradicted_claims": [],
+                    "recommended_actions": []
+                })
+            });
 
         let answer = structured
             .get("answer")
             .and_then(|v| v.as_str())
             .unwrap_or(&full_answer)
             .to_string();
-        let sources = structured.get("sources").cloned().unwrap_or(serde_json::json!([]));
+        let sources = structured
+            .get("sources")
+            .cloned()
+            .unwrap_or(serde_json::json!([]));
         let verification_status = structured
             .get("verification_status")
             .and_then(|v| v.as_str())
@@ -1536,7 +2074,11 @@ Respond with valid JSON in this exact format:
         let verified_claims = structured.get("verified_claims").and_then(|v| v.as_array());
         let checks_total = verified_claims.map(|a| a.len() as i32).unwrap_or(0);
         let checks_passed = verified_claims
-            .map(|a| a.iter().filter(|c| c.get("status").and_then(|s| s.as_str()) == Some("VERIFIED")).count() as i32)
+            .map(|a| {
+                a.iter()
+                    .filter(|c| c.get("status").and_then(|s| s.as_str()) == Some("VERIFIED"))
+                    .count() as i32
+            })
             .unwrap_or(0);
         let _ = tx.send(AIStreamEvent::Verification {
             checks_passed,
@@ -1736,7 +2278,9 @@ Respond with valid JSON in this exact format:
         let conversation = conversations.into_iter().find(|c| c.id == conversation_id);
         match conversation {
             Some(conv) => {
-                let messages = repo.get_messages_by_conversation(ctx, conversation_id).await?;
+                let messages = repo
+                    .get_messages_by_conversation(ctx, conversation_id)
+                    .await?;
                 Ok(Some((conv, messages)))
             }
             None => Ok(None),
@@ -1777,17 +2321,37 @@ impl OrganizationService {
 
     pub async fn get(&self, ctx: &TenantContext) -> Result<Organization, SipError> {
         ctx.require_permission("org:read")?;
-        self.repo.get_by_id(ctx, ctx.organization_id).await?.ok_or(SipError::Validation("Organization not found".into()))
+        self.repo
+            .get_by_id(ctx, ctx.organization_id)
+            .await?
+            .ok_or(SipError::Validation("Organization not found".into()))
     }
 
-    pub async fn update(&self, ctx: &TenantContext, name: Option<String>, timezone: Option<String>, default_currency: Option<String>) -> Result<Organization, SipError> {
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        name: Option<String>,
+        timezone: Option<String>,
+        default_currency: Option<String>,
+    ) -> Result<Organization, SipError> {
         ctx.require_permission("org:manage")?;
-        self.repo.update(ctx, ctx.organization_id, name, timezone, default_currency).await
+        self.repo
+            .update(ctx, ctx.organization_id, name, timezone, default_currency)
+            .await
     }
 
-    pub async fn create(&self, ctx: &TenantContext, name: &str, slug: &str, timezone: Option<&str>, default_currency: Option<&str>) -> Result<Organization, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        name: &str,
+        slug: &str,
+        timezone: Option<&str>,
+        default_currency: Option<&str>,
+    ) -> Result<Organization, SipError> {
         ctx.require_permission("org:manage")?;
-        self.repo.create(ctx, name, slug, timezone, default_currency).await
+        self.repo
+            .create(ctx, name, slug, timezone, default_currency)
+            .await
     }
 }
 
@@ -1805,12 +2369,22 @@ impl LocationService {
         self.repo.list(ctx).await
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: LocationId) -> Result<Option<Location>, SipError> {
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: LocationId,
+    ) -> Result<Option<Location>, SipError> {
         ctx.require_permission("asset:read")?;
         self.repo.get(ctx, id).await
     }
 
-    pub async fn create(&self, ctx: &TenantContext, parent_id: Option<LocationId>, name: String, location_type: LocationType) -> Result<Location, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        parent_id: Option<LocationId>,
+        name: String,
+        location_type: LocationType,
+    ) -> Result<Location, SipError> {
         ctx.require_permission("asset:update")?;
         let location = Location {
             id: LocationId::new(),
@@ -1827,17 +2401,31 @@ impl LocationService {
         self.repo.create(ctx, &location).await
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: LocationId, name: Option<String>, location_type: Option<LocationType>) -> Result<Location, SipError> {
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: LocationId,
+        name: Option<String>,
+        location_type: Option<LocationType>,
+    ) -> Result<Location, SipError> {
         ctx.require_permission("asset:update")?;
         self.repo.update(ctx, id, name, location_type).await
     }
 
-    pub async fn list_children(&self, ctx: &TenantContext, parent_id: LocationId) -> Result<Vec<Location>, SipError> {
+    pub async fn list_children(
+        &self,
+        ctx: &TenantContext,
+        parent_id: LocationId,
+    ) -> Result<Vec<Location>, SipError> {
         ctx.require_permission("asset:read")?;
         self.repo.list_children(ctx, parent_id).await
     }
 
-    pub async fn list_assets(&self, ctx: &TenantContext, location_id: LocationId) -> Result<Vec<Asset>, SipError> {
+    pub async fn list_assets(
+        &self,
+        ctx: &TenantContext,
+        location_id: LocationId,
+    ) -> Result<Vec<Asset>, SipError> {
         ctx.require_permission("asset:read")?;
         self.repo.list_assets_at(ctx, location_id).await
     }
@@ -1857,12 +2445,22 @@ impl AssetTypeService {
         self.repo.list(ctx).await
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: AssetTypeId) -> Result<Option<AssetType>, SipError> {
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: AssetTypeId,
+    ) -> Result<Option<AssetType>, SipError> {
         ctx.require_permission("asset:read")?;
         self.repo.get(ctx, id).await
     }
 
-    pub async fn create(&self, ctx: &TenantContext, name: String, category: String, description: Option<String>) -> Result<AssetType, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        name: String,
+        category: String,
+        description: Option<String>,
+    ) -> Result<AssetType, SipError> {
         ctx.require_permission("asset:update")?;
         let asset_type = AssetType {
             id: AssetTypeId::new(),
@@ -1881,7 +2479,14 @@ impl AssetTypeService {
         self.repo.create(ctx, &asset_type).await
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: AssetTypeId, name: Option<String>, category: Option<String>, description: Option<String>) -> Result<AssetType, SipError> {
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: AssetTypeId,
+        name: Option<String>,
+        category: Option<String>,
+        description: Option<String>,
+    ) -> Result<AssetType, SipError> {
         ctx.require_permission("asset:update")?;
         self.repo.update(ctx, id, name, category, description).await
     }
@@ -1901,12 +2506,22 @@ impl ManufacturerService {
         self.repo.list(ctx).await
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: ManufacturerId) -> Result<Option<Manufacturer>, SipError> {
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: ManufacturerId,
+    ) -> Result<Option<Manufacturer>, SipError> {
         ctx.require_permission("asset:read")?;
         self.repo.get(ctx, id).await
     }
 
-    pub async fn create(&self, ctx: &TenantContext, name: String, website: Option<String>, support_url: Option<String>) -> Result<Manufacturer, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        name: String,
+        website: Option<String>,
+        support_url: Option<String>,
+    ) -> Result<Manufacturer, SipError> {
         ctx.require_permission("asset:update")?;
         let manufacturer = Manufacturer {
             id: ManufacturerId::new(),
@@ -1930,17 +2545,32 @@ impl AssetModelService {
         Self { repo }
     }
 
-    pub async fn list(&self, ctx: &TenantContext, manufacturer_id: Option<ManufacturerId>) -> Result<Vec<AssetModel>, SipError> {
+    pub async fn list(
+        &self,
+        ctx: &TenantContext,
+        manufacturer_id: Option<ManufacturerId>,
+    ) -> Result<Vec<AssetModel>, SipError> {
         ctx.require_permission("asset:read")?;
         self.repo.list(ctx, manufacturer_id).await
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: AssetModelId) -> Result<Option<AssetModel>, SipError> {
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: AssetModelId,
+    ) -> Result<Option<AssetModel>, SipError> {
         ctx.require_permission("asset:read")?;
         self.repo.get(ctx, id).await
     }
 
-    pub async fn create(&self, ctx: &TenantContext, manufacturer_id: ManufacturerId, name: String, model_number: String, asset_type_id: AssetTypeId) -> Result<AssetModel, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        manufacturer_id: ManufacturerId,
+        name: String,
+        model_number: String,
+        asset_type_id: AssetTypeId,
+    ) -> Result<AssetModel, SipError> {
         ctx.require_permission("asset:update")?;
         let model = AssetModel {
             id: AssetModelId::new(),
@@ -1980,7 +2610,14 @@ impl UserService {
         self.repo.get(ctx, id).await
     }
 
-    pub async fn create(&self, ctx: &TenantContext, email: String, name: String, role: UserRole, password_hash: String) -> Result<User, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        email: String,
+        name: String,
+        role: UserRole,
+        password_hash: String,
+    ) -> Result<User, SipError> {
         ctx.require_permission("user:manage")?;
         let user = User {
             id: UserId::new(),
@@ -1998,7 +2635,14 @@ impl UserService {
         self.repo.create(ctx, &user, &password_hash).await
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: UserId, name: Option<String>, role: Option<UserRole>, is_active: Option<bool>) -> Result<User, SipError> {
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: UserId,
+        name: Option<String>,
+        role: Option<UserRole>,
+        is_active: Option<bool>,
+    ) -> Result<User, SipError> {
         ctx.require_permission("user:manage")?;
         self.repo.update(ctx, id, name, role, is_active).await
     }
@@ -2023,7 +2667,13 @@ impl TeamService {
         self.repo.get(ctx, id).await
     }
 
-    pub async fn create(&self, ctx: &TenantContext, name: String, description: Option<String>, lead_id: Option<UserId>) -> Result<Team, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        name: String,
+        description: Option<String>,
+        lead_id: Option<UserId>,
+    ) -> Result<Team, SipError> {
         ctx.require_permission("team:manage")?;
         let team = Team {
             id: TeamId::new(),
@@ -2037,7 +2687,14 @@ impl TeamService {
         self.repo.create(ctx, &team).await
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: TeamId, name: Option<String>, description: Option<String>, lead_id: Option<UserId>) -> Result<Team, SipError> {
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: TeamId,
+        name: Option<String>,
+        description: Option<String>,
+        lead_id: Option<UserId>,
+    ) -> Result<Team, SipError> {
         ctx.require_permission("team:manage")?;
         self.repo.update(ctx, id, name, description, lead_id).await
     }
@@ -2060,31 +2717,49 @@ impl<R: InspectionRepository> InspectionService<R> {
         Self { repo }
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: InspectionId) -> Result<Option<Inspection>, SipError> {
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: InspectionId,
+    ) -> Result<Option<Inspection>, SipError> {
         ctx.require_permission("work_order:read")?;
         self.repo.get(ctx, id).await
     }
 
-    pub async fn list(&self, ctx: &TenantContext, work_order_id: Option<WorkOrderId>) -> Result<Vec<Inspection>, SipError> {
+    pub async fn list(
+        &self,
+        ctx: &TenantContext,
+        work_order_id: Option<WorkOrderId>,
+    ) -> Result<Vec<Inspection>, SipError> {
         ctx.require_permission("work_order:read")?;
         self.repo.list(ctx, work_order_id).await
     }
 
-    pub async fn update_items(&self, ctx: &TenantContext, inspection_id: InspectionId, items: Vec<UpdateChecklistItemInput>) -> Result<Inspection, SipError> {
+    pub async fn update_items(
+        &self,
+        ctx: &TenantContext,
+        inspection_id: InspectionId,
+        items: Vec<UpdateChecklistItemInput>,
+    ) -> Result<Inspection, SipError> {
         ctx.require_permission("work_order:update")?;
-        let checklist_items: Vec<InspectionChecklistItem> = items.into_iter().map(|i| InspectionChecklistItem {
-            id: i.id,
-            inspection_id,
-            ordinal: 0,
-            question: String::new(),
-            response_type: sip_domain::entity::inspection::ChecklistResponseType::PassFail,
-            expected_value: None,
-            actual_value: i.actual_value,
-            result: i.result,
-            finding: i.finding,
-            photo_url: i.photo_url,
-        }).collect();
-        self.repo.update_items(ctx, inspection_id, checklist_items).await
+        let checklist_items: Vec<InspectionChecklistItem> = items
+            .into_iter()
+            .map(|i| InspectionChecklistItem {
+                id: i.id,
+                inspection_id,
+                ordinal: 0,
+                question: String::new(),
+                response_type: sip_domain::entity::inspection::ChecklistResponseType::PassFail,
+                expected_value: None,
+                actual_value: i.actual_value,
+                result: i.result,
+                finding: i.finding,
+                photo_url: i.photo_url,
+            })
+            .collect();
+        self.repo
+            .update_items(ctx, inspection_id, checklist_items)
+            .await
     }
 }
 
@@ -2119,7 +2794,11 @@ impl<R: PartRepository> PartService<R> {
         Self { repo }
     }
 
-    pub async fn create(&self, ctx: &TenantContext, input: CreatePartInput) -> Result<Part, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        input: CreatePartInput,
+    ) -> Result<Part, SipError> {
         ctx.require_permission("part:manage")?;
         let part = Part {
             id: PartId::new(),
@@ -2148,17 +2827,38 @@ impl<R: PartRepository> PartService<R> {
         self.repo.list(ctx).await
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: PartId, input: UpdatePartInput) -> Result<Part, SipError> {
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: PartId,
+        input: UpdatePartInput,
+    ) -> Result<Part, SipError> {
         ctx.require_permission("part:manage")?;
         let mut patch = serde_json::json!({});
-        if let Some(ref v) = input.name { patch["name"] = serde_json::json!(v); }
-        if let Some(ref v) = input.part_number { patch["part_number"] = serde_json::json!(v); }
-        if let Some(ref v) = input.description { patch["description"] = serde_json::json!(v); }
-        if let Some(v) = input.quantity_on_hand { patch["quantity_on_hand"] = serde_json::json!(v); }
-        if let Some(v) = input.quantity_minimum { patch["quantity_minimum"] = serde_json::json!(v); }
-        if let Some(ref v) = input.unit { patch["unit"] = serde_json::json!(v); }
-        if let Some(v) = input.unit_cost { patch["unit_cost"] = serde_json::json!(v); }
-        if let Some(ref v) = input.storage_location { patch["storage_location"] = serde_json::json!(v); }
+        if let Some(ref v) = input.name {
+            patch["name"] = serde_json::json!(v);
+        }
+        if let Some(ref v) = input.part_number {
+            patch["part_number"] = serde_json::json!(v);
+        }
+        if let Some(ref v) = input.description {
+            patch["description"] = serde_json::json!(v);
+        }
+        if let Some(v) = input.quantity_on_hand {
+            patch["quantity_on_hand"] = serde_json::json!(v);
+        }
+        if let Some(v) = input.quantity_minimum {
+            patch["quantity_minimum"] = serde_json::json!(v);
+        }
+        if let Some(ref v) = input.unit {
+            patch["unit"] = serde_json::json!(v);
+        }
+        if let Some(v) = input.unit_cost {
+            patch["unit_cost"] = serde_json::json!(v);
+        }
+        if let Some(ref v) = input.storage_location {
+            patch["storage_location"] = serde_json::json!(v);
+        }
         self.repo.update(ctx, id, patch).await
     }
 }
@@ -2172,7 +2872,11 @@ impl<R: ScheduleRepository> ScheduleService<R> {
         Self { repo }
     }
 
-    pub async fn create(&self, ctx: &TenantContext, input: CreateScheduleInput) -> Result<Schedule, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        input: CreateScheduleInput,
+    ) -> Result<Schedule, SipError> {
         ctx.require_permission("schedule:manage")?;
         let schedule = Schedule {
             id: ScheduleId::new(),
@@ -2194,7 +2898,11 @@ impl<R: ScheduleRepository> ScheduleService<R> {
         self.repo.create(ctx, &schedule).await
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: ScheduleId) -> Result<Option<Schedule>, SipError> {
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: ScheduleId,
+    ) -> Result<Option<Schedule>, SipError> {
         ctx.require_permission("schedule:read")?;
         self.repo.get(ctx, id).await
     }
@@ -2204,7 +2912,12 @@ impl<R: ScheduleRepository> ScheduleService<R> {
         self.repo.list(ctx).await
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: ScheduleId, input: UpdateScheduleInput) -> Result<Schedule, SipError> {
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: ScheduleId,
+        input: UpdateScheduleInput,
+    ) -> Result<Schedule, SipError> {
         ctx.require_permission("schedule:manage")?;
         let mut patch = serde_json::json!({});
         if let Some(name) = input.name {
@@ -2407,7 +3120,10 @@ impl MigrationService {
             let mut canonical = serde_json::json!({});
             let entity_type = &src.source_object_type;
 
-            for mapping in mappings.iter().filter(|m| m.target_entity_type == *entity_type) {
+            for mapping in mappings
+                .iter()
+                .filter(|m| m.target_entity_type == *entity_type)
+            {
                 let source_val = src.raw_data.get(&mapping.source_field);
                 if source_val.is_none() && mapping.is_required {
                     issues.push(MigrationValidationIssue {
@@ -2442,11 +3158,14 @@ impl MigrationService {
                 validation_errors: if issues.is_empty() {
                     None
                 } else {
-                    Some(serde_json::json!(issues.iter().map(|i| serde_json::json!({
-                        "severity": i.severity,
-                        "field": i.field,
-                        "message": i.message,
-                    })).collect::<Vec<_>>()))
+                    Some(serde_json::json!(issues
+                        .iter()
+                        .map(|i| serde_json::json!({
+                            "severity": i.severity,
+                            "field": i.field,
+                            "message": i.message,
+                        }))
+                        .collect::<Vec<_>>()))
                 },
                 created_at: now,
                 updated_at: now,
@@ -2458,33 +3177,90 @@ impl MigrationService {
             let canonical: serde_json::Value = staged_rec.canonical_data.clone();
 
             match staged_rec.target_entity_type.as_str() {
-                "asset" => {
-                    if canonical.get("name").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
-                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "name", "Asset name is required"));
+                "asset"
+                    if canonical
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .map_or(true, |s| s.is_empty())
+                    => {
+                        issues.push(Self::create_issue(
+                            ctx.organization_id,
+                            job_id,
+                            staged_rec.id,
+                            "error",
+                            "name",
+                            "Asset name is required",
+                        ));
                     }
-                }
-                "work_order" => {
-                    if canonical.get("title").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
-                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "title", "Work order title is required"));
+                "work_order"
+                    if canonical
+                        .get("title")
+                        .and_then(|v| v.as_str())
+                        .map_or(true, |s| s.is_empty())
+                    => {
+                        issues.push(Self::create_issue(
+                            ctx.organization_id,
+                            job_id,
+                            staged_rec.id,
+                            "error",
+                            "title",
+                            "Work order title is required",
+                        ));
                     }
-                }
-                "location" => {
-                    if canonical.get("name").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
-                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "name", "Location name is required"));
+                "location"
+                    if canonical
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .map_or(true, |s| s.is_empty())
+                    => {
+                        issues.push(Self::create_issue(
+                            ctx.organization_id,
+                            job_id,
+                            staged_rec.id,
+                            "error",
+                            "name",
+                            "Location name is required",
+                        ));
                     }
-                }
                 "part" => {
-                    if canonical.get("name").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
-                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "name", "Part name is required"));
+                    if canonical
+                        .get("name")
+                        .and_then(|v| v.as_str())
+                        .map_or(true, |s| s.is_empty())
+                    {
+                        issues.push(Self::create_issue(
+                            ctx.organization_id,
+                            job_id,
+                            staged_rec.id,
+                            "error",
+                            "name",
+                            "Part name is required",
+                        ));
                     }
-                    if canonical.get("part_number").and_then(|v| v.as_str()).map_or(true, |s| s.is_empty()) {
-                        issues.push(Self::create_issue(ctx.organization_id, job_id, staged_rec.id, "error", "part_number", "Part number is required"));
+                    if canonical
+                        .get("part_number")
+                        .and_then(|v| v.as_str())
+                        .map_or(true, |s| s.is_empty())
+                    {
+                        issues.push(Self::create_issue(
+                            ctx.organization_id,
+                            job_id,
+                            staged_rec.id,
+                            "error",
+                            "part_number",
+                            "Part number is required",
+                        ));
                     }
                 }
                 _ => {}
             }
 
-            for date_field in &["purchase_date", "warranty_expiry", "due_date", "completed_date"] {
+            for date_field in &[
+                "purchase_date",
+                "warranty_expiry",
+                "due_date",
+                "completed_date",
+            ] {
                 if let Some(val) = canonical.get(date_field).and_then(|v| v.as_str()) {
                     if !val.is_empty()
                         && chrono::DateTime::parse_from_rfc3339(val).is_err()
@@ -2504,9 +3280,19 @@ impl MigrationService {
 
             if let Some(status) = canonical.get("status").and_then(|v| v.as_str()) {
                 let valid_statuses = [
-                    "operational", "degraded", "down", "maintenance", "retired",
-                    "draft", "open", "in_progress", "on_hold", "completed",
-                    "reviewed", "closed", "cancelled",
+                    "operational",
+                    "degraded",
+                    "down",
+                    "maintenance",
+                    "retired",
+                    "draft",
+                    "open",
+                    "in_progress",
+                    "on_hold",
+                    "completed",
+                    "reviewed",
+                    "closed",
+                    "cancelled",
                 ];
                 if !valid_statuses.contains(&status.to_lowercase().as_str()) {
                     issues.push(Self::create_issue(
@@ -2612,7 +3398,10 @@ impl MigrationService {
 
         repo.update_job_status(ctx, job_id, MigrationJobStatus::Validated)
             .await?;
-        let valid_count = staged.iter().filter(|s| s.status == "pending_validation").count() as i32;
+        let valid_count = staged
+            .iter()
+            .filter(|s| s.status == "pending_validation")
+            .count() as i32;
         repo.update_job_counts(
             ctx,
             job_id,
@@ -2690,7 +3479,8 @@ impl MigrationService {
     ) -> Result<MigrationRun, SipError> {
         ctx.require_permission("migration:execute")?;
         let repo = PgMigrationRepository::new(self.pool.clone());
-        let asset_repo = sip_infrastructure::repositories::PgAssetRepository::new(self.pool.clone());
+        let asset_repo =
+            sip_infrastructure::repositories::PgAssetRepository::new(self.pool.clone());
 
         repo.update_job_status(ctx, job_id, MigrationJobStatus::Importing)
             .await?;
@@ -2894,7 +3684,8 @@ impl MigrationService {
     ) -> Result<MigrationRun, SipError> {
         ctx.require_permission("migration:rollback")?;
         let repo = PgMigrationRepository::new(self.pool.clone());
-        let asset_repo = sip_infrastructure::repositories::PgAssetRepository::new(self.pool.clone());
+        let asset_repo =
+            sip_infrastructure::repositories::PgAssetRepository::new(self.pool.clone());
 
         let now = Utc::now();
         let mut run = MigrationRun {
@@ -2918,7 +3709,10 @@ impl MigrationService {
 
         for entry in &external_id_maps {
             if entry.sip_entity_type == "asset" {
-                match asset_repo.archive_asset(ctx, AssetId::from(entry.sip_entity_id)).await {
+                match asset_repo
+                    .archive_asset(ctx, AssetId::from(entry.sip_entity_id))
+                    .await
+                {
                     Ok(_) => {
                         run.records_processed += 1;
                         run.records_created += 1;

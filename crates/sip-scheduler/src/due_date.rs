@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc, Timelike, Datelike, Duration};
+use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 
 fn parse_cron_field(field: &str, min: u32, max: u32) -> Option<Vec<u32>> {
     if field == "*" {
@@ -41,7 +41,7 @@ pub fn calculate_next_due(expression: &str, from: DateTime<Utc>) -> Option<DateT
         {
             return Some(dt);
         }
-        dt = dt + Duration::minutes(1);
+        dt += Duration::minutes(1);
     }
 
     None

@@ -78,10 +78,7 @@ pub trait LlmProvider: Send + Sync {
         system: &str,
         prompt: &str,
         options: &CompletionOptions,
-    ) -> Result<
-        tokio::sync::mpsc::UnboundedReceiver<Result<String, ProviderError>>,
-        ProviderError,
-    >;
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<Result<String, ProviderError>>, ProviderError>;
 
     /// Generate embeddings for a list of texts.
     async fn embed(&self, texts: &[String]) -> Result<Vec<Vec<f32>>, ProviderError>;
@@ -120,10 +117,8 @@ impl LlmProvider for DisabledProvider {
         _system: &str,
         _prompt: &str,
         _options: &CompletionOptions,
-    ) -> Result<
-        tokio::sync::mpsc::UnboundedReceiver<Result<String, ProviderError>>,
-        ProviderError,
-    > {
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<Result<String, ProviderError>>, ProviderError>
+    {
         Err(ProviderError::NotConfigured(
             "AI is disabled. Set SIP_AI_ENABLED=true and configure a provider.".into(),
         ))
@@ -203,15 +198,9 @@ impl LlmProvider for OllamaProvider {
             .await
             .map_err(|e| ProviderError::ParseError(e.to_string()))?;
 
-        let text = body["response"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
+        let text = body["response"].as_str().unwrap_or("").to_string();
 
-        Ok(CompletionResponse {
-            text,
-            usage: None,
-        })
+        Ok(CompletionResponse { text, usage: None })
     }
 
     async fn complete_stream(
@@ -219,10 +208,8 @@ impl LlmProvider for OllamaProvider {
         system: &str,
         prompt: &str,
         options: &CompletionOptions,
-    ) -> Result<
-        tokio::sync::mpsc::UnboundedReceiver<Result<String, ProviderError>>,
-        ProviderError,
-    > {
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<Result<String, ProviderError>>, ProviderError>
+    {
         let full_prompt = if system.is_empty() {
             prompt.to_string()
         } else {
@@ -281,7 +268,11 @@ impl LlmProvider for OllamaProvider {
                         let _ = tx.send(Ok(response_text.to_string()));
                     }
 
-                    if parsed.get("done").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    if parsed
+                        .get("done")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                    {
                         return;
                     }
                 }
@@ -434,10 +425,8 @@ impl LlmProvider for OpenAIProvider {
         system: &str,
         prompt: &str,
         options: &CompletionOptions,
-    ) -> Result<
-        tokio::sync::mpsc::UnboundedReceiver<Result<String, ProviderError>>,
-        ProviderError,
-    > {
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<Result<String, ProviderError>>, ProviderError>
+    {
         let mut messages = Vec::new();
         if !system.is_empty() {
             messages.push(serde_json::json!({"role": "system", "content": system}));
@@ -603,12 +592,16 @@ pub fn create_provider(config: &AiConfig) -> Box<dyn LlmProvider> {
                     openai.model.clone(),
                 ))
             } else {
-                tracing::warn!("OpenAI provider selected but no API key configured. Using disabled provider.");
+                tracing::warn!(
+                    "OpenAI provider selected but no API key configured. Using disabled provider."
+                );
                 Box::new(DisabledProvider)
             }
         }
-        LlmProviderType::Anthropic | LlmProviderType::OpenRouter
-        | LlmProviderType::AzureOpenAI | LlmProviderType::Bedrock
+        LlmProviderType::Anthropic
+        | LlmProviderType::OpenRouter
+        | LlmProviderType::AzureOpenAI
+        | LlmProviderType::Bedrock
         | LlmProviderType::CustomHttp => {
             // Placeholder for future provider implementations
             tracing::warn!(

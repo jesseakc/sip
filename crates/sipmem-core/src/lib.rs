@@ -1,15 +1,15 @@
-pub mod types;
+pub mod evidence;
 pub mod memory;
+pub mod recipes;
 pub mod temporal;
 pub mod traits;
-pub mod evidence;
+pub mod types;
 pub mod verification;
-pub mod recipes;
 
-pub use types::*;
+pub use evidence::*;
 pub use memory::*;
+pub use recipes::*;
 pub use temporal::*;
 pub use traits::*;
-pub use evidence::*;
+pub use types::*;
 pub use verification::*;
-pub use recipes::*;

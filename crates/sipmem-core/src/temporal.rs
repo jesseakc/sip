@@ -24,14 +24,14 @@ impl TemporalResolver {
 
     pub fn is_valid_during(&self, context: &TemporalContext, range: &TimeRange) -> bool {
         if let Some(ref end) = range.end {
-            if context.valid_to.map_or(false, |vt| vt < range.start) {
+            if context.valid_to.is_some_and(|vt| vt < range.start) {
                 return false;
             }
             if context.valid_from > *end {
                 return false;
             }
         } else {
-            if context.valid_to.map_or(false, |vt| vt < range.start) {
+            if context.valid_to.is_some_and(|vt| vt < range.start) {
                 return false;
             }
         }
@@ -119,10 +119,7 @@ mod tests {
     use super::*;
     use chrono::Duration;
 
-    fn make_context(
-        valid_from: DateTime<Utc>,
-        valid_to: Option<DateTime<Utc>>,
-    ) -> TemporalContext {
+    fn make_context(valid_from: DateTime<Utc>, valid_to: Option<DateTime<Utc>>) -> TemporalContext {
         TemporalContext {
             observed_at: valid_from,
             recorded_at: valid_from,
@@ -206,7 +203,8 @@ mod tests {
             },
             verification_status: VerificationStatus::Verified,
         };
-        let changes = resolver.find_changes(&[entry], now - Duration::hours(1), now + Duration::hours(1));
+        let changes =
+            resolver.find_changes(&[entry], now - Duration::hours(1), now + Duration::hours(1));
         assert_eq!(changes.len(), 1);
     }
 }

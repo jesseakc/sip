@@ -4,14 +4,20 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use sip_application::services::{WorkOrderService, CreateWorkOrderInput};
+use sip_application::services::{CreateWorkOrderInput, WorkOrderService};
 use sip_domain::{
-    entity::work_order::{WorkOrderPriority, WorkOrderStatus, WorkOrderType, WorkOrderAssignment, AssigneeType, AssignmentRole, AssignmentStatus},
     entity::part::PartUsage,
-    id::{WorkOrderId, WorkOrderAssignmentId, PartId, PartUsageId},
+    entity::work_order::{
+        AssigneeType, AssignmentRole, AssignmentStatus, WorkOrderAssignment, WorkOrderPriority,
+        WorkOrderStatus, WorkOrderType,
+    },
+    id::{PartId, PartUsageId, WorkOrderAssignmentId, WorkOrderId},
     tenant::TenantContext,
 };
-use sip_infrastructure::repositories::{PgWorkOrderRepository, PgActivityRepository, PgWorkOrderStatusHistoryRepository, PgWorkOrderAssignmentRepository, PgPartUsageRepository};
+use sip_infrastructure::repositories::{
+    PgActivityRepository, PgPartUsageRepository, PgWorkOrderAssignmentRepository,
+    PgWorkOrderRepository, PgWorkOrderStatusHistoryRepository,
+};
 use std::sync::Arc;
 
 use crate::AppState;
@@ -47,7 +53,10 @@ pub async fn list_work_orders(
                 "created_at": wo.created_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -56,7 +65,12 @@ pub async fn get_work_order(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
     match service.get(&ctx, wo_id).await {
@@ -80,8 +94,14 @@ pub async fn get_work_order(
                 "updated_at": wo.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Work order not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Work order not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -90,7 +110,12 @@ pub async fn create_work_order(
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateWorkOrderRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_id: sip_domain::id::AssetId = req.asset_id.parse().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let asset_id: sip_domain::id::AssetId = req.asset_id.parse().map_err(|e: uuid::Error| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let wo_type = match req.work_order_type.to_uppercase().as_str() {
         "PREVENTIVE" => WorkOrderType::Preventive,
         "INSPECTION" => WorkOrderType::Inspection,
@@ -117,8 +142,13 @@ pub async fn create_work_order(
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
     match service.create(&ctx, input).await {
-        Ok(wo) => Ok(Json(json!({"data": {"id": wo.id.to_string(), "display_number": wo.display_number}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(wo) => Ok(Json(
+            json!({"data": {"id": wo.id.to_string(), "display_number": wo.display_number}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -128,8 +158,16 @@ pub async fn transition_work_order(
     Path(id): Path<String>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let status_str = req.get("status").and_then(|v| v.as_str()).ok_or((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "status required"}}))))?;
+    let wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
+    let status_str = req.get("status").and_then(|v| v.as_str()).ok_or((
+        StatusCode::BAD_REQUEST,
+        Json(json!({"error": {"code": "BAD_REQUEST", "message": "status required"}})),
+    ))?;
     let status = match status_str.to_uppercase().as_str() {
         "DRAFT" => WorkOrderStatus::Draft,
         "OPEN" => WorkOrderStatus::Open,
@@ -141,14 +179,30 @@ pub async fn transition_work_order(
         "REVIEWED" => WorkOrderStatus::Reviewed,
         "CLOSED" => WorkOrderStatus::Closed,
         "CANCELLED" => WorkOrderStatus::Cancelled,
-        _ => return Err((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "invalid status"}})))),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": "invalid status"}})),
+            ))
+        }
     };
-    let resolution_notes = req.get("resolution_notes").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let resolution_notes = req
+        .get("resolution_notes")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
-    match service.transition(&ctx, wo_id, status, resolution_notes).await {
-        Ok(wo) => Ok(Json(json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}))),
-        Err(e) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})))),
+    match service
+        .transition(&ctx, wo_id, status, resolution_notes)
+        .await
+    {
+        Ok(wo) => Ok(Json(
+            json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}),
+        )),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -186,15 +240,31 @@ pub async fn complete_work_order(
     Path(id): Path<String>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let resolution_notes = req.get("resolution_notes").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
+    let resolution_notes = req
+        .get("resolution_notes")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let activity_repo = PgActivityRepository::new(state.pool.clone());
     let history_repo = PgWorkOrderStatusHistoryRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
-    match service.complete(&ctx, wo_id, resolution_notes, &activity_repo, &history_repo).await {
-        Ok(wo) => Ok(Json(json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}))),
-        Err(e) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})))),
+    match service
+        .complete(&ctx, wo_id, resolution_notes, &activity_repo, &history_repo)
+        .await
+    {
+        Ok(wo) => Ok(Json(
+            json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}),
+        )),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -203,14 +273,27 @@ pub async fn archive_work_order(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let activity_repo = PgActivityRepository::new(state.pool.clone());
     let history_repo = PgWorkOrderStatusHistoryRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
-    match service.archive(&ctx, wo_id, &activity_repo, &history_repo).await {
-        Ok(wo) => Ok(Json(json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}))),
-        Err(e) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})))),
+    match service
+        .archive(&ctx, wo_id, &activity_repo, &history_repo)
+        .await
+    {
+        Ok(wo) => Ok(Json(
+            json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}),
+        )),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -226,11 +309,19 @@ pub async fn list_assignments(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let assignment_repo = PgWorkOrderAssignmentRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
-    match service.list_assignments(&ctx, wo_id, &assignment_repo).await {
+    match service
+        .list_assignments(&ctx, wo_id, &assignment_repo)
+        .await
+    {
         Ok(assignments) => Ok(Json(json!({
             "data": assignments.iter().map(|a| json!({
                 "id": a.id.to_string(),
@@ -241,7 +332,10 @@ pub async fn list_assignments(
                 "assigned_at": a.assigned_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -251,8 +345,19 @@ pub async fn create_assignment(
     Path(id): Path<String>,
     Json(req): Json<CreateAssignmentRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let assignee_id: sip_domain::id::UserId = req.assignee_id.parse().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
+    let assignee_id: sip_domain::id::UserId =
+        req.assignee_id.parse().map_err(|e: uuid::Error| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
     let assignee_type = match req.assignee_type.to_uppercase().as_str() {
         "USER" => AssigneeType::User,
         "TEAM" => AssigneeType::Team,
@@ -275,7 +380,10 @@ pub async fn create_assignment(
         assignee_id,
         role,
         assigned_at: chrono::Utc::now(),
-        assigned_by: ctx.user_id.ok_or((StatusCode::UNAUTHORIZED, Json(json!({"error": {"code": "UNAUTHORIZED", "message": "User ID required"}}))))?,
+        assigned_by: ctx.user_id.ok_or((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": {"code": "UNAUTHORIZED", "message": "User ID required"}})),
+        ))?,
         accepted_at: None,
         removed_at: None,
         status: AssignmentStatus::Assigned,
@@ -283,9 +391,15 @@ pub async fn create_assignment(
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let assignment_repo = PgWorkOrderAssignmentRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
-    match service.create_assignment(&ctx, assignment, &assignment_repo).await {
+    match service
+        .create_assignment(&ctx, assignment, &assignment_repo)
+        .await
+    {
         Ok(a) => Ok(Json(json!({"data": {"id": a.id.to_string()}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -294,14 +408,32 @@ pub async fn delete_assignment(
     Extension(ctx): Extension<TenantContext>,
     Path((id, assignment_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let _wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let a_id = assignment_id.parse::<WorkOrderAssignmentId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let _wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
+    let a_id = assignment_id
+        .parse::<WorkOrderAssignmentId>()
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let assignment_repo = PgWorkOrderAssignmentRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
-    match service.delete_assignment(&ctx, a_id, &assignment_repo).await {
+    match service
+        .delete_assignment(&ctx, a_id, &assignment_repo)
+        .await
+    {
         Ok(()) => Ok(Json(json!({"data": null}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -316,7 +448,12 @@ pub async fn list_parts(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let part_repo = PgPartUsageRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
@@ -329,7 +466,10 @@ pub async fn list_parts(
                 "used_by_id": p.used_by_id.to_string(),
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -339,21 +479,37 @@ pub async fn create_part_usage(
     Path(id): Path<String>,
     Json(req): Json<CreatePartUsageRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let part_id: PartId = req.part_id.parse().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
+    let part_id: PartId = req.part_id.parse().map_err(|e: uuid::Error| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let usage = PartUsage {
         id: PartUsageId::new(),
         work_order_id: wo_id,
         part_id,
         quantity: req.quantity,
-        used_by_id: ctx.user_id.ok_or((StatusCode::UNAUTHORIZED, Json(json!({"error": {"code": "UNAUTHORIZED", "message": "User ID required"}}))))?,
+        used_by_id: ctx.user_id.ok_or((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": {"code": "UNAUTHORIZED", "message": "User ID required"}})),
+        ))?,
     };
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let part_repo = PgPartUsageRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
     match service.add_part(&ctx, usage, &part_repo).await {
         Ok(p) => Ok(Json(json!({"data": {"id": p.id.to_string()}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -363,15 +519,31 @@ pub async fn reopen_work_order(
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let wo_id = id.parse::<WorkOrderId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let resume = body.get("resume_in_progress").and_then(|v| v.as_bool()).unwrap_or(false);
+    let wo_id = id.parse::<WorkOrderId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
+    let resume = body
+        .get("resume_in_progress")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let activity_repo = PgActivityRepository::new(state.pool.clone());
     let history_repo = PgWorkOrderStatusHistoryRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
-    match service.reopen(&ctx, wo_id, &activity_repo, &history_repo, resume).await {
-        Ok(wo) => Ok(Json(json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}))),
-        Err(e) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})))),
+    match service
+        .reopen(&ctx, wo_id, &activity_repo, &history_repo, resume)
+        .await
+    {
+        Ok(wo) => Ok(Json(
+            json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}),
+        )),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -386,7 +558,14 @@ pub async fn update_assignment(
     Path((_wo_id, assignment_id)): Path<(String, String)>,
     Json(req): Json<UpdateAssignmentRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let a_id = assignment_id.parse::<WorkOrderAssignmentId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let a_id = assignment_id
+        .parse::<WorkOrderAssignmentId>()
+        .map_err(|e| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
     let status = match req.status.to_uppercase().as_str() {
         "ACCEPTED" => AssignmentStatus::Accepted,
         "DECLINED" => AssignmentStatus::Declined,
@@ -397,8 +576,16 @@ pub async fn update_assignment(
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let assignment_repo = PgWorkOrderAssignmentRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
-    match service.update_assignment(&ctx, a_id, status, &assignment_repo).await {
-        Ok(a) => Ok(Json(json!({"data": {"id": a.id.to_string(), "status": format!("{:?}", a.status).to_uppercase()}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+    match service
+        .update_assignment(&ctx, a_id, status, &assignment_repo)
+        .await
+    {
+        Ok(a) => Ok(Json(
+            json!({"data": {"id": a.id.to_string(), "status": format!("{:?}", a.status).to_uppercase()}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

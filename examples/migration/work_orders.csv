@@ -1,0 +1,6 @@
+title,description,priority,status,type,due_date,asset_name
+Replace spindle bearings,CNC machine spindle making noise. Replace bearings.,high,open,corrective,2026-12-01,CNC Machine 1
+Conveyor belt inspection,Quarterly belt tension and alignment check,medium,open,preventive,2026-11-15,Conveyor A
+Air compressor oil change,Annual oil and filter change for compressor 3,low,open,preventive,2026-11-30,Air Compressor 3
+Robot arm recalibration,Welding robot drift detected. Recalibrate axes.,critical,open,corrective,2026-11-10,Robot Arm R1
+HVAC filter replacement,Replace rooftop unit filters for winter season,medium,open,preventive,2026-11-20,HVAC Rooftop 2

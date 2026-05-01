@@ -43,8 +43,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { Authorization: `Bearer ${localStorage.getItem('sip_token')}` },
       });
       if (res.ok) {
-        const data = await res.json();
-        setUser(data);
+        const json = await res.json();
+        const userData = json?.data || json;  // support both { data: {...} } and flat responses
+        setUser(userData);
       } else {
         localStorage.removeItem('sip_token');
       }

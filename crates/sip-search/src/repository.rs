@@ -4,9 +4,5 @@ use sip_domain::tenant::TenantContext;
 
 #[async_trait]
 pub trait SearchRepository: Send + Sync {
-    async fn search(
-        &self,
-        ctx: &TenantContext,
-        query: String,
-    ) -> Result<Vec<String>, SipError>;
+    async fn search(&self, ctx: &TenantContext, query: String) -> Result<Vec<String>, SipError>;
 }

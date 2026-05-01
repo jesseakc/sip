@@ -4,12 +4,8 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use sip_application::services::{LocationService};
-use sip_domain::{
-    entity::location::LocationType,
-    id::LocationId,
-    tenant::TenantContext,
-};
+use sip_application::services::LocationService;
+use sip_domain::{entity::location::LocationType, id::LocationId, tenant::TenantContext};
 use sip_infrastructure::repositories::PgLocationRepository;
 use std::sync::Arc;
 
@@ -45,7 +41,10 @@ pub async fn list_locations(
                 "updated_at": l.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -54,7 +53,12 @@ pub async fn get_location(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let location_id = id.parse::<LocationId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let location_id = id.parse::<LocationId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgLocationRepository::new(state.pool.clone());
     let service = LocationService::new(repo);
     match service.get(&ctx, location_id).await {
@@ -69,8 +73,14 @@ pub async fn get_location(
                 "updated_at": location.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Location not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Location not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -79,7 +89,16 @@ pub async fn create_location(
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateLocationRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let parent_id = req.parent_id.map(|s| s.parse::<LocationId>()).transpose().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let parent_id = req
+        .parent_id
+        .map(|s| s.parse::<LocationId>())
+        .transpose()
+        .map_err(|e: uuid::Error| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
     let location_type = match req.location_type.to_uppercase().as_str() {
         "SITE" => LocationType::Site,
         "BUILDING" => LocationType::Building,
@@ -90,9 +109,17 @@ pub async fn create_location(
     };
     let repo = PgLocationRepository::new(state.pool.clone());
     let service = LocationService::new(repo);
-    match service.create(&ctx, parent_id, req.name, location_type).await {
-        Ok(location) => Ok(Json(json!({"data": {"id": location.id.to_string(), "name": location.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+    match service
+        .create(&ctx, parent_id, req.name, location_type)
+        .await
+    {
+        Ok(location) => Ok(Json(
+            json!({"data": {"id": location.id.to_string(), "name": location.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -102,7 +129,12 @@ pub async fn update_location(
     Path(id): Path<String>,
     Json(req): Json<UpdateLocationRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let location_id = id.parse::<LocationId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let location_id = id.parse::<LocationId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let location_type = req.location_type.map(|t| match t.to_uppercase().as_str() {
         "SITE" => LocationType::Site,
         "BUILDING" => LocationType::Building,
@@ -113,9 +145,17 @@ pub async fn update_location(
     });
     let repo = PgLocationRepository::new(state.pool.clone());
     let service = LocationService::new(repo);
-    match service.update(&ctx, location_id, req.name, location_type).await {
-        Ok(location) => Ok(Json(json!({"data": {"id": location.id.to_string(), "name": location.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+    match service
+        .update(&ctx, location_id, req.name, location_type)
+        .await
+    {
+        Ok(location) => Ok(Json(
+            json!({"data": {"id": location.id.to_string(), "name": location.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -124,7 +164,12 @@ pub async fn list_location_children(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let location_id = id.parse::<LocationId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let location_id = id.parse::<LocationId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgLocationRepository::new(state.pool.clone());
     let service = LocationService::new(repo);
     match service.list_children(&ctx, location_id).await {
@@ -138,7 +183,10 @@ pub async fn list_location_children(
                 "updated_at": l.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -147,7 +195,12 @@ pub async fn list_location_assets(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let location_id = id.parse::<LocationId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let location_id = id.parse::<LocationId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgLocationRepository::new(state.pool.clone());
     let service = LocationService::new(repo);
     match service.list_assets(&ctx, location_id).await {
@@ -159,6 +212,9 @@ pub async fn list_location_assets(
                 "asset_type_id": a.asset_type_id.to_string(),
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

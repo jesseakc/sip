@@ -1,9 +1,9 @@
-use chrono::{Utc, Datelike};
+use chrono::{Datelike, Utc};
 use sip_domain::{
-    entity::work_order::{
-        WorkOrder, WorkOrderPriority, WorkOrderStatus, WorkOrderType, WorkOrderSourceType,
-    },
     entity::schedule::ScheduleTriggerType,
+    entity::work_order::{
+        WorkOrder, WorkOrderPriority, WorkOrderSourceType, WorkOrderStatus, WorkOrderType,
+    },
     error::SipError,
     id::{OrganizationId, UserId, WorkOrderId},
     repository::{ScheduleRepository, WorkOrderRepository},
@@ -28,10 +28,12 @@ impl CronEngine {
         let schedule_repo = PgScheduleRepository::new(self.pool.clone());
         let wo_repo = PgWorkOrderRepository::new(self.pool.clone());
 
-        let org_ids = sqlx::query_as::<_, (uuid::Uuid,)>("SELECT id FROM organizations WHERE archived_at IS NULL")
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let org_ids = sqlx::query_as::<_, (uuid::Uuid,)>(
+            "SELECT id FROM organizations WHERE archived_at IS NULL",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
 
         let mut created_work_orders = Vec::new();
 
@@ -42,7 +44,11 @@ impl CronEngine {
             let schedules = match schedule_repo.list_active(&ctx).await {
                 Ok(s) => s,
                 Err(e) => {
-                    tracing::warn!("Cron tick: failed to list schedules for org {}: {}", org_id, e);
+                    tracing::warn!(
+                        "Cron tick: failed to list schedules for org {}: {}",
+                        org_id,
+                        e
+                    );
                     continue;
                 }
             };
@@ -60,7 +66,9 @@ impl CronEngine {
                     continue;
                 }
 
-                let cron_expr = schedule.trigger_config.as_ref()
+                let cron_expr = schedule
+                    .trigger_config
+                    .as_ref()
                     .and_then(|c| c.get("cron_expression"))
                     .and_then(|v| v.as_str())
                     .unwrap_or("");
@@ -83,7 +91,11 @@ impl CronEngine {
                     let next_due = calculate_next_due(cron_expr, due);
                     let patch = serde_json::json!({"next_due": next_due.map(|d| d.to_rfc3339())});
                     if let Err(e) = schedule_repo.update(&ctx, schedule.id, patch).await {
-                        tracing::warn!("Cron tick: failed to update schedule {} next_due: {}", schedule.id, e);
+                        tracing::warn!(
+                            "Cron tick: failed to update schedule {} next_due: {}",
+                            schedule.id,
+                            e
+                        );
                     }
                     continue;
                 }
@@ -124,7 +136,7 @@ impl CronEngine {
                 let max_disp = wo_repo.get_max_display_number_for_year(&ctx, year).await?;
                 let next_num = match max_disp {
                     Some(num) => {
-                        let suffix = num.split('-').last().unwrap_or("0");
+                        let suffix = num.split('-').next_back().unwrap_or("0");
                         suffix.parse::<i32>().unwrap_or(0) + 1
                     }
                     None => 1,
@@ -180,11 +192,19 @@ impl CronEngine {
                             "last_triggered": now.to_rfc3339()
                         });
                         if let Err(e) = schedule_repo.update(&ctx, schedule.id, patch).await {
-                            tracing::warn!("Cron tick: failed to update schedule {}: {}", schedule.id, e);
+                            tracing::warn!(
+                                "Cron tick: failed to update schedule {}: {}",
+                                schedule.id,
+                                e
+                            );
                         }
                     }
                     Err(e) => {
-                        tracing::error!("Cron tick: failed to create work order for schedule {}: {}", schedule.id, e);
+                        tracing::error!(
+                            "Cron tick: failed to create work order for schedule {}: {}",
+                            schedule.id,
+                            e
+                        );
                     }
                 }
             }

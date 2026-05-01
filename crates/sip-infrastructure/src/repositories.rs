@@ -10,41 +10,46 @@ use sip_domain::{
     entity::asset::{Asset, AssetStatus, Criticality},
     entity::asset_model::{AssetModel, LifecycleStatus},
     entity::asset_type::AssetType,
-    entity::document::{Document, DocumentType, DocumentSourceType, ProcessingStatus, Visibility},
+    entity::document::{Document, DocumentSourceType, DocumentType, ProcessingStatus, Visibility},
     entity::embedding_record::{EmbeddingRecord, EmbeddingSourceType},
-    entity::inspection::{Inspection, InspectionChecklistItem, ChecklistResult},
+    entity::inspection::{ChecklistResult, Inspection, InspectionChecklistItem},
     entity::location::{Location, LocationType},
     entity::manufacturer::Manufacturer,
     entity::migration::{
-        MigrationBatch, MigrationCheckpoint, MigrationDuplicateCandidate,
-        MigrationExternalIdMap, MigrationFieldMapping, MigrationImportResult, MigrationJob,
-        MigrationJobStatus, MigrationRun,
-        MigrationSourceRecord, MigrationStagedRecord, MigrationValidationIssue,
+        MigrationBatch, MigrationCheckpoint, MigrationDuplicateCandidate, MigrationExternalIdMap,
+        MigrationFieldMapping, MigrationImportResult, MigrationJob, MigrationJobStatus,
+        MigrationRun, MigrationSourceRecord, MigrationStagedRecord, MigrationValidationIssue,
     },
     entity::organization::Organization,
-    entity::part::PartUsage,
     entity::part::Part,
+    entity::part::PartUsage,
     entity::schedule::{Schedule, ScheduleTriggerType},
     entity::team::Team,
     entity::user::{User, UserRole},
     entity::work_order::{
-        ActorType, WorkOrder, WorkOrderPriority, WorkOrderStatus, WorkOrderType, WorkOrderSourceType,
-        WorkOrderAssignment, AssigneeType, AssignmentRole, AssignmentStatus, WorkOrderStatusHistory,
+        ActorType, AssigneeType, AssignmentRole, AssignmentStatus, WorkOrder, WorkOrderAssignment,
+        WorkOrderPriority, WorkOrderSourceType, WorkOrderStatus, WorkOrderStatusHistory,
+        WorkOrderType,
     },
     error::SipError,
     id::{
-        ActivityId, AIConversationId, AIMessageId, AIRetrievalTraceId, AssetId, AssetModelId,
+        AIConversationId, AIMessageId, AIRetrievalTraceId, ActivityId, AssetId, AssetModelId,
         AssetTypeId, DocumentId, EmbeddingRecordId, InspectionId, LocationId, ManufacturerId,
         MigrationBatchId, MigrationCheckpointId, MigrationDuplicateCandidateId,
         MigrationExternalIdMapId, MigrationFieldMappingId, MigrationImportResultId, MigrationJobId,
         MigrationRunId, MigrationSourceRecordId, MigrationStagedRecordId,
         MigrationValidationIssueId, OrganizationId, PartId, PartUsageId, ScheduleId, TeamId,
-        UserId, WorkOrderId, WorkOrderAssignmentId, WorkOrderStatusHistoryId,
+        UserId, WorkOrderAssignmentId, WorkOrderId, WorkOrderStatusHistoryId,
     },
-    repository::{ActivityRepository, AIConversationRepository, AssetRepository, DocumentRepository, EmbeddingRecordRepository, InspectionRepository, PartRepository, ScheduleRepository, WorkOrderRepository, WorkOrderAssignmentRepository, PartUsageRepository, WorkOrderStatusHistoryRepository},
+    repository::{
+        AIConversationRepository, ActivityRepository, AssetRepository, DocumentRepository,
+        EmbeddingRecordRepository, InspectionRepository, PartRepository, PartUsageRepository,
+        ScheduleRepository, WorkOrderAssignmentRepository, WorkOrderRepository,
+        WorkOrderStatusHistoryRepository,
+    },
     tenant::TenantContext,
 };
-use sip_tenancy::{set_rls_org_pool, begin_tx_with_rls};
+use sip_tenancy::{begin_tx_with_rls, set_rls_org_pool};
 
 #[derive(Debug, Clone)]
 pub struct PgUserRepository {
@@ -85,7 +90,9 @@ impl PgUserRepository {
     }
 
     pub async fn get(&self, ctx: &TenantContext, id: UserId) -> Result<Option<User>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, UserRow>(
             "SELECT id, organization_id, email, name, role, skills, certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users WHERE id = $1"
         )
@@ -97,7 +104,9 @@ impl PgUserRepository {
     }
 
     pub async fn list(&self, ctx: &TenantContext) -> Result<Vec<User>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, UserRow>(
             "SELECT id, organization_id, email, name, role, skills, certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users ORDER BY name LIMIT 200"
         )
@@ -107,8 +116,15 @@ impl PgUserRepository {
         Ok(rows.into_iter().map(map_user_row).collect())
     }
 
-    pub async fn create(&self, ctx: &TenantContext, user: &User, password_hash: &str) -> Result<User, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        user: &User,
+        password_hash: &str,
+    ) -> Result<User, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, UserRow>(
             "INSERT INTO users (id, organization_id, email, name, role, skills, certifications, working_hours, is_active, password_hash, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -132,21 +148,44 @@ impl PgUserRepository {
         Ok(map_user_row(row))
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: UserId, name: Option<String>, role: Option<UserRole>, is_active: Option<bool>) -> Result<User, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: UserId,
+        name: Option<String>,
+        role: Option<UserRole>,
+        is_active: Option<bool>,
+    ) -> Result<User, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         if let Some(ref n) = name {
             sqlx::query("UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2")
-                .bind(n).bind(Uuid::from(id)).execute(&self.pool).await.map_err(|e| SipError::Validation(e.to_string()))?;
+                .bind(n)
+                .bind(Uuid::from(id))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
         }
         if let Some(ref r) = role {
             sqlx::query("UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2")
-                .bind(format!("{:?}", r).to_uppercase()).bind(Uuid::from(id)).execute(&self.pool).await.map_err(|e| SipError::Validation(e.to_string()))?;
+                .bind(format!("{:?}", r).to_uppercase())
+                .bind(Uuid::from(id))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
         }
         if let Some(active) = is_active {
             sqlx::query("UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2")
-                .bind(active).bind(Uuid::from(id)).execute(&self.pool).await.map_err(|e| SipError::Validation(e.to_string()))?;
+                .bind(active)
+                .bind(Uuid::from(id))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
         }
-        self.get(ctx, id).await?.ok_or(SipError::Validation("User not found after update".into()))
+        self.get(ctx, id)
+            .await?
+            .ok_or(SipError::Validation("User not found after update".into()))
     }
 }
 
@@ -165,11 +204,9 @@ fn map_user_row(r: UserRow) -> User {
             _ => UserRole::Auditor,
         },
         skills: r.skills,
-        certifications: r.certifications.map(|v| {
-            match v {
-                serde_json::Value::Array(arr) => arr,
-                _ => vec![],
-            }
+        certifications: r.certifications.map(|v| match v {
+            serde_json::Value::Array(arr) => arr,
+            _ => vec![],
         }),
         working_hours: r.working_hours,
         is_active: r.is_active,
@@ -218,7 +255,9 @@ impl PgAssetRepository {
 #[async_trait]
 impl AssetRepository for PgAssetRepository {
     async fn create_asset(&self, ctx: &TenantContext, asset: &Asset) -> Result<Asset, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, AssetRow>(
             "INSERT INTO assets (id, organization_id, location_id, parent_id, asset_type_id, model_id, name, description, serial_number, firmware_version, software_version, hardware_revision, status, version, criticality, installed_date, warranty_expiry, attributes, tags, metadata, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
@@ -253,7 +292,9 @@ impl AssetRepository for PgAssetRepository {
     }
 
     async fn get_asset(&self, ctx: &TenantContext, id: AssetId) -> Result<Option<Asset>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, AssetRow>("SELECT * FROM assets WHERE id = $1")
             .bind(Uuid::from(id))
             .fetch_optional(&self.pool)
@@ -262,8 +303,16 @@ impl AssetRepository for PgAssetRepository {
         Ok(row.map(map_asset_row))
     }
 
-    async fn update_asset(&self, ctx: &TenantContext, id: AssetId, expected_version: i32, patch: serde_json::Value) -> Result<Asset, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn update_asset(
+        &self,
+        ctx: &TenantContext,
+        id: AssetId,
+        expected_version: i32,
+        patch: serde_json::Value,
+    ) -> Result<Asset, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         // Simplified: update only status for MVP transition support
         if let Some(status) = patch.get("status").and_then(|v| v.as_str()) {
             let result = sqlx::query("UPDATE assets SET status = $1, version = version + 1, updated_at = NOW() WHERE id = $2 AND version = $3")
@@ -290,16 +339,22 @@ impl AssetRepository for PgAssetRepository {
     }
 
     async fn list_assets(&self, ctx: &TenantContext) -> Result<Vec<Asset>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
-        let rows = sqlx::query_as::<_, AssetRow>("SELECT * FROM assets ORDER BY created_at DESC LIMIT 100")
-            .fetch_all(&self.pool)
+        set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, AssetRow>(
+            "SELECT * FROM assets ORDER BY created_at DESC LIMIT 100",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(rows.into_iter().map(map_asset_row).collect())
     }
 
     async fn archive_asset(&self, ctx: &TenantContext, id: AssetId) -> Result<Asset, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         sqlx::query("UPDATE assets SET status = 'RETIRED', updated_at = NOW() WHERE id = $1")
             .bind(Uuid::from(id))
             .execute(&self.pool)
@@ -313,13 +368,21 @@ impl AssetRepository for PgAssetRepository {
         Ok(map_asset_row(row))
     }
 
-    async fn list_children(&self, ctx: &TenantContext, parent_id: AssetId) -> Result<Vec<Asset>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
-        let rows = sqlx::query_as::<_, AssetRow>("SELECT * FROM assets WHERE parent_id = $1 ORDER BY name LIMIT 200")
-            .bind(Uuid::from(parent_id))
-            .fetch_all(&self.pool)
+    async fn list_children(
+        &self,
+        ctx: &TenantContext,
+        parent_id: AssetId,
+    ) -> Result<Vec<Asset>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, AssetRow>(
+            "SELECT * FROM assets WHERE parent_id = $1 ORDER BY name LIMIT 200",
+        )
+        .bind(Uuid::from(parent_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(rows.into_iter().map(map_asset_row).collect())
     }
 }
@@ -415,8 +478,14 @@ impl PgWorkOrderRepository {
 
 #[async_trait]
 impl WorkOrderRepository for PgWorkOrderRepository {
-    async fn create_work_order(&self, ctx: &TenantContext, wo: &WorkOrder) -> Result<WorkOrder, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn create_work_order(
+        &self,
+        ctx: &TenantContext,
+        wo: &WorkOrder,
+    ) -> Result<WorkOrder, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, WorkOrderRow>(
             "INSERT INTO work_orders (id, organization_id, asset_id, parent_id, schedule_id, type, priority, status, title, display_number, description, scheduled_start, scheduled_end, actual_start, actual_end, due_at, estimated_hours, actual_hours, resolution_notes, failure_code, root_cause, created_by_id, source_type, source_system, external_id, external_url, reopened_count, last_reopened_at, last_reopened_by_id, version, archived_at, archived_by_id, archive_reason, metadata, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)
@@ -464,8 +533,14 @@ impl WorkOrderRepository for PgWorkOrderRepository {
         Ok(map_work_order_row(row))
     }
 
-    async fn get_work_order(&self, ctx: &TenantContext, id: WorkOrderId) -> Result<Option<WorkOrder>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn get_work_order(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+    ) -> Result<Option<WorkOrder>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, WorkOrderRow>("SELECT * FROM work_orders WHERE id = $1")
             .bind(Uuid::from(id))
             .fetch_optional(&self.pool)
@@ -474,15 +549,32 @@ impl WorkOrderRepository for PgWorkOrderRepository {
         Ok(row.map(map_work_order_row))
     }
 
-    async fn update_work_order(&self, ctx: &TenantContext, id: WorkOrderId, expected_version: i32, patch: serde_json::Value) -> Result<WorkOrder, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn update_work_order(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        expected_version: i32,
+        patch: serde_json::Value,
+    ) -> Result<WorkOrder, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let status = patch.get("status").and_then(|v| v.as_str());
         let notes = patch.get("resolution_notes").and_then(|v| v.as_str());
-        let reopened_count = patch.get("reopened_count").and_then(|v| v.as_i64()).map(|v| v as i32);
-        let last_reopened_at: Option<chrono::DateTime<Utc>> = patch.get("last_reopened_at").and_then(|v| {
-            v.as_str().and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok()).map(|dt| dt.with_timezone(&Utc))
-        });
-        let last_reopened_by_id = patch.get("last_reopened_by_id").and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok());
+        let reopened_count = patch
+            .get("reopened_count")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
+        let last_reopened_at: Option<chrono::DateTime<Utc>> =
+            patch.get("last_reopened_at").and_then(|v| {
+                v.as_str()
+                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                    .map(|dt| dt.with_timezone(&Utc))
+            });
+        let last_reopened_by_id = patch
+            .get("last_reopened_by_id")
+            .and_then(|v| v.as_str())
+            .and_then(|s| Uuid::parse_str(s).ok());
 
         let mut actual_start: Option<chrono::DateTime<Utc>> = None;
         let mut actual_end: Option<chrono::DateTime<Utc>> = None;
@@ -528,16 +620,26 @@ impl WorkOrderRepository for PgWorkOrderRepository {
     }
 
     async fn list_work_orders(&self, ctx: &TenantContext) -> Result<Vec<WorkOrder>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
-        let rows = sqlx::query_as::<_, WorkOrderRow>("SELECT * FROM work_orders ORDER BY created_at DESC LIMIT 200")
-            .fetch_all(&self.pool)
+        set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, WorkOrderRow>(
+            "SELECT * FROM work_orders ORDER BY created_at DESC LIMIT 200",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(rows.into_iter().map(map_work_order_row).collect())
     }
 
-    async fn get_max_display_number_for_year(&self, ctx: &TenantContext, year: i32) -> Result<Option<String>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn get_max_display_number_for_year(
+        &self,
+        ctx: &TenantContext,
+        year: i32,
+    ) -> Result<Option<String>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row: Option<(String,)> = sqlx::query_as(
             "SELECT display_number FROM work_orders WHERE display_number LIKE $1 ORDER BY display_number DESC LIMIT 1"
         )
@@ -548,8 +650,15 @@ impl WorkOrderRepository for PgWorkOrderRepository {
         Ok(row.map(|r| r.0))
     }
 
-    async fn archive_work_order(&self, ctx: &TenantContext, id: WorkOrderId, archived_by_id: UserId) -> Result<WorkOrder, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn archive_work_order(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderId,
+        archived_by_id: UserId,
+    ) -> Result<WorkOrder, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         sqlx::query("UPDATE work_orders SET archived_at = NOW(), archived_by_id = $1, updated_at = NOW() WHERE id = $2")
             .bind(Uuid::from(archived_by_id))
             .bind(Uuid::from(id))
@@ -564,13 +673,21 @@ impl WorkOrderRepository for PgWorkOrderRepository {
         Ok(map_work_order_row(row))
     }
 
-    async fn list_work_orders_by_asset(&self, ctx: &TenantContext, asset_id: AssetId) -> Result<Vec<WorkOrder>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
-        let rows = sqlx::query_as::<_, WorkOrderRow>("SELECT * FROM work_orders WHERE asset_id = $1 ORDER BY created_at DESC LIMIT 200")
-            .bind(Uuid::from(asset_id))
-            .fetch_all(&self.pool)
+    async fn list_work_orders_by_asset(
+        &self,
+        ctx: &TenantContext,
+        asset_id: AssetId,
+    ) -> Result<Vec<WorkOrder>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, WorkOrderRow>(
+            "SELECT * FROM work_orders WHERE asset_id = $1 ORDER BY created_at DESC LIMIT 200",
+        )
+        .bind(Uuid::from(asset_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(rows.into_iter().map(map_work_order_row).collect())
     }
 }
@@ -614,8 +731,12 @@ fn map_work_order_row(r: WorkOrderRow) -> WorkOrder {
         actual_start: r.actual_start,
         actual_end: r.actual_end,
         due_at: r.due_at,
-        estimated_hours: r.estimated_hours.map(rust_decimal::Decimal::from_f64).flatten(),
-        actual_hours: r.actual_hours.map(rust_decimal::Decimal::from_f64).flatten(),
+        estimated_hours: r
+            .estimated_hours
+            .and_then(rust_decimal::Decimal::from_f64),
+        actual_hours: r
+            .actual_hours
+            .and_then(rust_decimal::Decimal::from_f64),
         resolution_notes: r.resolution_notes,
         failure_code: r.failure_code,
         root_cause: r.root_cause,
@@ -669,15 +790,21 @@ impl PgOrganizationRepository {
         Self { pool }
     }
 
-    pub async fn get_by_id(&self, ctx: &TenantContext, id: OrganizationId) -> Result<Option<Organization>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn get_by_id(
+        &self,
+        ctx: &TenantContext,
+        id: OrganizationId,
+    ) -> Result<Option<Organization>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, OrganizationRow>(
             "SELECT o.id, o.name, o.slug, o.created_at, o.updated_at, o.archived_at,
                     COALESCE(s.timezone, 'UTC') as timezone,
                     COALESCE(s.default_currency, 'USD') as default_currency
              FROM organizations o
              LEFT JOIN organization_settings s ON s.organization_id = o.id
-             WHERE o.id = $1"
+             WHERE o.id = $1",
         )
         .bind(Uuid::from(id))
         .fetch_optional(&self.pool)
@@ -686,7 +813,14 @@ impl PgOrganizationRepository {
         Ok(row.map(map_organization_row))
     }
 
-    pub async fn create(&self, ctx: &TenantContext, name: &str, slug: &str, timezone: Option<&str>, default_currency: Option<&str>) -> Result<Organization, SipError> {
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        name: &str,
+        slug: &str,
+        timezone: Option<&str>,
+        default_currency: Option<&str>,
+    ) -> Result<Organization, SipError> {
         let id = Uuid::new_v4();
         let now = Utc::now();
         sqlx::query(
@@ -718,11 +852,24 @@ impl PgOrganizationRepository {
             .execute(&self.pool)
             .await;
         }
-        self.get_by_id(ctx, OrganizationId::from(id)).await?.ok_or(SipError::Validation("Organization not found after create".into()))
+        self.get_by_id(ctx, OrganizationId::from(id))
+            .await?
+            .ok_or(SipError::Validation(
+                "Organization not found after create".into(),
+            ))
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: OrganizationId, name: Option<String>, timezone: Option<String>, default_currency: Option<String>) -> Result<Organization, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: OrganizationId,
+        name: Option<String>,
+        timezone: Option<String>,
+        default_currency: Option<String>,
+    ) -> Result<Organization, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         if let Some(name) = &name {
             sqlx::query("UPDATE organizations SET name = $1, updated_at = NOW() WHERE id = $2")
                 .bind(name)
@@ -733,7 +880,7 @@ impl PgOrganizationRepository {
         }
         sqlx::query(
             "INSERT INTO organization_settings (organization_id) VALUES ($1)
-             ON CONFLICT (organization_id) DO NOTHING"
+             ON CONFLICT (organization_id) DO NOTHING",
         )
         .bind(Uuid::from(id))
         .execute(&self.pool)
@@ -755,7 +902,9 @@ impl PgOrganizationRepository {
                 .await
                 .map_err(|e| SipError::Validation(e.to_string()))?;
         }
-        self.get_by_id(ctx, id).await?.ok_or(SipError::Validation("Organization not found".into()))
+        self.get_by_id(ctx, id)
+            .await?
+            .ok_or(SipError::Validation("Organization not found".into()))
     }
 }
 
@@ -795,7 +944,9 @@ impl PgLocationRepository {
     }
 
     pub async fn list(&self, ctx: &TenantContext) -> Result<Vec<Location>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, LocationRow>(
             "SELECT id, organization_id, parent_id, name, type as location_type, metadata, created_at, updated_at FROM locations ORDER BY name LIMIT 200"
         )
@@ -805,8 +956,14 @@ impl PgLocationRepository {
         Ok(rows.into_iter().map(map_location_row).collect())
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: LocationId) -> Result<Option<Location>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: LocationId,
+    ) -> Result<Option<Location>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, LocationRow>(
             "SELECT id, organization_id, parent_id, name, type as location_type, metadata, created_at, updated_at FROM locations WHERE id = $1"
         )
@@ -817,8 +974,14 @@ impl PgLocationRepository {
         Ok(row.map(map_location_row))
     }
 
-    pub async fn create(&self, ctx: &TenantContext, location: &Location) -> Result<Location, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        location: &Location,
+    ) -> Result<Location, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         sqlx::query(
             "INSERT INTO locations (id, organization_id, parent_id, name, type, metadata, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
@@ -834,11 +997,23 @@ impl PgLocationRepository {
         .execute(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        self.get(ctx, location.id).await?.ok_or(SipError::Validation("Location not found after insert".into()))
+        self.get(ctx, location.id)
+            .await?
+            .ok_or(SipError::Validation(
+                "Location not found after insert".into(),
+            ))
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: LocationId, name: Option<String>, location_type: Option<LocationType>) -> Result<Location, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: LocationId,
+        name: Option<String>,
+        location_type: Option<LocationType>,
+    ) -> Result<Location, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         if let Some(name) = &name {
             sqlx::query("UPDATE locations SET name = $1, updated_at = NOW() WHERE id = $2")
                 .bind(name)
@@ -865,8 +1040,14 @@ impl PgLocationRepository {
         Ok(map_location_row(row))
     }
 
-    pub async fn list_children(&self, ctx: &TenantContext, parent_id: LocationId) -> Result<Vec<Location>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn list_children(
+        &self,
+        ctx: &TenantContext,
+        parent_id: LocationId,
+    ) -> Result<Vec<Location>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, LocationRow>(
             "SELECT id, organization_id, parent_id, name, type as location_type, metadata, created_at, updated_at FROM locations WHERE parent_id = $1 ORDER BY name LIMIT 200"
         )
@@ -877,10 +1058,16 @@ impl PgLocationRepository {
         Ok(rows.into_iter().map(map_location_row).collect())
     }
 
-    pub async fn list_assets_at(&self, ctx: &TenantContext, location_id: LocationId) -> Result<Vec<Asset>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn list_assets_at(
+        &self,
+        ctx: &TenantContext,
+        location_id: LocationId,
+    ) -> Result<Vec<Asset>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, AssetRow>(
-            "SELECT * FROM assets WHERE location_id = $1 ORDER BY name LIMIT 200"
+            "SELECT * FROM assets WHERE location_id = $1 ORDER BY name LIMIT 200",
         )
         .bind(Uuid::from(location_id))
         .fetch_all(&self.pool)
@@ -939,7 +1126,9 @@ impl PgAssetTypeRepository {
     }
 
     pub async fn list(&self, ctx: &TenantContext) -> Result<Vec<AssetType>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, AssetTypeRow>(
             "SELECT id, organization_id, name, category, description, schema, default_pm_schedules, default_inspection_template, icon, is_system, created_at, updated_at FROM asset_types ORDER BY name LIMIT 200"
         )
@@ -949,8 +1138,14 @@ impl PgAssetTypeRepository {
         Ok(rows.into_iter().map(map_asset_type_row).collect())
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: AssetTypeId) -> Result<Option<AssetType>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: AssetTypeId,
+    ) -> Result<Option<AssetType>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, AssetTypeRow>(
             "SELECT id, organization_id, name, category, description, schema, default_pm_schedules, default_inspection_template, icon, is_system, created_at, updated_at FROM asset_types WHERE id = $1"
         )
@@ -961,8 +1156,14 @@ impl PgAssetTypeRepository {
         Ok(row.map(map_asset_type_row))
     }
 
-    pub async fn create(&self, ctx: &TenantContext, asset_type: &AssetType) -> Result<AssetType, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        asset_type: &AssetType,
+    ) -> Result<AssetType, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         sqlx::query(
             "INSERT INTO asset_types (id, organization_id, name, category, description, schema, default_pm_schedules, default_inspection_template, icon, is_system, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)"
@@ -985,21 +1186,46 @@ impl PgAssetTypeRepository {
         Ok(asset_type.clone())
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: AssetTypeId, name: Option<String>, category: Option<String>, description: Option<String>) -> Result<AssetType, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: AssetTypeId,
+        name: Option<String>,
+        category: Option<String>,
+        description: Option<String>,
+    ) -> Result<AssetType, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         if let Some(ref n) = name {
             sqlx::query("UPDATE asset_types SET name = $1, updated_at = NOW() WHERE id = $2")
-                .bind(n).bind(Uuid::from(id)).execute(&self.pool).await.map_err(|e| SipError::Validation(e.to_string()))?;
+                .bind(n)
+                .bind(Uuid::from(id))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
         }
         if let Some(ref c) = category {
             sqlx::query("UPDATE asset_types SET category = $1, updated_at = NOW() WHERE id = $2")
-                .bind(c).bind(Uuid::from(id)).execute(&self.pool).await.map_err(|e| SipError::Validation(e.to_string()))?;
+                .bind(c)
+                .bind(Uuid::from(id))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
         }
         if let Some(ref d) = description {
-            sqlx::query("UPDATE asset_types SET description = $1, updated_at = NOW() WHERE id = $2")
-                .bind(d).bind(Uuid::from(id)).execute(&self.pool).await.map_err(|e| SipError::Validation(e.to_string()))?;
+            sqlx::query(
+                "UPDATE asset_types SET description = $1, updated_at = NOW() WHERE id = $2",
+            )
+            .bind(d)
+            .bind(Uuid::from(id))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         }
-        self.get(ctx, id).await?.ok_or(SipError::Validation("Asset type not found after update".into()))
+        self.get(ctx, id).await?.ok_or(SipError::Validation(
+            "Asset type not found after update".into(),
+        ))
     }
 }
 
@@ -1042,7 +1268,9 @@ impl PgManufacturerRepository {
     }
 
     pub async fn list(&self, ctx: &TenantContext) -> Result<Vec<Manufacturer>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, ManufacturerRow>(
             "SELECT id, organization_id, name, website, support_url, created_at, updated_at FROM manufacturers ORDER BY name LIMIT 200"
         )
@@ -1052,8 +1280,14 @@ impl PgManufacturerRepository {
         Ok(rows.into_iter().map(map_manufacturer_row).collect())
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: ManufacturerId) -> Result<Option<Manufacturer>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: ManufacturerId,
+    ) -> Result<Option<Manufacturer>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, ManufacturerRow>(
             "SELECT id, organization_id, name, website, support_url, created_at, updated_at FROM manufacturers WHERE id = $1"
         )
@@ -1064,8 +1298,14 @@ impl PgManufacturerRepository {
         Ok(row.map(map_manufacturer_row))
     }
 
-    pub async fn create(&self, ctx: &TenantContext, manufacturer: &Manufacturer) -> Result<Manufacturer, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        manufacturer: &Manufacturer,
+    ) -> Result<Manufacturer, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         sqlx::query(
             "INSERT INTO manufacturers (id, organization_id, name, website, support_url, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7)"
@@ -1123,8 +1363,14 @@ impl PgAssetModelRepository {
         Self { pool }
     }
 
-    pub async fn list(&self, ctx: &TenantContext, manufacturer_id: Option<ManufacturerId>) -> Result<Vec<AssetModel>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn list(
+        &self,
+        ctx: &TenantContext,
+        manufacturer_id: Option<ManufacturerId>,
+    ) -> Result<Vec<AssetModel>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let (query, has_filter) = if manufacturer_id.is_some() {
             ("SELECT id, organization_id, manufacturer_id, name, model_number, revision, lifecycle_status, asset_type_id, documentation_url, default_attributes, metadata, created_at, updated_at FROM asset_models WHERE manufacturer_id = $1 ORDER BY name LIMIT 200", true)
         } else {
@@ -1139,12 +1385,19 @@ impl PgAssetModelRepository {
             sqlx::query_as::<_, AssetModelRow>(query)
                 .fetch_all(&self.pool)
                 .await
-        }.map_err(|e| SipError::Validation(e.to_string()))?;
+        }
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(rows.into_iter().map(map_asset_model_row).collect())
     }
 
-    pub async fn get(&self, ctx: &TenantContext, id: AssetModelId) -> Result<Option<AssetModel>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: AssetModelId,
+    ) -> Result<Option<AssetModel>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, AssetModelRow>(
             "SELECT id, organization_id, manufacturer_id, name, model_number, revision, lifecycle_status, asset_type_id, documentation_url, default_attributes, metadata, created_at, updated_at FROM asset_models WHERE id = $1"
         )
@@ -1155,8 +1408,14 @@ impl PgAssetModelRepository {
         Ok(row.map(map_asset_model_row))
     }
 
-    pub async fn create(&self, ctx: &TenantContext, model: &AssetModel) -> Result<AssetModel, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn create(
+        &self,
+        ctx: &TenantContext,
+        model: &AssetModel,
+    ) -> Result<AssetModel, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, AssetModelRow>(
             "INSERT INTO asset_models (id, organization_id, manufacturer_id, name, model_number, revision, lifecycle_status, asset_type_id, documentation_url, default_attributes, metadata, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
@@ -1227,7 +1486,9 @@ impl PgTeamRepository {
     }
 
     pub async fn list(&self, ctx: &TenantContext) -> Result<Vec<Team>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, TeamRow>(
             "SELECT id, organization_id, name, description, lead_id, created_at, updated_at FROM teams ORDER BY name LIMIT 200"
         )
@@ -1238,7 +1499,9 @@ impl PgTeamRepository {
     }
 
     pub async fn get(&self, ctx: &TenantContext, id: TeamId) -> Result<Option<Team>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, TeamRow>(
             "SELECT id, organization_id, name, description, lead_id, created_at, updated_at FROM teams WHERE id = $1"
         )
@@ -1250,7 +1513,9 @@ impl PgTeamRepository {
     }
 
     pub async fn create(&self, ctx: &TenantContext, team: &Team) -> Result<Team, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, TeamRow>(
             "INSERT INTO teams (id, organization_id, name, description, lead_id, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -1269,21 +1534,44 @@ impl PgTeamRepository {
         Ok(map_team_row(row))
     }
 
-    pub async fn update(&self, ctx: &TenantContext, id: TeamId, name: Option<String>, description: Option<String>, lead_id: Option<UserId>) -> Result<Team, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    pub async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: TeamId,
+        name: Option<String>,
+        description: Option<String>,
+        lead_id: Option<UserId>,
+    ) -> Result<Team, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         if let Some(ref n) = name {
             sqlx::query("UPDATE teams SET name = $1, updated_at = NOW() WHERE id = $2")
-                .bind(n).bind(Uuid::from(id)).execute(&self.pool).await.map_err(|e| SipError::Validation(e.to_string()))?;
+                .bind(n)
+                .bind(Uuid::from(id))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
         }
         if let Some(ref d) = description {
             sqlx::query("UPDATE teams SET description = $1, updated_at = NOW() WHERE id = $2")
-                .bind(d).bind(Uuid::from(id)).execute(&self.pool).await.map_err(|e| SipError::Validation(e.to_string()))?;
+                .bind(d)
+                .bind(Uuid::from(id))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
         }
         if let Some(ref lid) = lead_id {
             sqlx::query("UPDATE teams SET lead_id = $1, updated_at = NOW() WHERE id = $2")
-                .bind(Uuid::from(*lid)).bind(Uuid::from(id)).execute(&self.pool).await.map_err(|e| SipError::Validation(e.to_string()))?;
+                .bind(Uuid::from(*lid))
+                .bind(Uuid::from(id))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
         }
-        self.get(ctx, id).await?.ok_or(SipError::Validation("Team not found after update".into()))
+        self.get(ctx, id)
+            .await?
+            .ok_or(SipError::Validation("Team not found after update".into()))
     }
 }
 
@@ -1377,7 +1665,7 @@ impl ActivityRepository for PgActivityRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, ActivityRow>(
-            "SELECT * FROM activities ORDER BY created_at DESC LIMIT 200"
+            "SELECT * FROM activities ORDER BY created_at DESC LIMIT 200",
         )
         .fetch_all(&self.pool)
         .await
@@ -1386,6 +1674,7 @@ impl ActivityRepository for PgActivityRepository {
     }
 }
 
+#[allow(dead_code)]
 #[derive(FromRow)]
 struct ActivityRow {
     id: Uuid,
@@ -1526,7 +1815,9 @@ fn map_ai_retrieval_trace_row(r: AIRetrievalTraceRow) -> AIRetrievalTrace {
         records_queried: r.records_queried.unwrap_or(0),
         records_returned: r.records_returned.unwrap_or(0),
         duration_ms: r.duration_ms.unwrap_or(0),
-        score: r.score.map(|s| rust_decimal::Decimal::from_f64(s)).flatten(),
+        score: r
+            .score
+            .and_then(rust_decimal::Decimal::from_f64),
         included_in_context: r.included_in_context,
         source_scope: r.source_scope,
         verified_by_sql: r.verified_by_sql.unwrap_or(false),
@@ -1584,7 +1875,7 @@ impl AIConversationRepository for PgAIConversationRepository {
             "INSERT INTO ai_messages (
                 id, organization_id, conversation_id, role, content,
                 content_retained, retention_policy_at_creation, sources, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         )
         .bind(Uuid::from(message.id))
         .bind(Uuid::from(ctx.organization_id))
@@ -1623,7 +1914,7 @@ impl AIConversationRepository for PgAIConversationRepository {
                 source_id, score, included_in_context, query, strategy,
                 records_queried, records_returned, duration_ms,
                 source_scope, verified_by_sql, rank, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)"
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
         )
         .bind(Uuid::from(trace.id))
         .bind(Uuid::from(ctx.organization_id))
@@ -1698,7 +1989,7 @@ impl AIConversationRepository for PgAIConversationRepository {
                     source_type, source_id, score, included_in_context,
                     query, strategy, records_queried, records_returned, duration_ms,
                     source_scope, verified_by_sql, rank, created_at
-             FROM ai_retrieval_traces WHERE message_id = $1 ORDER BY created_at ASC"
+             FROM ai_retrieval_traces WHERE message_id = $1 ORDER BY created_at ASC",
         )
         .bind(Uuid::from(message_id))
         .fetch_all(&self.pool)
@@ -1850,8 +2141,14 @@ fn map_document_row(r: DocumentRow) -> Document {
 
 #[async_trait]
 impl DocumentRepository for PgDocumentRepository {
-    async fn create_document(&self, ctx: &TenantContext, document: &Document) -> Result<Document, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn create_document(
+        &self,
+        ctx: &TenantContext,
+        document: &Document,
+    ) -> Result<Document, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, DocumentRow>(
             "INSERT INTO documents (id, organization_id, name, type, mime_type, size_bytes, document_version, checksum, source_type, source_system, external_id, external_url, storage_path, visibility, processing_status, processing_error, extracted_text_path, text_content, effective_date, expiration_date, supersedes_document_id, version, archived_at, archived_by_id, archive_reason, metadata, uploaded_by_id, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
@@ -1892,8 +2189,14 @@ impl DocumentRepository for PgDocumentRepository {
         Ok(map_document_row(row))
     }
 
-    async fn get_document(&self, ctx: &TenantContext, id: DocumentId) -> Result<Option<Document>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn get_document(
+        &self,
+        ctx: &TenantContext,
+        id: DocumentId,
+    ) -> Result<Option<Document>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, DocumentRow>("SELECT * FROM documents WHERE id = $1")
             .bind(Uuid::from(id))
             .fetch_optional(&self.pool)
@@ -1902,8 +2205,16 @@ impl DocumentRepository for PgDocumentRepository {
         Ok(row.map(map_document_row))
     }
 
-    async fn update_document_processing_status(&self, ctx: &TenantContext, id: DocumentId, status: ProcessingStatus, error: Option<String>) -> Result<Document, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn update_document_processing_status(
+        &self,
+        ctx: &TenantContext,
+        id: DocumentId,
+        status: ProcessingStatus,
+        error: Option<String>,
+    ) -> Result<Document, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         sqlx::query("UPDATE documents SET processing_status = $1, processing_error = $2, updated_at = NOW() WHERE id = $3")
             .bind(format!("{:?}", status).to_uppercase())
             .bind(&error)
@@ -1920,16 +2231,28 @@ impl DocumentRepository for PgDocumentRepository {
     }
 
     async fn list_documents(&self, ctx: &TenantContext) -> Result<Vec<Document>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
-        let rows = sqlx::query_as::<_, DocumentRow>("SELECT * FROM documents ORDER BY created_at DESC LIMIT 200")
-            .fetch_all(&self.pool)
+        set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, DocumentRow>(
+            "SELECT * FROM documents ORDER BY created_at DESC LIMIT 200",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(rows.into_iter().map(map_document_row).collect())
     }
 
-    async fn archive(&self, ctx: &TenantContext, id: DocumentId, archived_by_id: UserId, reason: &str) -> Result<Document, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn archive(
+        &self,
+        ctx: &TenantContext,
+        id: DocumentId,
+        archived_by_id: UserId,
+        reason: &str,
+    ) -> Result<Document, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         sqlx::query("UPDATE documents SET archived_at = NOW(), archived_by_id = $1, archive_reason = $2, updated_at = NOW() WHERE id = $3")
             .bind(Uuid::from(archived_by_id))
             .bind(reason)
@@ -2008,8 +2331,14 @@ fn map_work_order_assignment_row(r: WorkOrderAssignmentRow) -> WorkOrderAssignme
 
 #[async_trait]
 impl WorkOrderAssignmentRepository for PgWorkOrderAssignmentRepository {
-    async fn create_assignment(&self, ctx: &TenantContext, assignment: &WorkOrderAssignment) -> Result<WorkOrderAssignment, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn create_assignment(
+        &self,
+        ctx: &TenantContext,
+        assignment: &WorkOrderAssignment,
+    ) -> Result<WorkOrderAssignment, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, WorkOrderAssignmentRow>(
             "INSERT INTO work_order_assignments (id, organization_id, work_order_id, assignee_type, assignee_id, role, assigned_at, assigned_by, accepted_at, removed_at, status)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -2032,8 +2361,14 @@ impl WorkOrderAssignmentRepository for PgWorkOrderAssignmentRepository {
         Ok(map_work_order_assignment_row(row))
     }
 
-    async fn list_assignments_by_work_order(&self, ctx: &TenantContext, work_order_id: WorkOrderId) -> Result<Vec<WorkOrderAssignment>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn list_assignments_by_work_order(
+        &self,
+        ctx: &TenantContext,
+        work_order_id: WorkOrderId,
+    ) -> Result<Vec<WorkOrderAssignment>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, WorkOrderAssignmentRow>(
             "SELECT * FROM work_order_assignments WHERE work_order_id = $1 ORDER BY assigned_at DESC"
         )
@@ -2041,11 +2376,20 @@ impl WorkOrderAssignmentRepository for PgWorkOrderAssignmentRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        Ok(rows.into_iter().map(map_work_order_assignment_row).collect())
+        Ok(rows
+            .into_iter()
+            .map(map_work_order_assignment_row)
+            .collect())
     }
 
-    async fn delete_assignment(&self, ctx: &TenantContext, id: WorkOrderAssignmentId) -> Result<(), SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn delete_assignment(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderAssignmentId,
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         sqlx::query("DELETE FROM work_order_assignments WHERE id = $1")
             .bind(Uuid::from(id))
             .execute(&self.pool)
@@ -2054,17 +2398,26 @@ impl WorkOrderAssignmentRepository for PgWorkOrderAssignmentRepository {
         Ok(())
     }
 
-    async fn update_assignment(&self, ctx: &TenantContext, id: WorkOrderAssignmentId, status: AssignmentStatus) -> Result<WorkOrderAssignment, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn update_assignment(
+        &self,
+        ctx: &TenantContext,
+        id: WorkOrderAssignmentId,
+        status: AssignmentStatus,
+    ) -> Result<WorkOrderAssignment, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let now = Utc::now();
         if matches!(status, AssignmentStatus::Accepted) {
-            sqlx::query("UPDATE work_order_assignments SET status = $1, accepted_at = $2 WHERE id = $3")
-                .bind(format!("{:?}", status).to_uppercase())
-                .bind(now)
-                .bind(Uuid::from(id))
-                .execute(&self.pool)
-                .await
-                .map_err(|e| SipError::Validation(e.to_string()))?;
+            sqlx::query(
+                "UPDATE work_order_assignments SET status = $1, accepted_at = $2 WHERE id = $3",
+            )
+            .bind(format!("{:?}", status).to_uppercase())
+            .bind(now)
+            .bind(Uuid::from(id))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         } else {
             sqlx::query("UPDATE work_order_assignments SET status = $1 WHERE id = $2")
                 .bind(format!("{:?}", status).to_uppercase())
@@ -2073,11 +2426,13 @@ impl WorkOrderAssignmentRepository for PgWorkOrderAssignmentRepository {
                 .await
                 .map_err(|e| SipError::Validation(e.to_string()))?;
         }
-        let row = sqlx::query_as::<_, WorkOrderAssignmentRow>("SELECT * FROM work_order_assignments WHERE id = $1")
-            .bind(Uuid::from(id))
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row = sqlx::query_as::<_, WorkOrderAssignmentRow>(
+            "SELECT * FROM work_order_assignments WHERE id = $1",
+        )
+        .bind(Uuid::from(id))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(map_work_order_assignment_row(row))
     }
 }
@@ -2114,8 +2469,13 @@ fn map_part_usage_row(r: PartUsageRow) -> PartUsage {
 
 #[async_trait]
 impl PartUsageRepository for PgPartUsageRepository {
-    async fn create_part_usage(&self, ctx: &TenantContext, usage: &PartUsage) -> Result<PartUsage, SipError> {
-        let mut tx = begin_tx_with_rls(&self.pool, ctx).await
+    async fn create_part_usage(
+        &self,
+        ctx: &TenantContext,
+        usage: &PartUsage,
+    ) -> Result<PartUsage, SipError> {
+        let mut tx = begin_tx_with_rls(&self.pool, ctx)
+            .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
 
         let result = sqlx::query(
@@ -2131,13 +2491,12 @@ impl PartUsageRepository for PgPartUsageRepository {
             return Err(SipError::Validation("Insufficient part quantity".into()));
         }
 
-        let low: Option<(f64, Option<f64>)> = sqlx::query_as(
-            "SELECT quantity_on_hand, quantity_minimum FROM parts WHERE id = $1"
-        )
-        .bind(Uuid::from(usage.part_id))
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| SipError::Validation(e.to_string()))?;
+        let low: Option<(f64, Option<f64>)> =
+            sqlx::query_as("SELECT quantity_on_hand, quantity_minimum FROM parts WHERE id = $1")
+                .bind(Uuid::from(usage.part_id))
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
 
         if let Some((on_hand, minimum)) = low {
             if let Some(min) = minimum {
@@ -2154,7 +2513,7 @@ impl PartUsageRepository for PgPartUsageRepository {
 
         sqlx::query(
             "INSERT INTO part_usage (id, work_order_id, part_id, quantity, used_by_id)
-             VALUES ($1, $2, $3, $4, $5)"
+             VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(Uuid::from(usage.id))
         .bind(Uuid::from(usage.work_order_id))
@@ -2165,19 +2524,26 @@ impl PartUsageRepository for PgPartUsageRepository {
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
 
-        tx.commit().await.map_err(|e| SipError::Validation(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(usage.clone())
     }
 
-    async fn list_part_usage_by_work_order(&self, ctx: &TenantContext, work_order_id: WorkOrderId) -> Result<Vec<PartUsage>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
-        let rows = sqlx::query_as::<_, PartUsageRow>(
-            "SELECT * FROM part_usage WHERE work_order_id = $1"
-        )
-        .bind(Uuid::from(work_order_id))
-        .fetch_all(&self.pool)
-        .await
-        .map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn list_part_usage_by_work_order(
+        &self,
+        ctx: &TenantContext,
+        work_order_id: WorkOrderId,
+    ) -> Result<Vec<PartUsage>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows =
+            sqlx::query_as::<_, PartUsageRow>("SELECT * FROM part_usage WHERE work_order_id = $1")
+                .bind(Uuid::from(work_order_id))
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(rows.into_iter().map(map_part_usage_row).collect())
     }
 }
@@ -2193,6 +2559,7 @@ impl PgWorkOrderStatusHistoryRepository {
     }
 }
 
+#[allow(dead_code)]
 #[derive(FromRow)]
 struct WorkOrderStatusHistoryRow {
     id: Uuid,
@@ -2253,8 +2620,14 @@ fn map_work_order_status_history_row(r: WorkOrderStatusHistoryRow) -> WorkOrderS
 
 #[async_trait]
 impl WorkOrderStatusHistoryRepository for PgWorkOrderStatusHistoryRepository {
-    async fn create_status_history(&self, ctx: &TenantContext, record: &WorkOrderStatusHistory) -> Result<WorkOrderStatusHistory, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn create_status_history(
+        &self,
+        ctx: &TenantContext,
+        record: &WorkOrderStatusHistory,
+    ) -> Result<WorkOrderStatusHistory, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, WorkOrderStatusHistoryRow>(
             "INSERT INTO work_order_status_history (id, organization_id, work_order_id, from_status, to_status, changed_by_id, actor_type, agent_identity_id, plugin_id, reason, created_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -2306,13 +2679,19 @@ impl PgInspectionRepository {
 
 #[async_trait]
 impl InspectionRepository for PgInspectionRepository {
-    async fn get(&self, ctx: &TenantContext, id: InspectionId) -> Result<Option<Inspection>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn get(
+        &self,
+        ctx: &TenantContext,
+        id: InspectionId,
+    ) -> Result<Option<Inspection>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, InspectionRow>(
             "SELECT i.id, i.work_order_id, i.template_name
              FROM inspections i
              JOIN work_orders w ON w.id = i.work_order_id AND w.organization_id = $1
-             WHERE i.id = $2"
+             WHERE i.id = $2",
         )
         .bind(Uuid::from(ctx.organization_id))
         .bind(Uuid::from(id))
@@ -2322,15 +2701,21 @@ impl InspectionRepository for PgInspectionRepository {
         Ok(row.map(map_inspection_row))
     }
 
-    async fn list(&self, ctx: &TenantContext, work_order_id: Option<WorkOrderId>) -> Result<Vec<Inspection>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn list(
+        &self,
+        ctx: &TenantContext,
+        work_order_id: Option<WorkOrderId>,
+    ) -> Result<Vec<Inspection>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = if let Some(wo_id) = work_order_id {
             sqlx::query_as::<_, InspectionRow>(
                 "SELECT i.id, i.work_order_id, i.template_name
                  FROM inspections i
                  JOIN work_orders w ON w.id = i.work_order_id AND w.organization_id = $1
                  WHERE i.work_order_id = $2
-                 ORDER BY i.id LIMIT 200"
+                 ORDER BY i.id LIMIT 200",
             )
             .bind(Uuid::from(ctx.organization_id))
             .bind(Uuid::from(wo_id))
@@ -2341,17 +2726,25 @@ impl InspectionRepository for PgInspectionRepository {
                 "SELECT i.id, i.work_order_id, i.template_name
                  FROM inspections i
                  JOIN work_orders w ON w.id = i.work_order_id AND w.organization_id = $1
-                 ORDER BY i.id LIMIT 200"
+                 ORDER BY i.id LIMIT 200",
             )
             .bind(Uuid::from(ctx.organization_id))
             .fetch_all(&self.pool)
             .await
-        }.map_err(|e| SipError::Validation(e.to_string()))?;
+        }
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(rows.into_iter().map(map_inspection_row).collect())
     }
 
-    async fn update_items(&self, ctx: &TenantContext, inspection_id: InspectionId, items: Vec<InspectionChecklistItem>) -> Result<Inspection, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn update_items(
+        &self,
+        ctx: &TenantContext,
+        inspection_id: InspectionId,
+        items: Vec<InspectionChecklistItem>,
+    ) -> Result<Inspection, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
 
         for item in &items {
             let result_str = item.result.map(|r| match r {
@@ -2365,7 +2758,7 @@ impl InspectionRepository for PgInspectionRepository {
                      result = COALESCE($2, result),
                      finding = COALESCE($3, finding),
                      photo_url = COALESCE($4, photo_url)
-                 WHERE id = $5 AND inspection_id = $6"
+                 WHERE id = $5 AND inspection_id = $6",
             )
             .bind(&item.actual_value)
             .bind(&result_str)
@@ -2378,7 +2771,11 @@ impl InspectionRepository for PgInspectionRepository {
             .map_err(|e| SipError::Validation(e.to_string()))?;
         }
 
-        self.get(ctx, inspection_id).await?.ok_or(SipError::Validation("Inspection not found after update".into()))
+        self.get(ctx, inspection_id)
+            .await?
+            .ok_or(SipError::Validation(
+                "Inspection not found after update".into(),
+            ))
     }
 }
 
@@ -2411,9 +2808,13 @@ fn map_part_row(r: PartRow) -> Part {
         part_number: r.part_number,
         description: r.description,
         quantity_on_hand: rust_decimal::Decimal::from_f64(r.quantity_on_hand).unwrap_or_default(),
-        quantity_minimum: r.quantity_minimum.map(|v| rust_decimal::Decimal::from_f64(v)).flatten(),
+        quantity_minimum: r
+            .quantity_minimum
+            .and_then(rust_decimal::Decimal::from_f64),
         unit: r.unit,
-        unit_cost: r.unit_cost.map(|v| rust_decimal::Decimal::from_f64(v)).flatten(),
+        unit_cost: r
+            .unit_cost
+            .and_then(rust_decimal::Decimal::from_f64),
         storage_location: r.storage_location,
         created_at: r.created_at,
         updated_at: r.updated_at,
@@ -2429,7 +2830,9 @@ impl PgPartRepository {
 #[async_trait]
 impl PartRepository for PgPartRepository {
     async fn create(&self, ctx: &TenantContext, part: &Part) -> Result<Part, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, PartRow>(
             "INSERT INTO parts (id, organization_id, name, part_number, description, quantity_on_hand, quantity_minimum, unit, unit_cost, storage_location, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -2454,9 +2857,11 @@ impl PartRepository for PgPartRepository {
     }
 
     async fn get(&self, ctx: &TenantContext, id: PartId) -> Result<Option<Part>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, PartRow>(
-            "SELECT * FROM parts WHERE id = $1 AND organization_id = $2"
+            "SELECT * FROM parts WHERE id = $1 AND organization_id = $2",
         )
         .bind(Uuid::from(id))
         .bind(Uuid::from(ctx.organization_id))
@@ -2467,9 +2872,11 @@ impl PartRepository for PgPartRepository {
     }
 
     async fn list(&self, ctx: &TenantContext) -> Result<Vec<Part>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, PartRow>(
-            "SELECT * FROM parts WHERE organization_id = $1 ORDER BY name LIMIT 200"
+            "SELECT * FROM parts WHERE organization_id = $1 ORDER BY name LIMIT 200",
         )
         .bind(Uuid::from(ctx.organization_id))
         .fetch_all(&self.pool)
@@ -2478,8 +2885,15 @@ impl PartRepository for PgPartRepository {
         Ok(rows.into_iter().map(map_part_row).collect())
     }
 
-    async fn update(&self, ctx: &TenantContext, id: PartId, patch: serde_json::Value) -> Result<Part, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: PartId,
+        patch: serde_json::Value,
+    ) -> Result<Part, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
 
         let name = patch.get("name").and_then(|v| v.as_str());
         let part_number = patch.get("part_number").and_then(|v| v.as_str());
@@ -2501,7 +2915,7 @@ impl PartRepository for PgPartRepository {
                 unit_cost = COALESCE($7, unit_cost),
                 storage_location = COALESCE($8, storage_location),
                 updated_at = NOW()
-             WHERE id = $9 AND organization_id = $10"
+             WHERE id = $9 AND organization_id = $10",
         )
         .bind(name)
         .bind(part_number)
@@ -2517,12 +2931,14 @@ impl PartRepository for PgPartRepository {
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
 
-        let row = sqlx::query_as::<_, PartRow>("SELECT * FROM parts WHERE id = $1 AND organization_id = $2")
-            .bind(Uuid::from(id))
-            .bind(Uuid::from(ctx.organization_id))
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row = sqlx::query_as::<_, PartRow>(
+            "SELECT * FROM parts WHERE id = $1 AND organization_id = $2",
+        )
+        .bind(Uuid::from(id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(map_part_row(row))
     }
 }
@@ -2583,7 +2999,9 @@ fn map_schedule_row(r: ScheduleRow) -> Schedule {
 #[async_trait]
 impl ScheduleRepository for PgScheduleRepository {
     async fn create(&self, ctx: &TenantContext, schedule: &Schedule) -> Result<Schedule, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, ScheduleRow>(
             "INSERT INTO schedules (id, organization_id, asset_id, name, trigger_type, trigger_config, work_order_template, next_due, last_triggered, enabled, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
@@ -2608,7 +3026,9 @@ impl ScheduleRepository for PgScheduleRepository {
     }
 
     async fn get(&self, ctx: &TenantContext, id: ScheduleId) -> Result<Option<Schedule>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, ScheduleRow>("SELECT * FROM schedules WHERE id = $1")
             .bind(Uuid::from(id))
             .fetch_optional(&self.pool)
@@ -2618,9 +3038,11 @@ impl ScheduleRepository for PgScheduleRepository {
     }
 
     async fn list(&self, ctx: &TenantContext) -> Result<Vec<Schedule>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, ScheduleRow>(
-            "SELECT * FROM schedules WHERE archived_at IS NULL ORDER BY created_at DESC LIMIT 200"
+            "SELECT * FROM schedules WHERE archived_at IS NULL ORDER BY created_at DESC LIMIT 200",
         )
         .fetch_all(&self.pool)
         .await
@@ -2628,8 +3050,15 @@ impl ScheduleRepository for PgScheduleRepository {
         Ok(rows.into_iter().map(map_schedule_row).collect())
     }
 
-    async fn update(&self, ctx: &TenantContext, id: ScheduleId, patch: serde_json::Value) -> Result<Schedule, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: ScheduleId,
+        patch: serde_json::Value,
+    ) -> Result<Schedule, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         if let Some(name) = patch.get("name").and_then(|v| v.as_str()) {
             sqlx::query("UPDATE schedules SET name = $1, updated_at = NOW() WHERE id = $2")
                 .bind(name)
@@ -2658,29 +3087,35 @@ impl ScheduleRepository for PgScheduleRepository {
         }
         if let Some(last_triggered) = patch.get("last_triggered").and_then(|v| v.as_str()) {
             if let Ok(ts) = chrono::DateTime::parse_from_rfc3339(last_triggered) {
-                sqlx::query("UPDATE schedules SET last_triggered = $1, updated_at = NOW() WHERE id = $2")
-                    .bind(ts.with_timezone(&Utc))
-                    .bind(Uuid::from(id))
-                    .execute(&self.pool)
-                    .await
-                    .map_err(|e| SipError::Validation(e.to_string()))?;
+                sqlx::query(
+                    "UPDATE schedules SET last_triggered = $1, updated_at = NOW() WHERE id = $2",
+                )
+                .bind(ts.with_timezone(&Utc))
+                .bind(Uuid::from(id))
+                .execute(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
             }
         }
         if let Some(trigger_config) = patch.get("trigger_config") {
-            sqlx::query("UPDATE schedules SET trigger_config = $1, updated_at = NOW() WHERE id = $2")
-                .bind(trigger_config)
-                .bind(Uuid::from(id))
-                .execute(&self.pool)
-                .await
-                .map_err(|e| SipError::Validation(e.to_string()))?;
+            sqlx::query(
+                "UPDATE schedules SET trigger_config = $1, updated_at = NOW() WHERE id = $2",
+            )
+            .bind(trigger_config)
+            .bind(Uuid::from(id))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         }
         if let Some(work_order_template) = patch.get("work_order_template") {
-            sqlx::query("UPDATE schedules SET work_order_template = $1, updated_at = NOW() WHERE id = $2")
-                .bind(work_order_template)
-                .bind(Uuid::from(id))
-                .execute(&self.pool)
-                .await
-                .map_err(|e| SipError::Validation(e.to_string()))?;
+            sqlx::query(
+                "UPDATE schedules SET work_order_template = $1, updated_at = NOW() WHERE id = $2",
+            )
+            .bind(work_order_template)
+            .bind(Uuid::from(id))
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         }
         let row = sqlx::query_as::<_, ScheduleRow>("SELECT * FROM schedules WHERE id = $1")
             .bind(Uuid::from(id))
@@ -2690,8 +3125,15 @@ impl ScheduleRepository for PgScheduleRepository {
         Ok(map_schedule_row(row))
     }
 
-    async fn archive(&self, ctx: &TenantContext, id: ScheduleId, archived_by: UserId) -> Result<Schedule, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+    async fn archive(
+        &self,
+        ctx: &TenantContext,
+        id: ScheduleId,
+        archived_by: UserId,
+    ) -> Result<Schedule, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         sqlx::query("UPDATE schedules SET archived_at = NOW(), archived_by_id = $1, updated_at = NOW() WHERE id = $2")
             .bind(Uuid::from(archived_by))
             .bind(Uuid::from(id))
@@ -2707,7 +3149,9 @@ impl ScheduleRepository for PgScheduleRepository {
     }
 
     async fn list_active(&self, ctx: &TenantContext) -> Result<Vec<Schedule>, SipError> {
-        set_rls_org_pool(&self.pool, ctx.organization_id).await.map_err(|e| SipError::Validation(e.to_string()))?;
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, ScheduleRow>(
             "SELECT * FROM schedules WHERE archived_at IS NULL AND enabled = true ORDER BY next_due ASC"
         )
@@ -2729,6 +3173,7 @@ impl PgEmbeddingRecordRepository {
     }
 }
 
+#[allow(dead_code)]
 #[derive(FromRow)]
 struct EmbeddingRecordRow {
     id: Uuid,
@@ -2747,6 +3192,7 @@ struct EmbeddingRecordRow {
     updated_at: chrono::DateTime<Utc>,
 }
 
+#[allow(dead_code)]
 fn map_embedding_record_row(r: EmbeddingRecordRow) -> EmbeddingRecord {
     EmbeddingRecord {
         id: EmbeddingRecordId::from(r.id),
@@ -2758,7 +3204,9 @@ fn map_embedding_record_row(r: EmbeddingRecordRow) -> EmbeddingRecord {
             _ => EmbeddingSourceType::DocumentChunk,
         },
         source_id: r.source_id,
-        document_chunk_id: r.document_chunk_id.map(|id| sip_domain::id::DocumentChunkId::from(id)),
+        document_chunk_id: r
+            .document_chunk_id
+            .map(sip_domain::id::DocumentChunkId::from),
         collection: r.collection,
         content: r.content,
         embedding_model: r.embedding_model,
@@ -2786,7 +3234,7 @@ impl EmbeddingRecordRepository for PgEmbeddingRecordRepository {
                 id, organization_id, source_type, source_id, document_chunk_id,
                 collection, content, embedding_model, model_name, dimensions,
                 source_scope, metadata, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)"
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
         )
         .bind(Uuid::from(record.id))
         .bind(Uuid::from(record.organization_id))
@@ -2817,14 +3265,12 @@ impl EmbeddingRecordRepository for PgEmbeddingRecordRepository {
         set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
-        sqlx::query(
-            "DELETE FROM embedding_records WHERE source_type = $1 AND source_id = $2"
-        )
-        .bind(format!("{:?}", source_type).to_uppercase())
-        .bind(source_id)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query("DELETE FROM embedding_records WHERE source_type = $1 AND source_id = $2")
+            .bind(format!("{:?}", source_type).to_uppercase())
+            .bind(source_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(())
     }
 }
@@ -2883,7 +3329,7 @@ impl PgMigrationRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, MigrationJobRow>(
-            "SELECT * FROM migration_jobs WHERE id = $1 AND organization_id = $2"
+            "SELECT * FROM migration_jobs WHERE id = $1 AND organization_id = $2",
         )
         .bind(Uuid::from(id))
         .bind(Uuid::from(ctx.organization_id))
@@ -2893,10 +3339,7 @@ impl PgMigrationRepository {
         Ok(row.map(map_migration_job_row))
     }
 
-    pub async fn list_jobs(
-        &self,
-        ctx: &TenantContext,
-    ) -> Result<Vec<MigrationJob>, SipError> {
+    pub async fn list_jobs(&self, ctx: &TenantContext) -> Result<Vec<MigrationJob>, SipError> {
         set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
@@ -3004,7 +3447,10 @@ impl PgMigrationRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        Ok(rows.into_iter().map(map_migration_source_record_row).collect())
+        Ok(rows
+            .into_iter()
+            .map(map_migration_source_record_row)
+            .collect())
     }
 
     pub async fn create_staged_records(
@@ -3053,7 +3499,10 @@ impl PgMigrationRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        Ok(rows.into_iter().map(map_migration_staged_record_row).collect())
+        Ok(rows
+            .into_iter()
+            .map(map_migration_staged_record_row)
+            .collect())
     }
 
     pub async fn update_staged_record_status(
@@ -3126,7 +3575,10 @@ impl PgMigrationRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        Ok(rows.into_iter().map(map_migration_field_mapping_row).collect())
+        Ok(rows
+            .into_iter()
+            .map(map_migration_field_mapping_row)
+            .collect())
     }
 
     pub async fn create_import_result(
@@ -3173,7 +3625,10 @@ impl PgMigrationRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        Ok(rows.into_iter().map(map_migration_import_result_row).collect())
+        Ok(rows
+            .into_iter()
+            .map(map_migration_import_result_row)
+            .collect())
     }
 
     pub async fn create_external_id_map(
@@ -3244,7 +3699,10 @@ impl PgMigrationRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        Ok(rows.into_iter().map(map_migration_external_id_map_row).collect())
+        Ok(rows
+            .into_iter()
+            .map(map_migration_external_id_map_row)
+            .collect())
     }
 
     pub async fn create_run(
@@ -3375,7 +3833,10 @@ impl PgMigrationRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        Ok(rows.into_iter().map(map_migration_validation_issue_row).collect())
+        Ok(rows
+            .into_iter()
+            .map(map_migration_validation_issue_row)
+            .collect())
     }
 
     pub async fn create_duplicate_candidates(
@@ -3424,7 +3885,10 @@ impl PgMigrationRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        Ok(rows.into_iter().map(map_migration_duplicate_candidate_row).collect())
+        Ok(rows
+            .into_iter()
+            .map(map_migration_duplicate_candidate_row)
+            .collect())
     }
 
     pub async fn create_checkpoint(

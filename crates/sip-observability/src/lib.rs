@@ -6,8 +6,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 /// The log level is controlled by the `RUST_LOG` environment variable via `EnvFilter`.
 pub fn init_tracing() -> anyhow::Result<()> {
     let format = std::env::var("SIP_LOG_FORMAT").unwrap_or_default();
-    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "info".into());
+    let env_filter =
+        tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into());
 
     if format.eq_ignore_ascii_case("json") {
         tracing_subscriber::registry()

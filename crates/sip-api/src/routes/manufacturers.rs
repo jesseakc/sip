@@ -4,12 +4,9 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use sip_application::services::{ManufacturerService, AssetModelService};
-use sip_domain::{
-    id::ManufacturerId,
-    tenant::TenantContext,
-};
-use sip_infrastructure::repositories::{PgManufacturerRepository, PgAssetModelRepository};
+use sip_application::services::{AssetModelService, ManufacturerService};
+use sip_domain::{id::ManufacturerId, tenant::TenantContext};
+use sip_infrastructure::repositories::{PgAssetModelRepository, PgManufacturerRepository};
 use std::sync::Arc;
 
 use crate::AppState;
@@ -38,7 +35,10 @@ pub async fn list_manufacturers(
                 "updated_at": m.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -47,7 +47,12 @@ pub async fn get_manufacturer(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let manufacturer_id = id.parse::<ManufacturerId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let manufacturer_id = id.parse::<ManufacturerId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgManufacturerRepository::new(state.pool.clone());
     let service = ManufacturerService::new(repo);
     match service.get(&ctx, manufacturer_id).await {
@@ -61,8 +66,14 @@ pub async fn get_manufacturer(
                 "updated_at": m.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Manufacturer not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Manufacturer not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -73,9 +84,17 @@ pub async fn create_manufacturer(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let repo = PgManufacturerRepository::new(state.pool.clone());
     let service = ManufacturerService::new(repo);
-    match service.create(&ctx, req.name, req.website, req.support_url).await {
-        Ok(m) => Ok(Json(json!({"data": {"id": m.id.to_string(), "name": m.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+    match service
+        .create(&ctx, req.name, req.website, req.support_url)
+        .await
+    {
+        Ok(m) => Ok(Json(
+            json!({"data": {"id": m.id.to_string(), "name": m.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -84,7 +103,12 @@ pub async fn list_manufacturer_models(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let manufacturer_id = id.parse::<ManufacturerId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let manufacturer_id = id.parse::<ManufacturerId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgAssetModelRepository::new(state.pool.clone());
     let service = AssetModelService::new(repo);
     match service.list(&ctx, Some(manufacturer_id)).await {
@@ -100,6 +124,9 @@ pub async fn list_manufacturer_models(
                 "updated_at": m.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

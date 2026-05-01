@@ -280,7 +280,10 @@ mod tests {
     #[test]
     fn test_heuristic_temporal() {
         let router = RecipeRouter::new();
-        let query = make_query("what was the oil pressure at 3pm when the alarm triggered", None);
+        let query = make_query(
+            "what was the oil pressure at 3pm when the alarm triggered",
+            None,
+        );
         let recipe = router.select(&query).unwrap();
         // "when" and "time" keywords should match state_at_time
         let matches = ["state_at_time", "root_cause_candidate"];

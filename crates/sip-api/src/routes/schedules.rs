@@ -4,7 +4,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use sip_application::services::{ScheduleService, CreateScheduleInput, UpdateScheduleInput};
+use sip_application::services::{CreateScheduleInput, ScheduleService, UpdateScheduleInput};
 use sip_domain::{
     entity::schedule::ScheduleTriggerType,
     id::{AssetId, ScheduleId},
@@ -58,7 +58,10 @@ pub async fn list_schedules(
                 "updated_at": s.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -67,7 +70,12 @@ pub async fn get_schedule(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let schedule_id = id.parse::<ScheduleId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let schedule_id = id.parse::<ScheduleId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgScheduleRepository::new(state.pool.clone());
     let service = ScheduleService::new(repo);
     match service.get(&ctx, schedule_id).await {
@@ -87,8 +95,14 @@ pub async fn get_schedule(
                 "updated_at": s.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Schedule not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Schedule not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -97,12 +111,19 @@ pub async fn create_schedule(
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateScheduleRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_id: AssetId = req.asset_id.parse().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let asset_id: AssetId = req.asset_id.parse().map_err(|e: uuid::Error| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let trigger_type = match req.trigger_type.to_uppercase().as_str() {
         "METER" => ScheduleTriggerType::Meter,
         _ => ScheduleTriggerType::Cron,
     };
-    let next_due = req.cron_expression.as_ref()
+    let next_due = req
+        .cron_expression
+        .as_ref()
         .and_then(|expr| calculate_next_due(expr, chrono::Utc::now()));
     let input = CreateScheduleInput {
         asset_id,
@@ -115,8 +136,13 @@ pub async fn create_schedule(
     let repo = PgScheduleRepository::new(state.pool.clone());
     let service = ScheduleService::new(repo);
     match service.create(&ctx, input).await {
-        Ok(schedule) => Ok(Json(json!({"data": {"id": schedule.id.to_string(), "name": schedule.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(schedule) => Ok(Json(
+            json!({"data": {"id": schedule.id.to_string(), "name": schedule.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -126,8 +152,15 @@ pub async fn update_schedule(
     Path(id): Path<String>,
     Json(req): Json<UpdateScheduleRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let schedule_id = id.parse::<ScheduleId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let next_due = req.cron_expression.as_ref()
+    let schedule_id = id.parse::<ScheduleId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
+    let next_due = req
+        .cron_expression
+        .as_ref()
         .and_then(|expr| calculate_next_due(expr, chrono::Utc::now()));
     let input = UpdateScheduleInput {
         name: req.name,
@@ -139,8 +172,13 @@ pub async fn update_schedule(
     let repo = PgScheduleRepository::new(state.pool.clone());
     let service = ScheduleService::new(repo);
     match service.update(&ctx, schedule_id, input).await {
-        Ok(schedule) => Ok(Json(json!({"data": {"id": schedule.id.to_string(), "name": schedule.name, "enabled": schedule.enabled}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(schedule) => Ok(Json(
+            json!({"data": {"id": schedule.id.to_string(), "name": schedule.name, "enabled": schedule.enabled}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -149,11 +187,21 @@ pub async fn archive_schedule(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let schedule_id = id.parse::<ScheduleId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let schedule_id = id.parse::<ScheduleId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgScheduleRepository::new(state.pool.clone());
     let service = ScheduleService::new(repo);
     match service.archive(&ctx, schedule_id).await {
-        Ok(schedule) => Ok(Json(json!({"data": {"id": schedule.id.to_string(), "archived_at": schedule.archived_at}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(schedule) => Ok(Json(
+            json!({"data": {"id": schedule.id.to_string(), "archived_at": schedule.archived_at}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

@@ -1,0 +1,6 @@
+name,location_type,address_line1,city,state,postal_code,country
+Main Campus,site,100 Industrial Drive,Detroit,MI,48201,US
+Building A,building,Main Campus,Detroit,MI,48201,US
+Assembly Floor,floor,Building A,Detroit,MI,48201,US
+Building B,building,Main Campus,Detroit,MI,48201,US
+Warehouse,floor,Building B,Detroit,MI,48201,US

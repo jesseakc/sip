@@ -44,7 +44,10 @@ pub async fn get_organization(
                 "updated_at": org.updated_at,
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -55,7 +58,10 @@ pub async fn update_organization(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let repo = PgOrganizationRepository::new(state.pool.clone());
     let service = OrganizationService::new(repo);
-    match service.update(&ctx, req.name, req.timezone, req.default_currency).await {
+    match service
+        .update(&ctx, req.name, req.timezone, req.default_currency)
+        .await
+    {
         Ok(org) => Ok(Json(json!({
             "data": {
                 "id": org.id.to_string(),
@@ -67,7 +73,10 @@ pub async fn update_organization(
                 "updated_at": org.updated_at,
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -78,7 +87,16 @@ pub async fn create_organization(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let repo = PgOrganizationRepository::new(state.pool.clone());
     let service = OrganizationService::new(repo);
-    match service.create(&ctx, &req.name, &req.slug, req.timezone.as_deref(), req.default_currency.as_deref()).await {
+    match service
+        .create(
+            &ctx,
+            &req.name,
+            &req.slug,
+            req.timezone.as_deref(),
+            req.default_currency.as_deref(),
+        )
+        .await
+    {
         Ok(org) => Ok(Json(json!({
             "data": {
                 "id": org.id.to_string(),
@@ -90,6 +108,9 @@ pub async fn create_organization(
                 "updated_at": org.updated_at,
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

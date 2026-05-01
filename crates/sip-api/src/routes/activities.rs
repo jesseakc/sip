@@ -4,9 +4,7 @@ use axum::{
 };
 use serde_json::json;
 use sip_application::services::ActivityService;
-use sip_domain::{
-    tenant::TenantContext,
-};
+use sip_domain::tenant::TenantContext;
 use sip_infrastructure::repositories::PgActivityRepository;
 use std::sync::Arc;
 
@@ -31,7 +29,10 @@ pub async fn list_activities(
                 "created_at": a.created_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -40,10 +41,18 @@ pub async fn list_activities_by_entity(
     Extension(ctx): Extension<TenantContext>,
     Path((entity_type, entity_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let entity_uuid = entity_id.parse::<uuid::Uuid>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let entity_uuid = entity_id.parse::<uuid::Uuid>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgActivityRepository::new(state.pool.clone());
     let service = ActivityService::new(repo);
-    match service.list_by_entity(&ctx, &entity_type, entity_uuid).await {
+    match service
+        .list_by_entity(&ctx, &entity_type, entity_uuid)
+        .await
+    {
         Ok(activities) => Ok(Json(json!({
             "data": activities.iter().map(|a| json!({
                 "id": a.id.to_string(),
@@ -56,6 +65,9 @@ pub async fn list_activities_by_entity(
                 "created_at": a.created_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

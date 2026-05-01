@@ -4,11 +4,11 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use sip_application::services::{WorkOrderService, AssetService, LocationService, UserService};
-use sip_domain::{
-    tenant::TenantContext,
+use sip_application::services::{AssetService, LocationService, UserService, WorkOrderService};
+use sip_domain::tenant::TenantContext;
+use sip_infrastructure::repositories::{
+    PgAssetRepository, PgLocationRepository, PgUserRepository, PgWorkOrderRepository,
 };
-use sip_infrastructure::repositories::{PgWorkOrderRepository, PgAssetRepository, PgLocationRepository, PgUserRepository};
 use std::sync::Arc;
 
 use crate::AppState;
@@ -39,7 +39,10 @@ pub async fn export_work_orders(
                 "created_at": wo.created_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 

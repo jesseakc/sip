@@ -1,5 +1,5 @@
-use super::manifest::{PluginManifest, PluginType, UiCompatibilityLevel};
 use super::manifest::UiConfig;
+use super::manifest::{PluginManifest, PluginType, UiCompatibilityLevel};
 
 /// Result of validating a single plugin manifest.
 #[derive(Debug, Clone)]
@@ -11,11 +11,19 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     pub fn ok() -> Self {
-        Self { valid: true, errors: vec![], warnings: vec![] }
+        Self {
+            valid: true,
+            errors: vec![],
+            warnings: vec![],
+        }
     }
 
     pub fn error(msg: impl Into<String>) -> Self {
-        Self { valid: false, errors: vec![msg.into()], warnings: vec![] }
+        Self {
+            valid: false,
+            errors: vec![msg.into()],
+            warnings: vec![],
+        }
     }
 
     pub fn add_error(&mut self, msg: impl Into<String>) {
@@ -101,7 +109,11 @@ pub fn validate_manifest(manifest: &PluginManifest) -> ValidationResult {
     // ── id ──
     if manifest.id.is_empty() {
         result.add_error("Plugin `id` is required");
-    } else if !manifest.id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+    } else if !manifest
+        .id
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_')
+    {
         result.add_error(format!(
             "Plugin `id` '{}' contains invalid characters (only a-z, 0-9, -, _ allowed)",
             manifest.id
@@ -224,10 +236,7 @@ fn check_nav_item_ids_unique(
     }
 }
 
-fn validate_nav_paths(
-    item: &super::manifest::NavigationItem,
-    result: &mut ValidationResult,
-) {
+fn validate_nav_paths(item: &super::manifest::NavigationItem, result: &mut ValidationResult) {
     if !item.path.starts_with('/') {
         result.add_error(format!(
             "Navigation item '{}' path '{}' must start with '/'",
@@ -245,19 +254,25 @@ fn validate_ui_config(ui: &UiConfig, result: &mut ValidationResult) {
         if compat.level == Some(UiCompatibilityLevel::Native) && !compat.uses_sip_components {
             result.add_warning(
                 "UiCompatibility level is 'native' but uses_sip_components is false. \
-                 Native plugins should use SIP components."
+                 Native plugins should use SIP components.",
             );
         }
         if compat.level == Some(UiCompatibilityLevel::Native) && compat.allows_global_css {
             result.add_warning(
                 "UiCompatibility level is 'native' but allows_global_css is true. \
-                 Native plugins should avoid global CSS to prevent style conflicts."
+                 Native plugins should avoid global CSS to prevent style conflicts.",
             );
         }
     }
 
     // ── Route layout validation ──
-    const VALID_LAYOUTS: &[&str] = &["sip-page", "sip-dashboard", "sip-settings", "embedded", "standalone"];
+    const VALID_LAYOUTS: &[&str] = &[
+        "sip-page",
+        "sip-dashboard",
+        "sip-settings",
+        "embedded",
+        "standalone",
+    ];
     for route in &ui.routes {
         if let Some(ref layout) = route.layout {
             if !VALID_LAYOUTS.contains(&layout.as_str()) {
@@ -505,7 +520,11 @@ mod tests {
             ..Default::default()
         };
         let result = validate_manifest(&manifest);
-        assert!(result.valid, "Migration permissions should be valid: {:?}", result.errors);
+        assert!(
+            result.valid,
+            "Migration permissions should be valid: {:?}",
+            result.errors
+        );
     }
 
     #[test]
@@ -520,7 +539,10 @@ mod tests {
         });
         let result = validate_manifest(&manifest);
         assert!(result.valid);
-        assert!(result.warnings.iter().any(|w| w.contains("uses_sip_components")));
+        assert!(result
+            .warnings
+            .iter()
+            .any(|w| w.contains("uses_sip_components")));
     }
 
     #[test]
@@ -541,17 +563,15 @@ mod tests {
     #[test]
     fn test_route_with_valid_layout() {
         let mut manifest = make_ui_manifest();
-        manifest.ui.as_mut().unwrap().routes = vec![
-            UiRouteDef {
-                id: "settings".into(),
-                path: "/settings".into(),
-                component: Some("SettingsPage".into()),
-                layout: Some("sip-settings".into()),
-                title: Some("Settings".into()),
-                breadcrumb: None,
-                required_permissions: vec![],
-            },
-        ];
+        manifest.ui.as_mut().unwrap().routes = vec![UiRouteDef {
+            id: "settings".into(),
+            path: "/settings".into(),
+            component: Some("SettingsPage".into()),
+            layout: Some("sip-settings".into()),
+            title: Some("Settings".into()),
+            breadcrumb: None,
+            required_permissions: vec![],
+        }];
         let result = validate_manifest(&manifest);
         assert!(result.valid, "Expected valid: {:?}", result.errors);
     }
@@ -559,17 +579,15 @@ mod tests {
     #[test]
     fn test_route_with_invalid_layout() {
         let mut manifest = make_ui_manifest();
-        manifest.ui.as_mut().unwrap().routes = vec![
-            UiRouteDef {
-                id: "custom".into(),
-                path: "/custom".into(),
-                component: None,
-                layout: Some("invalid-layout".into()),
-                title: None,
-                breadcrumb: None,
-                required_permissions: vec![],
-            },
-        ];
+        manifest.ui.as_mut().unwrap().routes = vec![UiRouteDef {
+            id: "custom".into(),
+            path: "/custom".into(),
+            component: None,
+            layout: Some("invalid-layout".into()),
+            title: None,
+            breadcrumb: None,
+            required_permissions: vec![],
+        }];
         let result = validate_manifest(&manifest);
         assert!(!result.valid);
         assert!(result.errors.iter().any(|e| e.contains("invalid-layout")));
@@ -592,27 +610,23 @@ mod tests {
     #[test]
     fn test_manifest_with_routes_and_actions() {
         let mut manifest = make_ui_manifest();
-        manifest.ui.as_mut().unwrap().routes = vec![
-            UiRouteDef {
-                id: "dashboard-overview".into(),
-                path: "/dashboard/overview".into(),
-                component: Some("OverviewCard".into()),
-                layout: Some("sip-dashboard".into()),
-                title: Some("Overview".into()),
-                breadcrumb: None,
-                required_permissions: vec!["dashboard:read".into()],
-            },
-        ];
-        manifest.ui.as_mut().unwrap().actions = vec![
-            UiActionDef {
-                id: "export-report".into(),
-                label: "Export Report".into(),
-                icon: Some("download".into()),
-                route: Some("/export/report".into()),
-                placement: vec!["toolbar".into(), "context-menu".into()],
-                required_permissions: vec!["export:create".into()],
-            },
-        ];
+        manifest.ui.as_mut().unwrap().routes = vec![UiRouteDef {
+            id: "dashboard-overview".into(),
+            path: "/dashboard/overview".into(),
+            component: Some("OverviewCard".into()),
+            layout: Some("sip-dashboard".into()),
+            title: Some("Overview".into()),
+            breadcrumb: None,
+            required_permissions: vec!["dashboard:read".into()],
+        }];
+        manifest.ui.as_mut().unwrap().actions = vec![UiActionDef {
+            id: "export-report".into(),
+            label: "Export Report".into(),
+            icon: Some("download".into()),
+            route: Some("/export/report".into()),
+            placement: vec!["toolbar".into(), "context-menu".into()],
+            required_permissions: vec!["export:create".into()],
+        }];
         let result = validate_manifest(&manifest);
         assert!(result.valid, "Expected valid: {:?}", result.errors);
     }
@@ -629,6 +643,9 @@ mod tests {
         });
         let result = validate_manifest(&manifest);
         assert!(result.valid);
-        assert!(!result.warnings.iter().any(|w| w.contains("uses_sip_components") || w.contains("global_css")));
+        assert!(!result
+            .warnings
+            .iter()
+            .any(|w| w.contains("uses_sip_components") || w.contains("global_css")));
     }
 }

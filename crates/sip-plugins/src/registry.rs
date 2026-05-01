@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use super::manifest::{PluginManifest, PublicPluginInfo};
-use super::validation::{ValidationResult, validate_manifest, validate_plugin_set};
+use super::validation::{validate_manifest, validate_plugin_set, ValidationResult};
 
 /// The plugin registry holds all registered plugins and provides
 /// methods to query them for navigation, capabilities, extension points, etc.
@@ -69,7 +69,8 @@ impl PluginRegistry {
                     loaded.push(id);
                 }
                 Err(e) => {
-                    let dir_name = path.file_name()
+                    let dir_name = path
+                        .file_name()
                         .and_then(|n| n.to_str())
                         .unwrap_or("unknown");
                     tracing::warn!("Failed to load plugin '{}': {}", dir_name, e);
@@ -135,7 +136,11 @@ impl PluginRegistry {
     pub fn enabled_ui_plugins(&self) -> Vec<&PluginManifest> {
         self.manifests
             .values()
-            .filter(|m| self.is_enabled(&m.id) && (m.plugin_type == super::manifest::PluginType::Ui || m.plugin_type == super::manifest::PluginType::Hybrid))
+            .filter(|m| {
+                self.is_enabled(&m.id)
+                    && (m.plugin_type == super::manifest::PluginType::Ui
+                        || m.plugin_type == super::manifest::PluginType::Hybrid)
+            })
             .filter(|m| m.ui.is_some())
             .collect()
     }
@@ -209,7 +214,9 @@ impl PluginRegistry {
             result.merge(validate_manifest(m));
         }
 
-        result.merge(validate_plugin_set(&manifests.iter().map(|m| (*m).clone()).collect::<Vec<_>>()));
+        result.merge(validate_plugin_set(
+            &manifests.iter().map(|m| (*m).clone()).collect::<Vec<_>>(),
+        ));
 
         result
     }
@@ -219,11 +226,11 @@ impl PluginRegistry {
 
 /// Load a plugin manifest from a `plugin.toml` file.
 pub fn load_manifest_from_file(path: &Path) -> Result<PluginManifest, String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read {:?}: {}", path, e))?;
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read {:?}: {}", path, e))?;
 
-    let manifest: PluginManifest = toml::from_str(&content)
-        .map_err(|e| format!("Failed to parse {:?}: {}", path, e))?;
+    let manifest: PluginManifest =
+        toml::from_str(&content).map_err(|e| format!("Failed to parse {:?}: {}", path, e))?;
 
     Ok(manifest)
 }
@@ -416,7 +423,10 @@ required_permissions = ["dashboard:refresh"]
         assert_eq!(ui.category.as_deref(), Some("analytics"));
 
         let compat = ui.compatibility.as_ref().unwrap();
-        assert_eq!(compat.level, Some(crate::manifest::UiCompatibilityLevel::Native));
+        assert_eq!(
+            compat.level,
+            Some(crate::manifest::UiCompatibilityLevel::Native)
+        );
         assert_eq!(compat.sip_ui_version.as_deref(), Some("0.1.0"));
         assert!(compat.requires_shell);
         assert!(compat.uses_sip_components);

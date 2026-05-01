@@ -48,10 +48,7 @@ pub async fn list_conversations(
             ))
         }
     };
-    let ai = AIService::new(
-        create_provider(&state.config.ai),
-        state.pool.clone(),
-    );
+    let ai = AIService::new(create_provider(&state.config.ai), state.pool.clone());
     match ai.list_conversations(&ctx, user_id).await {
         Ok(conversations) => Ok(Json(json!({
             "data": conversations.iter().map(|c| json!({
@@ -74,10 +71,7 @@ pub async fn get_conversation(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let conv_id = AIConversationId::from(id);
-    let ai = AIService::new(
-        create_provider(&state.config.ai),
-        state.pool.clone(),
-    );
+    let ai = AIService::new(create_provider(&state.config.ai), state.pool.clone());
     match ai.get_conversation(&ctx, conv_id).await {
         Ok(Some((conversation, messages))) => Ok(Json(json!({
             "data": {
@@ -111,10 +105,7 @@ pub async fn get_retrieval_trace(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let msg_id = AIMessageId::from(id);
-    let ai = AIService::new(
-        create_provider(&state.config.ai),
-        state.pool.clone(),
-    );
+    let ai = AIService::new(create_provider(&state.config.ai), state.pool.clone());
     match ai.get_retrieval_trace(&ctx, msg_id).await {
         Ok(traces) => Ok(Json(json!({
             "data": traces.iter().map(|t| json!({
@@ -142,11 +133,11 @@ pub async fn submit_feedback(
     Json(body): Json<FeedbackRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let msg_id = AIMessageId::from(id);
-    let ai = AIService::new(
-        create_provider(&state.config.ai),
-        state.pool.clone(),
-    );
-    match ai.submit_feedback(&ctx, msg_id, body.rating, body.comment).await {
+    let ai = AIService::new(create_provider(&state.config.ai), state.pool.clone());
+    match ai
+        .submit_feedback(&ctx, msg_id, body.rating, body.comment)
+        .await
+    {
         Ok(()) => Ok(Json(json!({"data": {"status": "ok"}}))),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -174,6 +165,8 @@ pub async fn get_verification_trace(
 
     match trace {
         Some(t) => Ok(Json(serde_json::json!({"data": t}))),
-        None => Ok(Json(serde_json::json!({"data": null, "message": "No verification trace found"}))),
+        None => Ok(Json(
+            serde_json::json!({"data": null, "message": "No verification trace found"}),
+        )),
     }
 }

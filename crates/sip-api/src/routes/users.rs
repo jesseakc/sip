@@ -6,11 +6,7 @@ use serde::Deserialize;
 use serde_json::json;
 use sip_application::services::UserService;
 use sip_auth::hash_password;
-use sip_domain::{
-    entity::user::UserRole,
-    id::UserId,
-    tenant::TenantContext,
-};
+use sip_domain::{entity::user::UserRole, id::UserId, tenant::TenantContext};
 use sip_infrastructure::repositories::PgUserRepository;
 use std::sync::Arc;
 
@@ -49,7 +45,10 @@ pub async fn list_users(
                 "updated_at": u.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -58,7 +57,12 @@ pub async fn get_user(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let user_id = id.parse::<UserId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let user_id = id.parse::<UserId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgUserRepository::new(state.pool.clone());
     let service = UserService::new(repo);
     match service.get(&ctx, user_id).await {
@@ -76,8 +80,14 @@ pub async fn get_user(
                 "updated_at": u.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "User not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "User not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -95,12 +105,25 @@ pub async fn create_user(
         _ => UserRole::Auditor,
     };
     let password = req.password;
-    let password_hash = hash_password(&password).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}}))))?;
+    let password_hash = hash_password(&password).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgUserRepository::new(state.pool.clone());
     let service = UserService::new(repo);
-    match service.create(&ctx, req.email, req.name, role, password_hash).await {
-        Ok(u) => Ok(Json(json!({"data": {"id": u.id.to_string(), "name": u.name, "email": u.email}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+    match service
+        .create(&ctx, req.email, req.name, role, password_hash)
+        .await
+    {
+        Ok(u) => Ok(Json(
+            json!({"data": {"id": u.id.to_string(), "name": u.name, "email": u.email}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -110,7 +133,12 @@ pub async fn update_user(
     Path(id): Path<String>,
     Json(req): Json<UpdateUserRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let user_id = id.parse::<UserId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let user_id = id.parse::<UserId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let role = req.role.map(|r| match r.to_uppercase().as_str() {
         "ADMIN" => UserRole::Admin,
         "MANAGER" => UserRole::Manager,
@@ -121,8 +149,16 @@ pub async fn update_user(
     });
     let repo = PgUserRepository::new(state.pool.clone());
     let service = UserService::new(repo);
-    match service.update(&ctx, user_id, req.name, role, req.is_active).await {
-        Ok(u) => Ok(Json(json!({"data": {"id": u.id.to_string(), "name": u.name, "role": format!("{:?}", u.role).to_uppercase()}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+    match service
+        .update(&ctx, user_id, req.name, role, req.is_active)
+        .await
+    {
+        Ok(u) => Ok(Json(
+            json!({"data": {"id": u.id.to_string(), "name": u.name, "role": format!("{:?}", u.role).to_uppercase()}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

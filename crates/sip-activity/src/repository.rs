@@ -4,9 +4,5 @@ use sip_domain::tenant::TenantContext;
 
 #[async_trait]
 pub trait ActivityRepository: Send + Sync {
-    async fn log(
-        &self,
-        ctx: &TenantContext,
-        event: String,
-    ) -> Result<(), SipError>;
+    async fn log(&self, ctx: &TenantContext, event: String) -> Result<(), SipError>;
 }

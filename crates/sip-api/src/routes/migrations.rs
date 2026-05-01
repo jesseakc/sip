@@ -6,9 +6,7 @@ use serde::Deserialize;
 use serde_json::json;
 use sip_application::services::MigrationService;
 use sip_domain::{
-    entity::migration::MigrationFieldMapping,
-    id::MigrationJobId,
-    tenant::TenantContext,
+    entity::migration::MigrationFieldMapping, id::MigrationJobId, tenant::TenantContext,
 };
 use std::str::FromStr;
 use std::sync::Arc;
@@ -54,7 +52,10 @@ pub async fn list_jobs(
                 "updated_at": j.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -83,7 +84,10 @@ pub async fn create_job(
                 "status": format!("{:?}", job.status),
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -92,8 +96,12 @@ pub async fn get_job(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.get_job(&ctx, id).await {
         Ok(Some(job)) => Ok(Json(json!({
@@ -112,8 +120,14 @@ pub async fn get_job(
                 "updated_at": job.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Job not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Job not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -122,8 +136,12 @@ pub async fn get_source_records(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.get_source_records(&ctx, id).await {
         Ok(records) => Ok(Json(json!({
@@ -136,7 +154,10 @@ pub async fn get_source_records(
                 "row_number": r.row_number,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -146,8 +167,12 @@ pub async fn add_source_records(
     Path(job_id): Path<String>,
     Json(body): Json<AddSourceRecordsRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.add_source_records(&ctx, id, body.records).await {
         Ok(records) => Ok(Json(json!({
@@ -156,7 +181,10 @@ pub async fn add_source_records(
                 "status": "uploaded",
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -166,8 +194,12 @@ pub async fn save_field_mappings(
     Path(job_id): Path<String>,
     Json(body): Json<SaveFieldMappingsRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.save_field_mappings(&ctx, id, body.mappings).await {
         Ok(()) => Ok(Json(json!({
@@ -175,7 +207,10 @@ pub async fn save_field_mappings(
                 "status": "mapped",
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -184,8 +219,12 @@ pub async fn get_field_mappings(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.get_field_mappings(&ctx, id).await {
         Ok(mappings) => Ok(Json(json!({
@@ -199,7 +238,10 @@ pub async fn get_field_mappings(
                 "is_required": m.is_required,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -208,8 +250,12 @@ pub async fn validate_job(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.validate_job(&ctx, id).await {
         Ok(issues) => Ok(Json(json!({
@@ -223,7 +269,10 @@ pub async fn validate_job(
                 })).collect::<Vec<_>>(),
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -232,8 +281,12 @@ pub async fn dry_run(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.dry_run(&ctx, id).await {
         Ok(run) => Ok(Json(json!({
@@ -246,7 +299,10 @@ pub async fn dry_run(
                 "records_with_errors": run.records_failed,
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -255,8 +311,12 @@ pub async fn execute_import(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.execute_import(&ctx, id).await {
         Ok(run) => Ok(Json(json!({
@@ -270,7 +330,10 @@ pub async fn execute_import(
                 "records_failed": run.records_failed,
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -279,8 +342,12 @@ pub async fn rollback_job(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.rollback_job(&ctx, id).await {
         Ok(run) => Ok(Json(json!({
@@ -290,7 +357,10 @@ pub async fn rollback_job(
                 "records_processed": run.records_processed,
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -299,8 +369,12 @@ pub async fn cancel_job(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.cancel_job(&ctx, id).await {
         Ok(()) => Ok(Json(json!({
@@ -308,7 +382,10 @@ pub async fn cancel_job(
                 "status": "cancelled",
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -317,8 +394,12 @@ pub async fn get_validation_issues(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.get_validation_issues(&ctx, id).await {
         Ok(issues) => Ok(Json(json!({
@@ -329,7 +410,10 @@ pub async fn get_validation_issues(
                 "message": i.message,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -338,8 +422,12 @@ pub async fn get_duplicates(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.get_duplicates(&ctx, id).await {
         Ok(candidates) => Ok(Json(json!({
@@ -352,7 +440,10 @@ pub async fn get_duplicates(
                 "status": d.status,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -361,8 +452,12 @@ pub async fn get_external_id_maps(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.get_external_id_maps(&ctx, id).await {
         Ok(maps) => Ok(Json(json!({
@@ -375,7 +470,10 @@ pub async fn get_external_id_maps(
                 "sip_entity_id": m.sip_entity_id.to_string(),
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -384,8 +482,12 @@ pub async fn get_staged_records(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.get_staged_records(&ctx, id).await {
         Ok(records) => Ok(Json(json!({
@@ -397,7 +499,10 @@ pub async fn get_staged_records(
                 "validation_errors": r.validation_errors,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -406,11 +511,18 @@ pub async fn get_report(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let id = MigrationJobId::from_str(&job_id)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}}))))?;
+    let id = MigrationJobId::from_str(&job_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": "Invalid job ID"}})),
+        )
+    })?;
     let service = MigrationService::new(state.pool.clone());
     match service.get_report(&ctx, id).await {
         Ok(report) => Ok(Json(json!({"data": report}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

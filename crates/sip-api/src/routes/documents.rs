@@ -4,9 +4,9 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use sip_application::services::{DocumentService, CreateDocumentInput};
+use sip_application::services::{CreateDocumentInput, DocumentService};
 use sip_domain::{
-    entity::document::{DocumentType, DocumentSourceType, Visibility},
+    entity::document::{DocumentSourceType, DocumentType, Visibility},
     id::DocumentId,
     tenant::TenantContext,
 };
@@ -53,7 +53,10 @@ pub async fn list_documents(
                 "created_at": d.created_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -62,7 +65,12 @@ pub async fn get_document(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let doc_id = id.parse::<DocumentId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let doc_id = id.parse::<DocumentId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgDocumentRepository::new(state.pool.clone());
     let service = DocumentService::new(repo);
     match service.get(&ctx, doc_id).await {
@@ -84,8 +92,14 @@ pub async fn get_document(
                 "updated_at": doc.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Document not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Document not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -117,7 +131,16 @@ pub async fn create_document(
         "PUBLIC" => Visibility::Public,
         _ => Visibility::SystemDefault,
     };
-    let supersedes_document_id = req.supersedes_document_id.map(|s| s.parse()).transpose().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let supersedes_document_id = req
+        .supersedes_document_id
+        .map(|s| s.parse())
+        .transpose()
+        .map_err(|e: uuid::Error| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
     let input = CreateDocumentInput {
         name: req.name,
         document_type,
@@ -139,8 +162,13 @@ pub async fn create_document(
     let repo = PgDocumentRepository::new(state.pool.clone());
     let service = DocumentService::new(repo);
     match service.create(&ctx, input).await {
-        Ok(doc) => Ok(Json(json!({"data": {"id": doc.id.to_string(), "name": doc.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(doc) => Ok(Json(
+            json!({"data": {"id": doc.id.to_string(), "name": doc.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -163,6 +191,9 @@ pub async fn archive_document(
                 "archive_reason": doc.archive_reason,
             }
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

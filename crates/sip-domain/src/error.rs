@@ -1,7 +1,7 @@
 use thiserror::Error;
 
-use crate::entity::work_order::WorkOrderStatus;
 use crate::entity::asset::AssetStatus;
+use crate::entity::work_order::WorkOrderStatus;
 
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum SipError {
@@ -15,10 +15,7 @@ pub enum SipError {
     TenantScopeViolation,
 
     #[error("invalid state transition from {from:?} to {to:?}")]
-    InvalidStateTransition {
-        from: String,
-        to: String,
-    },
+    InvalidStateTransition { from: String, to: String },
 
     #[error("version conflict: current={current_version}, submitted={submitted_version}")]
     VersionConflict {

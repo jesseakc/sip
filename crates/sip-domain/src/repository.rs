@@ -6,27 +6,22 @@ use crate::entity::asset::Asset;
 use crate::entity::document::Document;
 use crate::entity::embedding_record::EmbeddingRecord;
 use crate::entity::inspection::{Inspection, InspectionChecklistItem};
-use crate::entity::part::PartUsage;
 use crate::entity::part::Part;
+use crate::entity::part::PartUsage;
 use crate::entity::schedule::Schedule;
 use crate::entity::work_order::{WorkOrder, WorkOrderAssignment, WorkOrderStatusHistory};
 use crate::error::SipError;
-use crate::id::{AIConversationId, AIMessageId, AssetId, DocumentId, InspectionId, PartId, ScheduleId, UserId, WorkOrderId, WorkOrderAssignmentId};
+use crate::id::{
+    AIConversationId, AIMessageId, AssetId, DocumentId, InspectionId, PartId, ScheduleId, UserId,
+    WorkOrderAssignmentId, WorkOrderId,
+};
 use crate::tenant::TenantContext;
 
 #[async_trait]
 pub trait AssetRepository {
-    async fn create_asset(
-        &self,
-        ctx: &TenantContext,
-        asset: &Asset,
-    ) -> Result<Asset, SipError>;
+    async fn create_asset(&self, ctx: &TenantContext, asset: &Asset) -> Result<Asset, SipError>;
 
-    async fn get_asset(
-        &self,
-        ctx: &TenantContext,
-        id: AssetId,
-    ) -> Result<Option<Asset>, SipError>;
+    async fn get_asset(&self, ctx: &TenantContext, id: AssetId) -> Result<Option<Asset>, SipError>;
 
     async fn update_asset(
         &self,
@@ -36,16 +31,9 @@ pub trait AssetRepository {
         patch: serde_json::Value,
     ) -> Result<Asset, SipError>;
 
-    async fn list_assets(
-        &self,
-        ctx: &TenantContext,
-    ) -> Result<Vec<Asset>, SipError>;
+    async fn list_assets(&self, ctx: &TenantContext) -> Result<Vec<Asset>, SipError>;
 
-    async fn archive_asset(
-        &self,
-        ctx: &TenantContext,
-        id: AssetId,
-    ) -> Result<Asset, SipError>;
+    async fn archive_asset(&self, ctx: &TenantContext, id: AssetId) -> Result<Asset, SipError>;
 
     async fn list_children(
         &self,
@@ -76,10 +64,7 @@ pub trait WorkOrderRepository {
         patch: serde_json::Value,
     ) -> Result<WorkOrder, SipError>;
 
-    async fn list_work_orders(
-        &self,
-        ctx: &TenantContext,
-    ) -> Result<Vec<WorkOrder>, SipError>;
+    async fn list_work_orders(&self, ctx: &TenantContext) -> Result<Vec<WorkOrder>, SipError>;
 
     async fn archive_work_order(
         &self,
@@ -175,10 +160,7 @@ pub trait DocumentRepository {
         error: Option<String>,
     ) -> Result<Document, SipError>;
 
-    async fn list_documents(
-        &self,
-        ctx: &TenantContext,
-    ) -> Result<Vec<Document>, SipError>;
+    async fn list_documents(&self, ctx: &TenantContext) -> Result<Vec<Document>, SipError>;
 
     async fn archive(
         &self,
@@ -204,10 +186,7 @@ pub trait ActivityRepository: Send + Sync {
         entity_id: uuid::Uuid,
     ) -> Result<Vec<Activity>, SipError>;
 
-    async fn list_activities(
-        &self,
-        ctx: &TenantContext,
-    ) -> Result<Vec<Activity>, SipError>;
+    async fn list_activities(&self, ctx: &TenantContext) -> Result<Vec<Activity>, SipError>;
 }
 
 #[async_trait]
@@ -281,22 +260,11 @@ pub trait InspectionRepository {
 
 #[async_trait]
 pub trait PartRepository {
-    async fn create(
-        &self,
-        ctx: &TenantContext,
-        part: &Part,
-    ) -> Result<Part, SipError>;
+    async fn create(&self, ctx: &TenantContext, part: &Part) -> Result<Part, SipError>;
 
-    async fn get(
-        &self,
-        ctx: &TenantContext,
-        id: PartId,
-    ) -> Result<Option<Part>, SipError>;
+    async fn get(&self, ctx: &TenantContext, id: PartId) -> Result<Option<Part>, SipError>;
 
-    async fn list(
-        &self,
-        ctx: &TenantContext,
-    ) -> Result<Vec<Part>, SipError>;
+    async fn list(&self, ctx: &TenantContext) -> Result<Vec<Part>, SipError>;
 
     async fn update(
         &self,
@@ -327,7 +295,17 @@ pub trait ScheduleRepository {
     async fn create(&self, ctx: &TenantContext, schedule: &Schedule) -> Result<Schedule, SipError>;
     async fn get(&self, ctx: &TenantContext, id: ScheduleId) -> Result<Option<Schedule>, SipError>;
     async fn list(&self, ctx: &TenantContext) -> Result<Vec<Schedule>, SipError>;
-    async fn update(&self, ctx: &TenantContext, id: ScheduleId, patch: serde_json::Value) -> Result<Schedule, SipError>;
-    async fn archive(&self, ctx: &TenantContext, id: ScheduleId, archived_by: UserId) -> Result<Schedule, SipError>;
+    async fn update(
+        &self,
+        ctx: &TenantContext,
+        id: ScheduleId,
+        patch: serde_json::Value,
+    ) -> Result<Schedule, SipError>;
+    async fn archive(
+        &self,
+        ctx: &TenantContext,
+        id: ScheduleId,
+        archived_by: UserId,
+    ) -> Result<Schedule, SipError>;
     async fn list_active(&self, ctx: &TenantContext) -> Result<Vec<Schedule>, SipError>;
 }

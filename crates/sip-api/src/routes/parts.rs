@@ -4,11 +4,8 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use sip_application::services::{PartService, CreatePartInput, UpdatePartInput};
-use sip_domain::{
-    id::PartId,
-    tenant::TenantContext,
-};
+use sip_application::services::{CreatePartInput, PartService, UpdatePartInput};
+use sip_domain::{id::PartId, tenant::TenantContext};
 use sip_infrastructure::repositories::PgPartRepository;
 use std::sync::Arc;
 
@@ -60,7 +57,10 @@ pub async fn list_parts(
                 "updated_at": p.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -82,8 +82,13 @@ pub async fn create_part(
     let repo = PgPartRepository::new(state.pool.clone());
     let service = PartService::new(repo);
     match service.create(&ctx, input).await {
-        Ok(part) => Ok(Json(json!({"data": {"id": part.id.to_string(), "name": part.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(part) => Ok(Json(
+            json!({"data": {"id": part.id.to_string(), "name": part.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -92,8 +97,12 @@ pub async fn get_part(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let part_id = id.parse::<PartId>()
-        .map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let part_id = id.parse::<PartId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
 
     let repo = PgPartRepository::new(state.pool.clone());
     let service = PartService::new(repo);
@@ -113,8 +122,14 @@ pub async fn get_part(
                 "updated_at": part.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Part not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Part not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -124,8 +139,12 @@ pub async fn update_part(
     Path(id): Path<String>,
     Json(req): Json<UpdatePartRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let part_id = id.parse::<PartId>()
-        .map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let part_id = id.parse::<PartId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
 
     let input = UpdatePartInput {
         name: req.name,
@@ -140,7 +159,12 @@ pub async fn update_part(
     let repo = PgPartRepository::new(state.pool.clone());
     let service = PartService::new(repo);
     match service.update(&ctx, part_id, input).await {
-        Ok(part) => Ok(Json(json!({"data": {"id": part.id.to_string(), "name": part.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(part) => Ok(Json(
+            json!({"data": {"id": part.id.to_string(), "name": part.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

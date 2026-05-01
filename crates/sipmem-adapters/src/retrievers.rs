@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use sipmem_core::{MemoryEvidence, MemoryQuery, Retriever, RetrievalType, SipmemError};
+use sipmem_core::{MemoryEvidence, MemoryQuery, RetrievalType, Retriever, SipmemError};
 
 pub struct SQLRetriever;
 pub struct VectorRetriever;

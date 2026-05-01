@@ -47,12 +47,9 @@ impl EvidenceMatcher {
     /// Score how well a fact matches a piece of evidence.
     pub fn score_match(&self, fact: &AtomicFact, evidence: &MemoryEvidence) -> f64 {
         let entity_match = if let Some(ref subject) = fact.subject_entity {
-            evidence
-                .entry
-                .entity_references
-                .iter()
-                .any(|er| er.entity_type == subject.entity_type && er.entity_id == subject.entity_id)
-                as u8 as f64
+            evidence.entry.entity_references.iter().any(|er| {
+                er.entity_type == subject.entity_type && er.entity_id == subject.entity_id
+            }) as u8 as f64
         } else {
             0.5
         };
@@ -173,7 +170,11 @@ mod tests {
             verification_status: VerificationStatus::Pending,
             temporal_context: None,
         };
-        let evidence = make_evidence("temperature exceeded threshold at sensor 3", "sensor", Uuid::new_v4());
+        let evidence = make_evidence(
+            "temperature exceeded threshold at sensor 3",
+            "sensor",
+            Uuid::new_v4(),
+        );
         let matches = matcher.match_evidence(&[fact], &[evidence]);
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].1.len(), 1);

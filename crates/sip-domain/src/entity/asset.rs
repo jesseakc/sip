@@ -22,12 +22,14 @@ impl AssetStatus {
                 | (AssetStatus::Degraded, AssetStatus::Operational)
                 | (AssetStatus::Degraded, AssetStatus::Down)
                 | (AssetStatus::Degraded, AssetStatus::Maintenance)
+                | (AssetStatus::Degraded, AssetStatus::Retired)
                 | (AssetStatus::Down, AssetStatus::Operational)
                 | (AssetStatus::Down, AssetStatus::Maintenance)
+                | (AssetStatus::Down, AssetStatus::Retired)
                 | (AssetStatus::Maintenance, AssetStatus::Operational)
                 | (AssetStatus::Maintenance, AssetStatus::Down)
+                | (AssetStatus::Maintenance, AssetStatus::Degraded)
                 | (AssetStatus::Maintenance, AssetStatus::Retired)
-                | (AssetStatus::Down, AssetStatus::Retired)
         )
     }
 }

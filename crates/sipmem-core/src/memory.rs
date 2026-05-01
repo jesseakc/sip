@@ -56,7 +56,7 @@ impl FactLedger {
         self.facts
             .iter()
             .filter(|f| {
-                let entity_match = f.subject_entity.as_ref().map_or(false, |e| {
+                let entity_match = f.subject_entity.as_ref().is_some_and(|e| {
                     e.entity_type == entity.entity_type && e.entity_id == entity.entity_id
                 });
                 if !entity_match {
@@ -81,9 +81,9 @@ impl FactLedger {
         self.contradictions
             .iter()
             .filter(|c| {
-                c.entities.iter().any(|e| {
-                    e.entity_type == entity.entity_type && e.entity_id == entity.entity_id
-                })
+                c.entities
+                    .iter()
+                    .any(|e| e.entity_type == entity.entity_type && e.entity_id == entity.entity_id)
             })
             .collect()
     }
@@ -133,16 +133,15 @@ impl TypedMemorySystem {
                     return true;
                 }
                 query.entity_filters.iter().any(|f| {
-                    e.entity_references.iter().any(|er| {
-                        er.entity_type == f.entity_type && er.entity_id == f.entity_id
-                    })
+                    e.entity_references
+                        .iter()
+                        .any(|er| er.entity_type == f.entity_type && er.entity_id == f.entity_id)
                 })
             })
             .filter(|e| {
                 if let Some(ref tc) = query.temporal_constraint {
                     let end_limit = tc.end.unwrap_or(chrono::Utc::now());
-                    e.valid_from <= end_limit
-                        && e.valid_to.map(|vt| vt >= tc.start).unwrap_or(true)
+                    e.valid_from <= end_limit && e.valid_to.map(|vt| vt >= tc.start).unwrap_or(true)
                 } else {
                     true
                 }
@@ -273,8 +272,18 @@ mod tests {
         };
         ledger.record_fact(fact);
         assert_eq!(ledger.facts.len(), 1);
-        assert_eq!(ledger.get_facts_by_status(VerificationStatus::Verified).len(), 1);
-        assert_eq!(ledger.get_facts_by_status(VerificationStatus::Pending).len(), 0);
+        assert_eq!(
+            ledger
+                .get_facts_by_status(VerificationStatus::Verified)
+                .len(),
+            1
+        );
+        assert_eq!(
+            ledger
+                .get_facts_by_status(VerificationStatus::Pending)
+                .len(),
+            0
+        );
     }
 
     #[test]

@@ -138,10 +138,7 @@ impl Verifier for BasicVerifier {
                         && fact_a.object_value != fact_b.object_value
                     {
                         contradictions.push(ContradictionRecord {
-                            id: format!(
-                                "contra-{}-{}",
-                                fact_a.id, fact_b.id
-                            ),
+                            id: format!("contra-{}-{}", fact_a.id, fact_b.id),
                             claim: format!(
                                 "Contradiction: '{}' vs '{}' for {}",
                                 fact_a.claim, fact_b.claim, fact_a.predicate
@@ -241,7 +238,10 @@ mod tests {
         }];
 
         let result = engine.verify_claims(&facts, &evidence).await.unwrap();
-        assert_eq!(result[0].verification_status, VerificationStatus::PartiallyVerified);
+        assert_eq!(
+            result[0].verification_status,
+            VerificationStatus::PartiallyVerified
+        );
     }
 
     #[tokio::test]

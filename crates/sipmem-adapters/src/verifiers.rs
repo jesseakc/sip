@@ -115,7 +115,10 @@ mod tests {
 
         let result = verifier.verify(&facts, &evidence).await.unwrap();
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].verification_status, VerificationStatus::Unsupported);
+        assert_eq!(
+            result[0].verification_status,
+            VerificationStatus::Unsupported
+        );
         assert!((result[0].confidence - 0.1).abs() < 0.001);
     }
 

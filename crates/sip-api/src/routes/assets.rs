@@ -52,7 +52,10 @@ pub async fn list_assets(
                 "location_id": a.location_id.map(|id| id.to_string()),
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -61,7 +64,12 @@ pub async fn get_asset(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_id = id.parse::<AssetId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let asset_id = id.parse::<AssetId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgAssetRepository::new(state.pool.clone());
     let service = AssetService::new(repo);
     match service.get(&ctx, asset_id).await {
@@ -80,8 +88,14 @@ pub async fn get_asset(
             "created_at": asset.created_at,
             "updated_at": asset.updated_at,
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Asset not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Asset not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -90,9 +104,33 @@ pub async fn create_asset(
     Extension(ctx): Extension<TenantContext>,
     Json(req): Json<CreateAssetRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_type_id: sip_domain::id::AssetTypeId = req.asset_type_id.parse().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let model_id: Option<sip_domain::id::AssetModelId> = req.model_id.map(|s| s.parse()).transpose().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let location_id: Option<sip_domain::id::LocationId> = req.location_id.map(|s| s.parse()).transpose().map_err(|e: uuid::Error| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let asset_type_id: sip_domain::id::AssetTypeId =
+        req.asset_type_id.parse().map_err(|e: uuid::Error| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
+    let model_id: Option<sip_domain::id::AssetModelId> = req
+        .model_id
+        .map(|s| s.parse())
+        .transpose()
+        .map_err(|e: uuid::Error| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
+    let location_id: Option<sip_domain::id::LocationId> = req
+        .location_id
+        .map(|s| s.parse())
+        .transpose()
+        .map_err(|e: uuid::Error| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+            )
+        })?;
     let criticality = match req.criticality.as_str() {
         "LOW" => Criticality::Low,
         "HIGH" => Criticality::High,
@@ -113,8 +151,13 @@ pub async fn create_asset(
     let repo = PgAssetRepository::new(state.pool.clone());
     let service = AssetService::new(repo);
     match service.create(&ctx, input).await {
-        Ok(asset) => Ok(Json(json!({"id": asset.id.to_string(), "name": asset.name}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(asset) => Ok(Json(
+            json!({"id": asset.id.to_string(), "name": asset.name}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -124,21 +167,39 @@ pub async fn update_asset_status(
     Path(id): Path<String>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_id = id.parse::<AssetId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
-    let status_str = req.get("status").and_then(|v| v.as_str()).ok_or((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "status required"}}))))?;
+    let asset_id = id.parse::<AssetId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
+    let status_str = req.get("status").and_then(|v| v.as_str()).ok_or((
+        StatusCode::BAD_REQUEST,
+        Json(json!({"error": {"code": "BAD_REQUEST", "message": "status required"}})),
+    ))?;
     let status = match status_str.to_uppercase().as_str() {
         "OPERATIONAL" => AssetStatus::Operational,
         "DEGRADED" => AssetStatus::Degraded,
         "DOWN" => AssetStatus::Down,
         "MAINTENANCE" => AssetStatus::Maintenance,
         "RETIRED" => AssetStatus::Retired,
-        _ => return Err((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": "invalid status"}})))),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": "BAD_REQUEST", "message": "invalid status"}})),
+            ))
+        }
     };
     let repo = PgAssetRepository::new(state.pool.clone());
     let service = AssetService::new(repo);
     match service.update_status(&ctx, asset_id, status).await {
-        Ok(asset) => Ok(Json(json!({"id": asset.id.to_string(), "status": format!("{:?}", asset.status).to_uppercase()}))),
-        Err(e) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})))),
+        Ok(asset) => Ok(Json(
+            json!({"id": asset.id.to_string(), "status": format!("{:?}", asset.status).to_uppercase()}),
+        )),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -147,7 +208,12 @@ pub async fn list_asset_work_orders(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_id = id.parse::<AssetId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let asset_id = id.parse::<AssetId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgWorkOrderRepository::new(state.pool.clone());
     let service = WorkOrderService::new(repo);
     match service.list_by_asset(&ctx, asset_id).await {
@@ -164,7 +230,10 @@ pub async fn list_asset_work_orders(
                 "created_at": wo.created_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -173,12 +242,22 @@ pub async fn archive_asset(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_id = id.parse::<AssetId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let asset_id = id.parse::<AssetId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgAssetRepository::new(state.pool.clone());
     let service = AssetService::new(repo);
     match service.archive(&ctx, asset_id).await {
-        Ok(asset) => Ok(Json(json!({"data": {"id": asset.id.to_string(), "status": "RETIRED"}}))),
-        Err(e) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})))),
+        Ok(asset) => Ok(Json(
+            json!({"data": {"id": asset.id.to_string(), "status": "RETIRED"}}),
+        )),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -187,7 +266,12 @@ pub async fn list_asset_children(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_id = id.parse::<AssetId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let asset_id = id.parse::<AssetId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgAssetRepository::new(state.pool.clone());
     let service = AssetService::new(repo);
     match service.list_children(&ctx, asset_id).await {
@@ -199,6 +283,9 @@ pub async fn list_asset_children(
                 "asset_type_id": a.asset_type_id.to_string(),
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

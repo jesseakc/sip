@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::id::{DocumentLinkId, DocumentId, OrganizationId};
+use crate::id::{DocumentId, DocumentLinkId, OrganizationId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentLink {

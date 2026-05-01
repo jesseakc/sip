@@ -40,11 +40,7 @@ pub trait TemporalResolverTrait: Send + Sync {
         entries: Vec<MemoryEvidence>,
         now: chrono::DateTime<chrono::Utc>,
     ) -> Vec<MemoryEvidence>;
-    fn filter(
-        &self,
-        entries: Vec<MemoryEvidence>,
-        range: &TimeRange,
-    ) -> Vec<MemoryEvidence>;
+    fn filter(&self, entries: Vec<MemoryEvidence>, range: &TimeRange) -> Vec<MemoryEvidence>;
 }
 
 #[async_trait]

@@ -10,10 +10,7 @@ pub struct Claims {
     pub iat: usize,
 }
 
-pub fn encode_jwt(
-    claims: &Claims,
-    secret: &str,
-) -> Result<String, jsonwebtoken::errors::Error> {
+pub fn encode_jwt(claims: &Claims, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
     jsonwebtoken::encode(
         &jsonwebtoken::Header::default(),
         claims,

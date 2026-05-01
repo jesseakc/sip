@@ -2,6 +2,12 @@ use tracing::info;
 
 pub struct OutboxPoller;
 
+impl Default for OutboxPoller {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OutboxPoller {
     pub fn new() -> Self {
         Self

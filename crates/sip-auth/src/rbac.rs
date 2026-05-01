@@ -138,10 +138,15 @@ impl RolePermissions {
             .into_iter()
             .map(String::from)
             .collect(),
-            Role::Auditor => vec!["activity:read", "reports:read", "assets:read", "work_orders:read"]
-                .into_iter()
-                .map(String::from)
-                .collect(),
+            Role::Auditor => vec![
+                "activity:read",
+                "reports:read",
+                "assets:read",
+                "work_orders:read",
+            ]
+            .into_iter()
+            .map(String::from)
+            .collect(),
         }
     }
 

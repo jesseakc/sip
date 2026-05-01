@@ -24,7 +24,9 @@ impl std::fmt::Display for PluginType {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum UiKind {
+    #[default]
     Web,
     Mobile,
     Desktop,
@@ -50,7 +52,9 @@ impl std::fmt::Display for UiKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum UiFramework {
+    #[default]
     Nextjs,
     React,
     Vue,
@@ -530,24 +534,28 @@ impl PluginManifest {
                 theme: u.theme.clone(),
             }),
             navigation: self.navigation.clone(),
-            resources: self.resources.iter().map(|r| ResourceDef {
-                id: r.id.clone(),
-                label: r.label.clone(),
-                plural_label: r.plural_label.clone(),
-                route_base: r.route_base.clone(),
-                permissions: r.permissions.clone(),
-                list_view: r.list_view.clone(),
-                detail_view: r.detail_view.clone(),
-                create_form: r.create_form.clone(),
-                edit_form: r.edit_form.clone(),
-                filters: r.filters.clone(),
-                actions: r.actions.clone(),
-                search_fields: r.search_fields.clone(),
-                default_sort: r.default_sort.clone(),
-                icon: r.icon.clone(),
-                feature_flag: r.feature_flag.clone(),
-                columns: r.columns.clone(),
-            }).collect(),
+            resources: self
+                .resources
+                .iter()
+                .map(|r| ResourceDef {
+                    id: r.id.clone(),
+                    label: r.label.clone(),
+                    plural_label: r.plural_label.clone(),
+                    route_base: r.route_base.clone(),
+                    permissions: r.permissions.clone(),
+                    list_view: r.list_view.clone(),
+                    detail_view: r.detail_view.clone(),
+                    create_form: r.create_form.clone(),
+                    edit_form: r.edit_form.clone(),
+                    filters: r.filters.clone(),
+                    actions: r.actions.clone(),
+                    search_fields: r.search_fields.clone(),
+                    default_sort: r.default_sort.clone(),
+                    icon: r.icon.clone(),
+                    feature_flag: r.feature_flag.clone(),
+                    columns: r.columns.clone(),
+                })
+                .collect(),
             extension_points: self.extension_points.clone(),
             enabled: true, // populated by registry
         }
@@ -615,14 +623,4 @@ impl Default for PluginManifest {
     }
 }
 
-impl Default for UiKind {
-    fn default() -> Self {
-        UiKind::Web
-    }
-}
 
-impl Default for UiFramework {
-    fn default() -> Self {
-        UiFramework::Nextjs
-    }
-}

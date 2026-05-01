@@ -1,6 +1,6 @@
-use sqlx::{PgPool, Postgres, Transaction};
 use sip_domain::id::OrganizationId;
 use sip_domain::tenant::TenantContext;
+use sqlx::{PgPool, Postgres, Transaction};
 
 pub async fn set_rls_org(
     executor: &mut sqlx::PgConnection,

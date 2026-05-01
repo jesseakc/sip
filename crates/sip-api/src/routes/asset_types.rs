@@ -5,10 +5,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use sip_application::services::AssetTypeService;
-use sip_domain::{
-    id::AssetTypeId,
-    tenant::TenantContext,
-};
+use sip_domain::{id::AssetTypeId, tenant::TenantContext};
 use sip_infrastructure::repositories::PgAssetTypeRepository;
 use std::sync::Arc;
 
@@ -47,7 +44,10 @@ pub async fn list_asset_types(
                 "updated_at": at.updated_at,
             })).collect::<Vec<_>>()
         }))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -56,7 +56,12 @@ pub async fn get_asset_type(
     Extension(ctx): Extension<TenantContext>,
     Path(id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_type_id = id.parse::<AssetTypeId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let asset_type_id = id.parse::<AssetTypeId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgAssetTypeRepository::new(state.pool.clone());
     let service = AssetTypeService::new(repo);
     match service.get(&ctx, asset_type_id).await {
@@ -75,8 +80,14 @@ pub async fn get_asset_type(
                 "updated_at": at.updated_at,
             }
         }))),
-        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"error": {"code": "NOT_FOUND", "message": "Asset type not found"}})))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"error": {"code": "NOT_FOUND", "message": "Asset type not found"}})),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -87,9 +98,17 @@ pub async fn create_asset_type(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let repo = PgAssetTypeRepository::new(state.pool.clone());
     let service = AssetTypeService::new(repo);
-    match service.create(&ctx, req.name, req.category, req.description).await {
-        Ok(at) => Ok(Json(json!({"data": {"id": at.id.to_string(), "name": at.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+    match service
+        .create(&ctx, req.name, req.category, req.description)
+        .await
+    {
+        Ok(at) => Ok(Json(
+            json!({"data": {"id": at.id.to_string(), "name": at.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }
 
@@ -99,11 +118,24 @@ pub async fn update_asset_type(
     Path(id): Path<String>,
     Json(req): Json<UpdateAssetTypeRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let asset_type_id = id.parse::<AssetTypeId>().map_err(|e| (StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}}))))?;
+    let asset_type_id = id.parse::<AssetTypeId>().map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})),
+        )
+    })?;
     let repo = PgAssetTypeRepository::new(state.pool.clone());
     let service = AssetTypeService::new(repo);
-    match service.update(&ctx, asset_type_id, req.name, req.category, req.description).await {
-        Ok(at) => Ok(Json(json!({"data": {"id": at.id.to_string(), "name": at.name}}))),
-        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})))),
+    match service
+        .update(&ctx, asset_type_id, req.name, req.category, req.description)
+        .await
+    {
+        Ok(at) => Ok(Json(
+            json!({"data": {"id": at.id.to_string(), "name": at.name}}),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )),
     }
 }

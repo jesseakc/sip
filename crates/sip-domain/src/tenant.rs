@@ -25,7 +25,8 @@ impl TenantContext {
     }
 
     pub fn has_permission(&self, permission: &str) -> bool {
-        self.permissions.contains(&"*".to_string()) || self.permissions.contains(&permission.to_string())
+        self.permissions.contains(&"*".to_string())
+            || self.permissions.contains(&permission.to_string())
     }
 
     pub fn require_permission(&self, permission: &str) -> Result<(), SipError> {
