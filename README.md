@@ -17,36 +17,15 @@
 
 ## The Problem
 
-The software that maintains the physical world is broken.
+The software that maintains the physical world was not built for AI.
 
-### Legacy CMMS: data silos that can't reason
+Traditional CMMS platforms are useful for work orders, preventive maintenance, compliance records, and asset tracking. But they were designed around human data entry and human reporting, not AI agents that can reason across service history, parts, failures, documents, procedures, permissions, and outcomes.
 
-Every factory, hospital, fleet, building, and power plant relies on a **CMMS** (Computerized Maintenance Management System) to track assets, schedule preventive maintenance, and log work orders. The market for this software is $1.2 billion and growing at 9% CAGR — yet the dominant platforms (IBM Maximo, SAP PM, Oracle EAM) were architected decades ago. They share the same fundamental flaws:
+CRMs transformed sales and support by making customer history structured and queryable. Physical assets still do not have an equivalent. A robot, fleet vehicle, HVAC system, medical device, pump, or production line can accumulate years of operational knowledge, yet that knowledge is usually scattered across closed databases, free-text notes, PDFs, spreadsheets, and tribal memory.
 
-| Problem | What It Means In Practice |
-|----------|---------------------------|
-| **Single-industry schemas** | A manufacturing CMMS can't model a hospital's HVAC system. A fleet platform can't handle kitchen equipment. Every industry reinvents the data model. |
-| **Human-only interfaces** | Data is stored for PDF compliance reports, not for machines. There is no API an AI agent can query. No MCP endpoints. No function-calling tools. |
-| **AI bolted on as marketing** | Legacy vendors add a "chat with your data" widget that RAGs over unstructured PDFs. No structured retrieval. No citations. No audit trail. No RBAC enforcement in the retrieval path. |
-| **Closed-source lock-in** | Maintenance data outlives the software vendor. Organizations risk data hostage situations. Switching costs are existential. |
-| **Reactive, not intelligent** | Work orders are logged after the fact. The question "what fixed this last time?" requires calling a senior technician, not querying a database. There is no compounding operational intelligence. |
-| **No agentic surface** | AI agents cannot create work orders, assign technicians, check inventory, or surface compliance gaps — because the platform has no structured, permissioned API for them to use. |
+Most modern "AI" features do not solve the core problem. They bolt chat interfaces onto legacy systems instead of rebuilding the data model, API layer, permission system, audit trail, and retrieval architecture for AI from the ground up.
 
-### Asset CRM: the missing category
-
-CRM (Customer Relationship Management) transformed sales and support by giving every customer a structured, queryable record with full interaction history. Salesforce built a $300 billion business on that insight. **But assets have no equivalent.**
-
-When a technician writes "replaced bearing, found inner race spalling due to contamination" in a work order, that note should become retrievable intelligence for every future query about that asset type. Instead, it disappears into a closed database. There is no asset CRM — no system that treats assets as first-class entities with a complete, queryable, AI-consumable operational history.
-
-### Why existing tools fall short
-
-| Category | Examples | Why They Fail |
-|----------|----------|---------------|
-| **Enterprise CMMS** | IBM Maximo, SAP PM, Oracle EAM | $100K+ deployments, on-premise, zero AI integration, locked schemas |
-| **Mid-Market CMMS** | Fiix, MaintainX, UpKeep | Single-industry focus, closed-source, AI is a marketing afterthought |
-| **Open-Source CMMS** | openMAINT, Fracttal | No AI layer, no plugin ecosystem, limited adoption |
-| **Horizontal Tools** | Jira, ServiceNow, Monday.com | Not maintenance-native; work orders need the asset context that these tools lack |
-| **AI Wrappers** | CustomGPT, ChatPDF | Surface-level RAG over unstructured data — no permission model, no citation tracking, no audit trail, no state machine enforcement |
+SIP exists to make service intelligence structured, permission-safe, source-grounded, and agent-ready.
 
 ---
 
@@ -94,8 +73,43 @@ SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs t
 
 ---
 
+## Why Existing CMMS and CRM Tools Fall Short
+
+### Legacy CMMS: data silos that can't reason
+
+Every factory, hospital, fleet, building, and power plant relies on a **CMMS** (Computerized Maintenance Management System) to track assets, schedule preventive maintenance, and log work orders. The market for this software is $1.2 billion and growing at 9% CAGR — yet the dominant platforms (IBM Maximo, SAP PM, Oracle EAM) were architected decades ago. They share the same fundamental flaws:
+
+| Problem | What It Means In Practice |
+|----------|---------------------------|
+| **Single-industry schemas** | A manufacturing CMMS can't model a hospital's HVAC system. A fleet platform can't handle kitchen equipment. Every industry reinvents the data model. |
+| **Human-only interfaces** | Data is stored for PDF compliance reports, not for machines. There is no API an AI agent can query. No MCP endpoints. No function-calling tools. |
+| **AI bolted on as marketing** | Legacy vendors add a "chat with your data" widget that RAGs over unstructured PDFs. No structured retrieval. No citations. No audit trail. No RBAC enforcement in the retrieval path. |
+| **Closed-source lock-in** | Maintenance data outlives the software vendor. Organizations risk data hostage situations. Switching costs are existential. |
+| **Reactive, not intelligent** | Work orders are logged after the fact. The question "what fixed this last time?" requires calling a senior technician, not querying a database. There is no compounding operational intelligence. |
+| **No agentic surface** | AI agents cannot create work orders, assign technicians, check inventory, or surface compliance gaps — because the platform has no structured, permissioned API for them to use. |
+
+### Asset CRM: the missing category
+
+CRM (Customer Relationship Management) transformed sales and support by giving every customer a structured, queryable record with full interaction history. Salesforce built a $300 billion business on that insight. **But assets have no equivalent.**
+
+When a technician writes "replaced bearing, found inner race spalling due to contamination" in a work order, that note should become retrievable intelligence for every future query about that asset type. Instead, it disappears into a closed database. There is no asset CRM — no system that treats assets as first-class entities with a complete, queryable, AI-consumable operational history.
+
+### Why existing tools fall short
+
+| Category | Examples | Why They Fail |
+|----------|----------|---------------|
+| **Enterprise CMMS** | IBM Maximo, SAP PM, Oracle EAM | $100K+ deployments, on-premise, zero AI integration, locked schemas |
+| **Mid-Market CMMS** | Fiix, MaintainX, UpKeep | Single-industry focus, closed-source, AI is a marketing afterthought |
+| **Open-Source CMMS** | openMAINT, Fracttal | No AI layer, no plugin ecosystem, limited adoption |
+| **Horizontal Tools** | Jira, ServiceNow, Monday.com | Not maintenance-native; work orders need the asset context that these tools lack |
+| **AI Wrappers** | CustomGPT, ChatPDF | Surface-level RAG over unstructured data — no permission model, no citation tracking, no audit trail, no state machine enforcement |
+
+---
+
 ## Table of Contents
 
+- [Why SIP Is the Future](#why-sip-is-the-future)
+- [Why Existing CMMS and CRM Tools Fall Short](#why-existing-cmms-and-crm-tools-fall-short)
 - [Architecture](#architecture)
 - [Plugin Architecture](#plugin-architecture)
 - [Quick Start](#quick-start)
