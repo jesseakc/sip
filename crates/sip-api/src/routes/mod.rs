@@ -14,6 +14,8 @@ pub mod export;
 pub mod health;
 pub mod locations;
 pub mod manufacturers;
+#[cfg(feature = "plugins")]
+pub mod migrations;
 pub mod models;
 pub mod organizations;
 pub mod teams;

@@ -334,6 +334,25 @@ async fn main() -> anyhow::Result<()> {
             .route("/api/v1/export", get(routes::export::export_all));
     }
 
+    #[cfg(feature = "plugins")]
+    {
+        protected = protected
+            .route("/api/v1/migrations", get(routes::migrations::list_jobs).post(routes::migrations::create_job))
+            .route("/api/v1/migrations/:job_id", get(routes::migrations::get_job))
+            .route("/api/v1/migrations/:job_id/source-records", get(routes::migrations::get_source_records).post(routes::migrations::add_source_records))
+            .route("/api/v1/migrations/:job_id/staged-records", get(routes::migrations::get_staged_records))
+            .route("/api/v1/migrations/:job_id/mappings", get(routes::migrations::get_field_mappings).post(routes::migrations::save_field_mappings))
+            .route("/api/v1/migrations/:job_id/validate", post(routes::migrations::validate_job))
+            .route("/api/v1/migrations/:job_id/dry-run", post(routes::migrations::dry_run))
+            .route("/api/v1/migrations/:job_id/import", post(routes::migrations::execute_import))
+            .route("/api/v1/migrations/:job_id/rollback", post(routes::migrations::rollback_job))
+            .route("/api/v1/migrations/:job_id/cancel", post(routes::migrations::cancel_job))
+            .route("/api/v1/migrations/:job_id/validation-issues", get(routes::migrations::get_validation_issues))
+            .route("/api/v1/migrations/:job_id/duplicates", get(routes::migrations::get_duplicates))
+            .route("/api/v1/migrations/:job_id/external-id-maps", get(routes::migrations::get_external_id_maps))
+            .route("/api/v1/migrations/:job_id/report", get(routes::migrations::get_report));
+    }
+
     #[cfg(feature = "ai")]
     {
         // Only register AI routes if feature flag for AI chat is enabled in config

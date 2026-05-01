@@ -1355,6 +1355,193 @@ paths:
         '200':
           description: "Full organization export"
 
+  # ── Migration Core (requires plugins feature flag) ──────────────────────────
+  /api/v1/migrations:
+    get:
+      summary: "List migration jobs"
+      responses:
+        '200':
+          description: "List of migration jobs"
+    post:
+      summary: "Create migration job"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                source_system: { type: string }
+                source_object_type: { type: string }
+                description: { type: string }
+      responses:
+        '200':
+          description: "Created migration job"
+
+  /api/v1/migrations/{job_id}:
+    get:
+      summary: "Get migration job"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Migration job details"
+
+  /api/v1/migrations/{job_id}/source-records:
+    get:
+      summary: "List source records"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Source records"
+    post:
+      summary: "Upload source records"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Records uploaded"
+
+  /api/v1/migrations/{job_id}/mappings:
+    get:
+      summary: "Get field mappings"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Field mappings"
+    post:
+      summary: "Save field mappings"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Mappings saved"
+
+  /api/v1/migrations/{job_id}/validate:
+    post:
+      summary: "Validate staged records"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Validation results"
+
+  /api/v1/migrations/{job_id}/dry-run:
+    post:
+      summary: "Dry-run import"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Dry-run results"
+
+  /api/v1/migrations/{job_id}/import:
+    post:
+      summary: "Execute import"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Import results"
+
+  /api/v1/migrations/{job_id}/rollback:
+    post:
+      summary: "Rollback import"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Rollback results"
+
+  /api/v1/migrations/{job_id}/cancel:
+    post:
+      summary: "Cancel migration job"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Job cancelled"
+
+  /api/v1/migrations/{job_id}/validation-issues:
+    get:
+      summary: "List validation issues"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Validation issues"
+
+  /api/v1/migrations/{job_id}/duplicates:
+    get:
+      summary: "List duplicate candidates"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Duplicate candidates"
+
+  /api/v1/migrations/{job_id}/external-id-maps:
+    get:
+      summary: "List external ID mappings"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "External ID mappings"
+
+  /api/v1/migrations/{job_id}/report:
+    get:
+      summary: "Get migration report"
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: "Migration report"
+
 # ── Components ────────────────────────────────────────────────────────────────
 components:
   securitySchemes:

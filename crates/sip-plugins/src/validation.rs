@@ -82,6 +82,15 @@ pub const KNOWN_EXTENSION_POINTS: &[&str] = &[
     "team.detail.actions",
     "user.list.columns",
     "user.detail.actions",
+    // Migration
+    "migration.source_connector",
+    "migration.file_parser",
+    "migration.field_mapper",
+    "migration.transformer",
+    "migration.validator",
+    "migration.duplicate_resolver",
+    "migration.post_import_hook",
+    "migration.report_generator",
 ];
 
 /// Validate a single plugin manifest (does not check dependencies across plugins).
@@ -394,5 +403,69 @@ mod tests {
         assert!(public.ui.is_some());
         assert_eq!(public.plugin_type, PluginType::Ui);
         // Public view should not have backend or config_schema
+    }
+
+    #[test]
+    fn test_functional_migration_plugin_is_valid() {
+        let manifest = PluginManifest {
+            id: "sip-migration-maximo".into(),
+            name: "Maximo Migration Plugin".into(),
+            version: "1.0.0".into(),
+            plugin_type: PluginType::Functional,
+            description: Some("Imports asset and work order data from IBM Maximo".into()),
+            permissions: vec![
+                "migration:create".into(),
+                "migration:read".into(),
+                "migration:execute".into(),
+            ],
+            ..Default::default()
+        };
+        let result = validate_manifest(&manifest);
+        assert!(result.valid, "Expected valid: {:?}", result.errors);
+    }
+
+    #[test]
+    fn test_migration_extension_points_are_known() {
+        let migration_eps: Vec<&str> = vec![
+            "migration.source_connector",
+            "migration.file_parser",
+            "migration.field_mapper",
+            "migration.transformer",
+            "migration.validator",
+            "migration.duplicate_resolver",
+            "migration.post_import_hook",
+            "migration.report_generator",
+        ];
+        for ep in migration_eps {
+            assert!(
+                KNOWN_EXTENSION_POINTS.contains(&ep),
+                "Migration extension point '{}' should be in KNOWN_EXTENSION_POINTS",
+                ep
+            );
+        }
+    }
+
+    #[test]
+    fn test_migration_permissions_follow_convention() {
+        let manifest = PluginManifest {
+            id: "test-migration-plugin".into(),
+            name: "Test Migration".into(),
+            version: "1.0.0".into(),
+            plugin_type: PluginType::Functional,
+            permissions: vec![
+                "migration:create".into(),
+                "migration:read".into(),
+                "migration:map".into(),
+                "migration:validate".into(),
+                "migration:dry_run".into(),
+                "migration:execute".into(),
+                "migration:rollback".into(),
+                "migration:delete".into(),
+                "migration:view_raw_source".into(),
+            ],
+            ..Default::default()
+        };
+        let result = validate_manifest(&manifest);
+        assert!(result.valid, "Migration permissions should be valid: {:?}", result.errors);
     }
 }

@@ -11,6 +11,14 @@ use sip_domain::{
     entity::document::{Document, DocumentSourceType, DocumentType, ProcessingStatus, Visibility},
     entity::location::{Location, LocationType},
     entity::manufacturer::Manufacturer,
+    entity::migration::{
+        MigrationBatch, MigrationCheckpoint,
+        MigrationDuplicateCandidate, MigrationExternalIdMap,
+        MigrationFieldMapping, MigrationImportResult, MigrationJob,
+        MigrationJobStatus, MigrationRun, MigrationRunStatus, MigrationRunType,
+        MigrationSourceRecord, MigrationStagedRecord,
+        MigrationValidationIssue,
+    },
     entity::organization::Organization,
     entity::part::PartUsage,
     entity::part::Part,
@@ -20,11 +28,11 @@ use sip_domain::{
     entity::work_order::{ActorType, WorkOrder, WorkOrderStatus, WorkOrderPriority, WorkOrderType, WorkOrderSourceType, WorkOrderAssignment, WorkOrderStatusHistory},
     entity::inspection::{Inspection, InspectionChecklistItem, ChecklistResult},
     error::SipError,
-    id::{ActivityId, AgentIdentityId, AIConversationId, AIMessageId, AIRetrievalTraceId, AssetId, AssetModelId, AssetTypeId, DocumentId, InspectionChecklistItemId, InspectionId, LocationId, ManufacturerId, OrganizationId, PartId, ScheduleId, TeamId, UserId, WorkOrderId, WorkOrderAssignmentId, WorkOrderStatusHistoryId},
-    repository::{ActivityRepository, AIConversationRepository, DocumentRepository, InspectionRepository, PartRepository, ScheduleRepository, WorkOrderAssignmentRepository, PartUsageRepository, WorkOrderStatusHistoryRepository},
+    id::{ActivityId, AgentIdentityId, AIConversationId, AIMessageId, AIRetrievalTraceId, AssetId, AssetModelId, AssetTypeId, DocumentId, InspectionChecklistItemId, InspectionId, LocationId, ManufacturerId, MigrationBatchId, MigrationCheckpointId, MigrationDuplicateCandidateId, MigrationExternalIdMapId, MigrationFieldMappingId, MigrationImportResultId, MigrationJobId, MigrationRunId, MigrationSourceRecordId, MigrationStagedRecordId, MigrationValidationIssueId, OrganizationId, PartId, ScheduleId, TeamId, UserId, WorkOrderId, WorkOrderAssignmentId, WorkOrderStatusHistoryId},
+    repository::{ActivityRepository, AIConversationRepository, AssetRepository, DocumentRepository, InspectionRepository, PartRepository, ScheduleRepository, WorkOrderAssignmentRepository, PartUsageRepository, WorkOrderStatusHistoryRepository},
     tenant::TenantContext,
 };
-use sip_infrastructure::repositories::{PgAIConversationRepository, PgActivityRepository, PgUserRepository, PgOrganizationRepository, PgLocationRepository, PgAssetTypeRepository, PgManufacturerRepository, PgAssetModelRepository, PgTeamRepository};
+use sip_infrastructure::repositories::{PgAIConversationRepository, PgActivityRepository, PgUserRepository, PgOrganizationRepository, PgLocationRepository, PgAssetTypeRepository, PgManufacturerRepository, PgAssetModelRepository, PgTeamRepository, PgMigrationRepository};
 use sip_tenancy::set_rls_org_pool;
 use sqlx::PgPool;
 use std::str::FromStr;
@@ -111,6 +119,9 @@ fn role_permissions(role: &UserRole) -> Vec<String> {
             "work_order:assign", "work_order:review", "schedule:manage", "schedule:read",
             "user:read", "user:manage", "team:manage", "part:manage", "part:read", "document:upload",
             "document:read", "document:archive", "activity:read", "ai:query",
+            "migration:create", "migration:read", "migration:map", "migration:validate",
+            "migration:dry_run", "migration:execute", "migration:rollback", "migration:delete",
+            "migration:view_raw_source",
         ].into_iter().map(|s| s.to_string()).collect(),
         UserRole::Technician => vec![
             "org:read", "asset:read", "work_order:create", "work_order:update", "work_order:read",
@@ -2236,4 +2247,630 @@ pub struct UpdateScheduleInput {
     pub trigger_config: Option<serde_json::Value>,
     pub work_order_template: Option<serde_json::Value>,
     pub next_due: Option<chrono::DateTime<Utc>>,
+}
+
+// ── Migration Service ──
+
+pub struct MigrationService {
+    pool: PgPool,
+}
+
+impl MigrationService {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    pub async fn create_job(
+        &self,
+        ctx: &TenantContext,
+        name: String,
+        source_system: String,
+        source_object_type: String,
+        description: Option<String>,
+    ) -> Result<MigrationJob, SipError> {
+        ctx.require_permission("migration:create")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        let job = MigrationJob {
+            id: MigrationJobId::new(),
+            organization_id: ctx.organization_id,
+            name,
+            description,
+            source_system,
+            source_object_type,
+            status: MigrationJobStatus::Draft,
+            source_record_count: 0,
+            valid_record_count: 0,
+            imported_record_count: 0,
+            error_count: 0,
+            created_by: ctx.user_id.ok_or(SipError::PermissionDenied)?,
+            metadata: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        repo.create_job(ctx, &job).await
+    }
+
+    pub async fn list_jobs(&self, ctx: &TenantContext) -> Result<Vec<MigrationJob>, SipError> {
+        ctx.require_permission("migration:read")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.list_jobs(ctx).await
+    }
+
+    pub async fn get_job(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Option<MigrationJob>, SipError> {
+        ctx.require_permission("migration:read")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.get_job(ctx, job_id).await
+    }
+
+    pub async fn add_source_records(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+        records: Vec<serde_json::Value>,
+    ) -> Result<Vec<MigrationSourceRecord>, SipError> {
+        ctx.require_permission("migration:create")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        let now = Utc::now();
+        let source_records: Vec<MigrationSourceRecord> = records
+            .into_iter()
+            .enumerate()
+            .map(|(i, raw)| MigrationSourceRecord {
+                id: MigrationSourceRecordId::new(),
+                organization_id: ctx.organization_id,
+                job_id,
+                batch_id: None,
+                external_id: raw
+                    .get("external_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                source_object_type: raw
+                    .get("source_object_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown")
+                    .to_string(),
+                raw_data: raw,
+                status: "pending".to_string(),
+                row_number: Some((i + 1) as i32),
+                created_at: now,
+            })
+            .collect();
+        repo.create_source_records(ctx, &source_records).await?;
+        let count = source_records.len() as i32;
+        repo.update_job_counts(ctx, job_id, count, 0, 0, 0).await?;
+        repo.update_job_status(ctx, job_id, MigrationJobStatus::Uploaded)
+            .await?;
+        Ok(source_records)
+    }
+
+    pub async fn save_field_mappings(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+        mappings: Vec<MigrationFieldMapping>,
+    ) -> Result<(), SipError> {
+        ctx.require_permission("migration:map")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.save_mappings(ctx, &mappings).await?;
+        repo.update_job_status(ctx, job_id, MigrationJobStatus::Mapped)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn get_field_mappings(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationFieldMapping>, SipError> {
+        ctx.require_permission("migration:read")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.get_mappings(ctx, job_id).await
+    }
+
+    pub async fn get_source_records(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationSourceRecord>, SipError> {
+        ctx.require_permission("migration:read")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.get_source_records(ctx, job_id).await
+    }
+
+    pub async fn get_staged_records(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationStagedRecord>, SipError> {
+        ctx.require_permission("migration:read")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.get_staged_records(ctx, job_id).await
+    }
+
+    pub async fn validate_job(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationValidationIssue>, SipError> {
+        ctx.require_permission("migration:validate")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        let source_records = repo.get_source_records(ctx, job_id).await?;
+        let mappings = repo.get_mappings(ctx, job_id).await?;
+        let now = Utc::now();
+        let mut staged: Vec<MigrationStagedRecord> = Vec::new();
+        let mut issues: Vec<MigrationValidationIssue> = Vec::new();
+
+        for src in &source_records {
+            let mut canonical = serde_json::json!({});
+            let entity_type = &src.source_object_type;
+
+            for mapping in mappings.iter().filter(|m| m.target_entity_type == *entity_type) {
+                let source_val = src.raw_data.get(&mapping.source_field);
+                if source_val.is_none() && mapping.is_required {
+                    issues.push(MigrationValidationIssue {
+                        id: MigrationValidationIssueId::new(),
+                        organization_id: ctx.organization_id,
+                        job_id,
+                        staged_record_id: MigrationStagedRecordId::new(),
+                        severity: "error".to_string(),
+                        field: mapping.source_field.clone(),
+                        message: format!("Required field '{}' is missing", mapping.source_field),
+                        created_at: now,
+                    });
+                } else if let Some(val) = source_val {
+                    canonical[&mapping.target_field] = val.clone();
+                } else if let Some(ref default) = mapping.default_value {
+                    canonical[&mapping.target_field] = serde_json::Value::String(default.clone());
+                }
+            }
+
+            let staged_record = MigrationStagedRecord {
+                id: MigrationStagedRecordId::new(),
+                organization_id: ctx.organization_id,
+                job_id,
+                source_record_id: src.id,
+                target_entity_type: entity_type.clone(),
+                canonical_data: canonical,
+                status: if issues.is_empty() {
+                    "pending_validation".to_string()
+                } else {
+                    "invalid".to_string()
+                },
+                validation_errors: if issues.is_empty() {
+                    None
+                } else {
+                    Some(serde_json::json!(issues.iter().map(|i| serde_json::json!({
+                        "severity": i.severity,
+                        "field": i.field,
+                        "message": i.message,
+                    })).collect::<Vec<_>>()))
+                },
+                created_at: now,
+                updated_at: now,
+            };
+            staged.push(staged_record);
+        }
+
+        if !staged.is_empty() {
+            repo.create_staged_records(ctx, &staged).await?;
+        }
+        if !issues.is_empty() {
+            repo.create_validation_issues(ctx, &issues).await?;
+        }
+
+        repo.update_job_status(ctx, job_id, MigrationJobStatus::Validated)
+            .await?;
+        let valid_count = staged.iter().filter(|s| s.status == "pending_validation").count() as i32;
+        repo.update_job_counts(
+            ctx,
+            job_id,
+            source_records.len() as i32,
+            valid_count,
+            0,
+            issues.len() as i32,
+        )
+        .await?;
+        Ok(issues)
+    }
+
+    pub async fn dry_run(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<MigrationRun, SipError> {
+        ctx.require_permission("migration:dry_run")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        let staged_records = repo.get_staged_records(ctx, job_id).await?;
+        let now = Utc::now();
+
+        let valid_count = staged_records
+            .iter()
+            .filter(|s| s.status == "pending_validation")
+            .count() as i32;
+        let error_count = staged_records
+            .iter()
+            .filter(|s| s.status == "invalid")
+            .count() as i32;
+
+        let run = MigrationRun {
+            id: MigrationRunId::new(),
+            organization_id: ctx.organization_id,
+            job_id,
+            run_type: MigrationRunType::DryRun,
+            status: MigrationRunStatus::Completed,
+            records_processed: staged_records.len() as i32,
+            records_created: valid_count,
+            records_updated: 0,
+            records_skipped: 0,
+            records_failed: error_count,
+            started_at: Some(now),
+            completed_at: Some(Utc::now()),
+            created_at: now,
+        };
+        repo.create_run(ctx, &run).await?;
+        Ok(run)
+    }
+
+    pub async fn execute_import(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<MigrationRun, SipError> {
+        ctx.require_permission("migration:execute")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        let asset_repo = sip_infrastructure::repositories::PgAssetRepository::new(self.pool.clone());
+
+        repo.update_job_status(ctx, job_id, MigrationJobStatus::Importing)
+            .await?;
+
+        let now = Utc::now();
+        let mut run = MigrationRun {
+            id: MigrationRunId::new(),
+            organization_id: ctx.organization_id,
+            job_id,
+            run_type: MigrationRunType::Import,
+            status: MigrationRunStatus::Running,
+            records_processed: 0,
+            records_created: 0,
+            records_updated: 0,
+            records_skipped: 0,
+            records_failed: 0,
+            started_at: Some(now),
+            completed_at: None,
+            created_at: now,
+        };
+        repo.create_run(ctx, &run).await?;
+
+        let staged_records = repo.get_staged_records(ctx, job_id).await?;
+
+        for staged in &staged_records {
+            if staged.status != "pending_validation" {
+                run.records_skipped += 1;
+                continue;
+            }
+
+            let result = match staged.target_entity_type.as_str() {
+                "asset" => {
+                    let dto = serde_json::from_value::<
+                        sip_domain::entity::migration::CanonicalAssetImport,
+                    >(staged.canonical_data.clone());
+                    match dto {
+                        Ok(dto) => {
+                            let asset = Asset {
+                                id: AssetId::new(),
+                                organization_id: ctx.organization_id,
+                                location_id: None,
+                                parent_id: None,
+                                asset_type_id: AssetTypeId::from(Uuid::new_v4()),
+                                model_id: None,
+                                name: dto.name.clone(),
+                                description: dto.notes.clone(),
+                                serial_number: dto.serial_number.clone(),
+                                firmware_version: None,
+                                software_version: None,
+                                hardware_revision: None,
+                                status: AssetStatus::Operational,
+                                version: 1,
+                                criticality: sip_domain::entity::asset::Criticality::Medium,
+                                installed_date: None,
+                                warranty_expiry: None,
+                                attributes: dto.custom_attributes.clone(),
+                                tags: dto.tags.unwrap_or_default(),
+                                metadata: None,
+                                created_at: Utc::now(),
+                                updated_at: Utc::now(),
+                            };
+                            match asset_repo.create_asset(ctx, &asset).await {
+                                Ok(created) => {
+                                    if let Some(ref ext_id) = dto.external_id {
+                                        let _ = repo
+                                            .create_external_id_map(
+                                                ctx,
+                                                &MigrationExternalIdMap {
+                                                    id: MigrationExternalIdMapId::new(),
+                                                    organization_id: ctx.organization_id,
+                                                    job_id,
+                                                    run_id: run.id,
+                                                    source_system: "import".into(),
+                                                    source_object_type: "asset".into(),
+                                                    source_external_id: ext_id.clone(),
+                                                    sip_entity_type: "asset".into(),
+                                                    sip_entity_id: Uuid::from(created.id),
+                                                    created_at: Utc::now(),
+                                                },
+                                            )
+                                            .await;
+                                    }
+                                    MigrationImportResult {
+                                        id: MigrationImportResultId::new(),
+                                        organization_id: ctx.organization_id,
+                                        job_id,
+                                        run_id: run.id,
+                                        staged_record_id: staged.id,
+                                        sip_entity_type: "asset".into(),
+                                        sip_entity_id: Some(Uuid::from(created.id)),
+                                        action: "created".into(),
+                                        error_message: None,
+                                        created_at: Utc::now(),
+                                    }
+                                }
+                                Err(e) => MigrationImportResult {
+                                    id: MigrationImportResultId::new(),
+                                    organization_id: ctx.organization_id,
+                                    job_id,
+                                    run_id: run.id,
+                                    staged_record_id: staged.id,
+                                    sip_entity_type: "asset".into(),
+                                    sip_entity_id: None,
+                                    action: "failed".into(),
+                                    error_message: Some(e.to_string()),
+                                    created_at: Utc::now(),
+                                },
+                            }
+                        }
+                        Err(e) => MigrationImportResult {
+                            id: MigrationImportResultId::new(),
+                            organization_id: ctx.organization_id,
+                            job_id,
+                            run_id: run.id,
+                            staged_record_id: staged.id,
+                            sip_entity_type: "asset".into(),
+                            sip_entity_id: None,
+                            action: "failed".into(),
+                            error_message: Some(format!("Invalid DTO: {}", e)),
+                            created_at: Utc::now(),
+                        },
+                    }
+                }
+                _ => MigrationImportResult {
+                    id: MigrationImportResultId::new(),
+                    organization_id: ctx.organization_id,
+                    job_id,
+                    run_id: run.id,
+                    staged_record_id: staged.id,
+                    sip_entity_type: staged.target_entity_type.clone(),
+                    sip_entity_id: None,
+                    action: "skipped".into(),
+                    error_message: Some(format!(
+                        "No import handler for entity type '{}'",
+                        staged.target_entity_type
+                    )),
+                    created_at: Utc::now(),
+                },
+            };
+
+            let is_error = result.action == "failed";
+            if is_error {
+                run.records_failed += 1;
+            } else if result.action == "created" {
+                run.records_created += 1;
+            } else {
+                run.records_skipped += 1;
+            }
+            run.records_processed += 1;
+
+            let _ = repo.create_import_result(ctx, &result).await;
+        }
+
+        run.status = if run.records_failed > 0 {
+            MigrationRunStatus::Failed
+        } else {
+            MigrationRunStatus::Completed
+        };
+        run.completed_at = Some(Utc::now());
+        repo.update_run(ctx, &run).await?;
+
+        let final_status = if run.records_failed > 0 {
+            MigrationJobStatus::Failed
+        } else if run.records_skipped > 0 {
+            MigrationJobStatus::CompletedWithWarnings
+        } else {
+            MigrationJobStatus::Completed
+        };
+        repo.update_job_status(ctx, job_id, final_status).await?;
+        repo.update_job_counts(
+            ctx,
+            job_id,
+            staged_records.len() as i32,
+            staged_records
+                .iter()
+                .filter(|s| s.status == "pending_validation")
+                .count() as i32,
+            run.records_created,
+            run.records_failed,
+        )
+        .await?;
+
+        Ok(run)
+    }
+
+    pub async fn cancel_job(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<(), SipError> {
+        ctx.require_permission("migration:delete")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.update_job_status(ctx, job_id, MigrationJobStatus::Cancelled)
+            .await
+    }
+
+    pub async fn rollback_job(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<MigrationRun, SipError> {
+        ctx.require_permission("migration:rollback")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        let asset_repo = sip_infrastructure::repositories::PgAssetRepository::new(self.pool.clone());
+
+        let now = Utc::now();
+        let mut run = MigrationRun {
+            id: MigrationRunId::new(),
+            organization_id: ctx.organization_id,
+            job_id,
+            run_type: MigrationRunType::Rollback,
+            status: MigrationRunStatus::Running,
+            records_processed: 0,
+            records_created: 0,
+            records_updated: 0,
+            records_skipped: 0,
+            records_failed: 0,
+            started_at: Some(now),
+            completed_at: None,
+            created_at: now,
+        };
+        repo.create_run(ctx, &run).await?;
+
+        let external_id_maps = repo.get_external_id_maps(ctx, job_id).await?;
+
+        for entry in &external_id_maps {
+            if entry.sip_entity_type == "asset" {
+                match asset_repo.archive_asset(ctx, AssetId::from(entry.sip_entity_id)).await {
+                    Ok(_) => {
+                        run.records_processed += 1;
+                        run.records_created += 1;
+                    }
+                    Err(e) => {
+                        run.records_failed += 1;
+                        let _ = repo
+                            .create_import_result(
+                                ctx,
+                                &MigrationImportResult {
+                                    id: MigrationImportResultId::new(),
+                                    organization_id: ctx.organization_id,
+                                    job_id,
+                                    run_id: run.id,
+                                    staged_record_id: MigrationStagedRecordId::new(),
+                                    sip_entity_type: "asset".into(),
+                                    sip_entity_id: Some(entry.sip_entity_id),
+                                    action: "rollback_failed".into(),
+                                    error_message: Some(e.to_string()),
+                                    created_at: Utc::now(),
+                                },
+                            )
+                            .await;
+                    }
+                }
+            }
+        }
+
+        run.status = if run.records_failed > 0 {
+            MigrationRunStatus::Failed
+        } else {
+            MigrationRunStatus::Completed
+        };
+        run.completed_at = Some(Utc::now());
+        repo.update_run(ctx, &run).await?;
+        repo.update_job_status(ctx, job_id, MigrationJobStatus::RolledBack)
+            .await?;
+
+        Ok(run)
+    }
+
+    pub async fn get_validation_issues(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationValidationIssue>, SipError> {
+        ctx.require_permission("migration:read")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.get_validation_issues(ctx, job_id).await
+    }
+
+    pub async fn get_duplicates(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationDuplicateCandidate>, SipError> {
+        ctx.require_permission("migration:read")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.get_duplicate_candidates(ctx, job_id).await
+    }
+
+    pub async fn get_external_id_maps(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationExternalIdMap>, SipError> {
+        ctx.require_permission("migration:read")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        repo.get_external_id_maps(ctx, job_id).await
+    }
+
+    pub async fn get_report(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<serde_json::Value, SipError> {
+        ctx.require_permission("migration:read")?;
+        let repo = PgMigrationRepository::new(self.pool.clone());
+        let job = repo
+            .get_job(ctx, job_id)
+            .await?
+            .ok_or(SipError::Validation("Job not found".into()))?;
+        let import_results = repo.get_import_results(ctx, job_id).await?;
+        let validation_issues = repo.get_validation_issues(ctx, job_id).await?;
+        let external_id_maps = repo.get_external_id_maps(ctx, job_id).await?;
+
+        Ok(serde_json::json!({
+            "job": {
+                "id": job.id.to_string(),
+                "name": job.name,
+                "source_system": job.source_system,
+                "source_object_type": job.source_object_type,
+                "status": format!("{:?}", job.status),
+                "source_record_count": job.source_record_count,
+                "valid_record_count": job.valid_record_count,
+                "imported_record_count": job.imported_record_count,
+                "error_count": job.error_count,
+            },
+            "import_results": {
+                "created": import_results.iter().filter(|r| r.action == "created").count(),
+                "updated": import_results.iter().filter(|r| r.action == "updated").count(),
+                "skipped": import_results.iter().filter(|r| r.action == "skipped").count(),
+                "failed": import_results.iter().filter(|r| r.action == "failed").count(),
+            },
+            "validation_issues": {
+                "total": validation_issues.len(),
+                "errors": validation_issues.iter().filter(|i| i.severity == "error").count(),
+                "warnings": validation_issues.iter().filter(|i| i.severity == "warning").count(),
+            },
+            "external_id_maps_count": external_id_maps.len(),
+        }))
+    }
+
+    pub async fn stream_events(
+        &self,
+        ctx: &TenantContext,
+        _job_id: MigrationJobId,
+        _run_id: MigrationRunId,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<serde_json::Value>, SipError> {
+        ctx.require_permission("migration:read")?;
+        let (_tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        Ok(rx)
+    }
 }

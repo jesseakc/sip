@@ -15,6 +15,12 @@ use sip_domain::{
     entity::inspection::{Inspection, InspectionChecklistItem, ChecklistResult},
     entity::location::{Location, LocationType},
     entity::manufacturer::Manufacturer,
+    entity::migration::{
+        MigrationBatch, MigrationCheckpoint, MigrationDuplicateCandidate,
+        MigrationExternalIdMap, MigrationFieldMapping, MigrationImportResult, MigrationJob,
+        MigrationJobStatus, MigrationRun,
+        MigrationSourceRecord, MigrationStagedRecord, MigrationValidationIssue,
+    },
     entity::organization::Organization,
     entity::part::PartUsage,
     entity::part::Part,
@@ -26,7 +32,15 @@ use sip_domain::{
         WorkOrderAssignment, AssigneeType, AssignmentRole, AssignmentStatus, WorkOrderStatusHistory,
     },
     error::SipError,
-    id::{ActivityId, AIConversationId, AIMessageId, AIRetrievalTraceId, AssetId, AssetModelId, AssetTypeId, DocumentId, EmbeddingRecordId, InspectionId, LocationId, ManufacturerId, OrganizationId, PartId, PartUsageId, ScheduleId, TeamId, UserId, WorkOrderId, WorkOrderAssignmentId, WorkOrderStatusHistoryId},
+    id::{
+        ActivityId, AIConversationId, AIMessageId, AIRetrievalTraceId, AssetId, AssetModelId,
+        AssetTypeId, DocumentId, EmbeddingRecordId, InspectionId, LocationId, ManufacturerId,
+        MigrationBatchId, MigrationCheckpointId, MigrationDuplicateCandidateId,
+        MigrationExternalIdMapId, MigrationFieldMappingId, MigrationImportResultId, MigrationJobId,
+        MigrationRunId, MigrationSourceRecordId, MigrationStagedRecordId,
+        MigrationValidationIssueId, OrganizationId, PartId, PartUsageId, ScheduleId, TeamId,
+        UserId, WorkOrderId, WorkOrderAssignmentId, WorkOrderStatusHistoryId,
+    },
     repository::{ActivityRepository, AIConversationRepository, AssetRepository, DocumentRepository, EmbeddingRecordRepository, InspectionRepository, PartRepository, ScheduleRepository, WorkOrderRepository, WorkOrderAssignmentRepository, PartUsageRepository, WorkOrderStatusHistoryRepository},
     tenant::TenantContext,
 };
@@ -2812,5 +2826,955 @@ impl EmbeddingRecordRepository for PgEmbeddingRecordRepository {
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(())
+    }
+}
+
+// ── Migration Repository ──
+
+#[derive(Debug, Clone)]
+pub struct PgMigrationRepository {
+    pool: PgPool,
+}
+
+impl PgMigrationRepository {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    pub async fn create_job(
+        &self,
+        ctx: &TenantContext,
+        job: &MigrationJob,
+    ) -> Result<MigrationJob, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO migration_jobs (id, organization_id, name, description, source_system, source_object_type, status, source_record_count, valid_record_count, imported_record_count, error_count, created_by, metadata, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)"
+        )
+        .bind(Uuid::from(job.id))
+        .bind(Uuid::from(job.organization_id))
+        .bind(&job.name)
+        .bind(&job.description)
+        .bind(&job.source_system)
+        .bind(&job.source_object_type)
+        .bind(format!("{:?}", job.status).to_uppercase())
+        .bind(job.source_record_count)
+        .bind(job.valid_record_count)
+        .bind(job.imported_record_count)
+        .bind(job.error_count)
+        .bind(Uuid::from(job.created_by))
+        .bind(&job.metadata)
+        .bind(job.created_at)
+        .bind(job.updated_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(job.clone())
+    }
+
+    pub async fn get_job(
+        &self,
+        ctx: &TenantContext,
+        id: MigrationJobId,
+    ) -> Result<Option<MigrationJob>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row = sqlx::query_as::<_, MigrationJobRow>(
+            "SELECT * FROM migration_jobs WHERE id = $1 AND organization_id = $2"
+        )
+        .bind(Uuid::from(id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(row.map(map_migration_job_row))
+    }
+
+    pub async fn list_jobs(
+        &self,
+        ctx: &TenantContext,
+    ) -> Result<Vec<MigrationJob>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, MigrationJobRow>(
+            "SELECT * FROM migration_jobs WHERE organization_id = $1 ORDER BY created_at DESC LIMIT 200"
+        )
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_migration_job_row).collect())
+    }
+
+    pub async fn update_job_status(
+        &self,
+        ctx: &TenantContext,
+        id: MigrationJobId,
+        status: MigrationJobStatus,
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "UPDATE migration_jobs SET status = $1, updated_at = NOW() WHERE id = $2 AND organization_id = $3"
+        )
+        .bind(format!("{:?}", status).to_uppercase())
+        .bind(Uuid::from(id))
+        .bind(Uuid::from(ctx.organization_id))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn update_job_counts(
+        &self,
+        ctx: &TenantContext,
+        id: MigrationJobId,
+        source_record_count: i32,
+        valid_record_count: i32,
+        imported_record_count: i32,
+        error_count: i32,
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "UPDATE migration_jobs SET source_record_count = $1, valid_record_count = $2, imported_record_count = $3, error_count = $4, updated_at = NOW() WHERE id = $5 AND organization_id = $6"
+        )
+        .bind(source_record_count)
+        .bind(valid_record_count)
+        .bind(imported_record_count)
+        .bind(error_count)
+        .bind(Uuid::from(id))
+        .bind(Uuid::from(ctx.organization_id))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn create_source_records(
+        &self,
+        ctx: &TenantContext,
+        records: &[MigrationSourceRecord],
+    ) -> Result<Vec<MigrationSourceRecord>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        for r in records {
+            sqlx::query(
+                "INSERT INTO migration_source_records (id, organization_id, job_id, batch_id, external_id, source_object_type, raw_data, status, row_number, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
+            )
+            .bind(Uuid::from(r.id))
+            .bind(Uuid::from(r.organization_id))
+            .bind(Uuid::from(r.job_id))
+            .bind(r.batch_id.map(Uuid::from))
+            .bind(&r.external_id)
+            .bind(&r.source_object_type)
+            .bind(&r.raw_data)
+            .bind(&r.status)
+            .bind(r.row_number)
+            .bind(r.created_at)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        }
+        Ok(records.to_vec())
+    }
+
+    pub async fn get_source_records(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationSourceRecord>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, MigrationSourceRecordRow>(
+            "SELECT * FROM migration_source_records WHERE job_id = $1 AND organization_id = $2 ORDER BY row_number LIMIT 10000"
+        )
+        .bind(Uuid::from(job_id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_migration_source_record_row).collect())
+    }
+
+    pub async fn create_staged_records(
+        &self,
+        ctx: &TenantContext,
+        records: &[MigrationStagedRecord],
+    ) -> Result<Vec<MigrationStagedRecord>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        for r in records {
+            sqlx::query(
+                "INSERT INTO migration_staged_records (id, organization_id, job_id, source_record_id, target_entity_type, canonical_data, status, validation_errors, created_at, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
+            )
+            .bind(Uuid::from(r.id))
+            .bind(Uuid::from(r.organization_id))
+            .bind(Uuid::from(r.job_id))
+            .bind(Uuid::from(r.source_record_id))
+            .bind(&r.target_entity_type)
+            .bind(&r.canonical_data)
+            .bind(&r.status)
+            .bind(&r.validation_errors)
+            .bind(r.created_at)
+            .bind(r.updated_at)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        }
+        Ok(records.to_vec())
+    }
+
+    pub async fn get_staged_records(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationStagedRecord>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, MigrationStagedRecordRow>(
+            "SELECT * FROM migration_staged_records WHERE job_id = $1 AND organization_id = $2 ORDER BY created_at LIMIT 10000"
+        )
+        .bind(Uuid::from(job_id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_migration_staged_record_row).collect())
+    }
+
+    pub async fn update_staged_record_status(
+        &self,
+        ctx: &TenantContext,
+        id: MigrationStagedRecordId,
+        status: &str,
+        validation_errors: Option<serde_json::Value>,
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "UPDATE migration_staged_records SET status = $1, validation_errors = $2, updated_at = NOW() WHERE id = $3 AND organization_id = $4"
+        )
+        .bind(status)
+        .bind(&validation_errors)
+        .bind(Uuid::from(id))
+        .bind(Uuid::from(ctx.organization_id))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn save_mappings(
+        &self,
+        ctx: &TenantContext,
+        mappings: &[MigrationFieldMapping],
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        for m in mappings {
+            sqlx::query(
+                "INSERT INTO migration_field_mappings (id, organization_id, job_id, target_entity_type, source_field, target_field, transform_expression, default_value, is_required, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                 ON CONFLICT (job_id, target_entity_type, source_field) DO UPDATE SET target_field = $6, transform_expression = $7, default_value = $8, is_required = $9"
+            )
+            .bind(Uuid::from(m.id))
+            .bind(Uuid::from(m.organization_id))
+            .bind(Uuid::from(m.job_id))
+            .bind(&m.target_entity_type)
+            .bind(&m.source_field)
+            .bind(&m.target_field)
+            .bind(&m.transform_expression)
+            .bind(&m.default_value)
+            .bind(m.is_required)
+            .bind(m.created_at)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        }
+        Ok(())
+    }
+
+    pub async fn get_mappings(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationFieldMapping>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, MigrationFieldMappingRow>(
+            "SELECT * FROM migration_field_mappings WHERE job_id = $1 AND organization_id = $2 ORDER BY target_entity_type, source_field"
+        )
+        .bind(Uuid::from(job_id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_migration_field_mapping_row).collect())
+    }
+
+    pub async fn create_import_result(
+        &self,
+        ctx: &TenantContext,
+        result: &MigrationImportResult,
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO migration_import_results (id, organization_id, job_id, run_id, staged_record_id, sip_entity_type, sip_entity_id, action, error_message, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
+        )
+        .bind(Uuid::from(result.id))
+        .bind(Uuid::from(result.organization_id))
+        .bind(Uuid::from(result.job_id))
+        .bind(Uuid::from(result.run_id))
+        .bind(Uuid::from(result.staged_record_id))
+        .bind(&result.sip_entity_type)
+        .bind(result.sip_entity_id)
+        .bind(&result.action)
+        .bind(&result.error_message)
+        .bind(result.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn get_import_results(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationImportResult>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, MigrationImportResultRow>(
+            "SELECT * FROM migration_import_results WHERE job_id = $1 AND organization_id = $2 ORDER BY created_at"
+        )
+        .bind(Uuid::from(job_id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_migration_import_result_row).collect())
+    }
+
+    pub async fn create_external_id_map(
+        &self,
+        ctx: &TenantContext,
+        entry: &MigrationExternalIdMap,
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO migration_external_id_maps (id, organization_id, job_id, run_id, source_system, source_object_type, source_external_id, sip_entity_type, sip_entity_id, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             ON CONFLICT (source_system, source_object_type, source_external_id, organization_id) DO UPDATE SET sip_entity_id = $9"
+        )
+        .bind(Uuid::from(entry.id))
+        .bind(Uuid::from(entry.organization_id))
+        .bind(Uuid::from(entry.job_id))
+        .bind(Uuid::from(entry.run_id))
+        .bind(&entry.source_system)
+        .bind(&entry.source_object_type)
+        .bind(&entry.source_external_id)
+        .bind(&entry.sip_entity_type)
+        .bind(entry.sip_entity_id)
+        .bind(entry.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn lookup_external_id(
+        &self,
+        ctx: &TenantContext,
+        source_system: &str,
+        source_object_type: &str,
+        source_external_id: &str,
+    ) -> Result<Option<Uuid>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT sip_entity_id FROM migration_external_id_maps WHERE organization_id = $1 AND source_system = $2 AND source_object_type = $3 AND source_external_id = $4"
+        )
+        .bind(Uuid::from(ctx.organization_id))
+        .bind(source_system)
+        .bind(source_object_type)
+        .bind(source_external_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(row.map(|r| r.0))
+    }
+
+    pub async fn get_external_id_maps(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationExternalIdMap>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, MigrationExternalIdMapRow>(
+            "SELECT * FROM migration_external_id_maps WHERE job_id = $1 AND organization_id = $2 ORDER BY source_object_type, source_external_id"
+        )
+        .bind(Uuid::from(job_id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_migration_external_id_map_row).collect())
+    }
+
+    pub async fn create_run(
+        &self,
+        ctx: &TenantContext,
+        run: &MigrationRun,
+    ) -> Result<MigrationRun, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO migration_runs (id, organization_id, job_id, run_type, status, records_processed, records_created, records_updated, records_skipped, records_failed, started_at, completed_at, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"
+        )
+        .bind(Uuid::from(run.id))
+        .bind(Uuid::from(run.organization_id))
+        .bind(Uuid::from(run.job_id))
+        .bind(format!("{:?}", run.run_type).to_uppercase())
+        .bind(format!("{:?}", run.status).to_uppercase())
+        .bind(run.records_processed)
+        .bind(run.records_created)
+        .bind(run.records_updated)
+        .bind(run.records_skipped)
+        .bind(run.records_failed)
+        .bind(run.started_at)
+        .bind(run.completed_at)
+        .bind(run.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(run.clone())
+    }
+
+    pub async fn update_run(
+        &self,
+        ctx: &TenantContext,
+        run: &MigrationRun,
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "UPDATE migration_runs SET status = $1, records_processed = $2, records_created = $3, records_updated = $4, records_skipped = $5, records_failed = $6, started_at = $7, completed_at = $8 WHERE id = $9 AND organization_id = $10"
+        )
+        .bind(format!("{:?}", run.status).to_uppercase())
+        .bind(run.records_processed)
+        .bind(run.records_created)
+        .bind(run.records_updated)
+        .bind(run.records_skipped)
+        .bind(run.records_failed)
+        .bind(run.started_at)
+        .bind(run.completed_at)
+        .bind(Uuid::from(run.id))
+        .bind(Uuid::from(ctx.organization_id))
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn create_batch(
+        &self,
+        ctx: &TenantContext,
+        batch: &MigrationBatch,
+    ) -> Result<MigrationBatch, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO migration_batches (id, organization_id, job_id, batch_number, record_count, status, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (job_id, batch_number) DO NOTHING"
+        )
+        .bind(Uuid::from(batch.id))
+        .bind(Uuid::from(batch.organization_id))
+        .bind(Uuid::from(batch.job_id))
+        .bind(batch.batch_number)
+        .bind(batch.record_count)
+        .bind(&batch.status)
+        .bind(batch.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(batch.clone())
+    }
+
+    pub async fn create_validation_issues(
+        &self,
+        ctx: &TenantContext,
+        issues: &[MigrationValidationIssue],
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        for i in issues {
+            sqlx::query(
+                "INSERT INTO migration_validation_issues (id, organization_id, job_id, staged_record_id, severity, field, message, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
+            )
+            .bind(Uuid::from(i.id))
+            .bind(Uuid::from(i.organization_id))
+            .bind(Uuid::from(i.job_id))
+            .bind(Uuid::from(i.staged_record_id))
+            .bind(&i.severity)
+            .bind(&i.field)
+            .bind(&i.message)
+            .bind(i.created_at)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        }
+        Ok(())
+    }
+
+    pub async fn get_validation_issues(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationValidationIssue>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, MigrationValidationIssueRow>(
+            "SELECT * FROM migration_validation_issues WHERE job_id = $1 AND organization_id = $2 ORDER BY severity, created_at"
+        )
+        .bind(Uuid::from(job_id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_migration_validation_issue_row).collect())
+    }
+
+    pub async fn create_duplicate_candidates(
+        &self,
+        ctx: &TenantContext,
+        candidates: &[MigrationDuplicateCandidate],
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        for c in candidates {
+            sqlx::query(
+                "INSERT INTO migration_duplicate_candidates (id, organization_id, job_id, staged_record_id, sip_entity_type, sip_entity_id, confidence_score, match_reason, status, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
+            )
+            .bind(Uuid::from(c.id))
+            .bind(Uuid::from(c.organization_id))
+            .bind(Uuid::from(c.job_id))
+            .bind(Uuid::from(c.staged_record_id))
+            .bind(&c.sip_entity_type)
+            .bind(c.sip_entity_id)
+            .bind(c.confidence_score)
+            .bind(&c.match_reason)
+            .bind(&c.status)
+            .bind(c.created_at)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        }
+        Ok(())
+    }
+
+    pub async fn get_duplicate_candidates(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationDuplicateCandidate>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, MigrationDuplicateCandidateRow>(
+            "SELECT * FROM migration_duplicate_candidates WHERE job_id = $1 AND organization_id = $2 ORDER BY confidence_score DESC"
+        )
+        .bind(Uuid::from(job_id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_migration_duplicate_candidate_row).collect())
+    }
+
+    pub async fn create_checkpoint(
+        &self,
+        ctx: &TenantContext,
+        checkpoint: &MigrationCheckpoint,
+    ) -> Result<(), SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO migration_checkpoints (id, organization_id, job_id, run_id, checkpoint_type, state_data, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)"
+        )
+        .bind(Uuid::from(checkpoint.id))
+        .bind(Uuid::from(checkpoint.organization_id))
+        .bind(Uuid::from(checkpoint.job_id))
+        .bind(Uuid::from(checkpoint.run_id))
+        .bind(&checkpoint.checkpoint_type)
+        .bind(&checkpoint.state_data)
+        .bind(checkpoint.created_at)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(())
+    }
+
+    pub async fn get_checkpoints(
+        &self,
+        ctx: &TenantContext,
+        job_id: MigrationJobId,
+    ) -> Result<Vec<MigrationCheckpoint>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, MigrationCheckpointRow>(
+            "SELECT * FROM migration_checkpoints WHERE job_id = $1 AND organization_id = $2 ORDER BY created_at"
+        )
+        .bind(Uuid::from(job_id))
+        .bind(Uuid::from(ctx.organization_id))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_migration_checkpoint_row).collect())
+    }
+}
+
+// ── Migration Row Types and Mappers ──
+
+#[derive(FromRow)]
+struct MigrationJobRow {
+    id: Uuid,
+    organization_id: Uuid,
+    name: String,
+    description: Option<String>,
+    source_system: String,
+    source_object_type: String,
+    status: String,
+    source_record_count: i32,
+    valid_record_count: i32,
+    imported_record_count: i32,
+    error_count: i32,
+    created_by: Uuid,
+    metadata: Option<serde_json::Value>,
+    created_at: chrono::DateTime<Utc>,
+    updated_at: chrono::DateTime<Utc>,
+}
+
+fn map_migration_job_row(r: MigrationJobRow) -> MigrationJob {
+    MigrationJob {
+        id: MigrationJobId::from(r.id),
+        organization_id: OrganizationId::from(r.organization_id),
+        name: r.name,
+        description: r.description,
+        source_system: r.source_system,
+        source_object_type: r.source_object_type,
+        status: match r.status.as_str() {
+            "DRAFT" => MigrationJobStatus::Draft,
+            "UPLOADED" => MigrationJobStatus::Uploaded,
+            "MAPPED" => MigrationJobStatus::Mapped,
+            "VALIDATED" => MigrationJobStatus::Validated,
+            "READY_FOR_IMPORT" => MigrationJobStatus::ReadyForImport,
+            "IMPORTING" => MigrationJobStatus::Importing,
+            "COMPLETED" => MigrationJobStatus::Completed,
+            "COMPLETED_WITH_WARNINGS" => MigrationJobStatus::CompletedWithWarnings,
+            "FAILED" => MigrationJobStatus::Failed,
+            "CANCELLED" => MigrationJobStatus::Cancelled,
+            _ => MigrationJobStatus::RolledBack,
+        },
+        source_record_count: r.source_record_count,
+        valid_record_count: r.valid_record_count,
+        imported_record_count: r.imported_record_count,
+        error_count: r.error_count,
+        created_by: UserId::from(r.created_by),
+        metadata: r.metadata,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+    }
+}
+
+#[derive(FromRow)]
+struct MigrationSourceRecordRow {
+    id: Uuid,
+    organization_id: Uuid,
+    job_id: Uuid,
+    batch_id: Option<Uuid>,
+    external_id: Option<String>,
+    source_object_type: String,
+    raw_data: serde_json::Value,
+    status: String,
+    row_number: Option<i32>,
+    created_at: chrono::DateTime<Utc>,
+}
+
+fn map_migration_source_record_row(r: MigrationSourceRecordRow) -> MigrationSourceRecord {
+    MigrationSourceRecord {
+        id: MigrationSourceRecordId::from(r.id),
+        organization_id: OrganizationId::from(r.organization_id),
+        job_id: MigrationJobId::from(r.job_id),
+        batch_id: r.batch_id.map(MigrationBatchId::from),
+        external_id: r.external_id,
+        source_object_type: r.source_object_type,
+        raw_data: r.raw_data,
+        status: r.status,
+        row_number: r.row_number,
+        created_at: r.created_at,
+    }
+}
+
+#[derive(FromRow)]
+struct MigrationStagedRecordRow {
+    id: Uuid,
+    organization_id: Uuid,
+    job_id: Uuid,
+    source_record_id: Uuid,
+    target_entity_type: String,
+    canonical_data: serde_json::Value,
+    status: String,
+    validation_errors: Option<serde_json::Value>,
+    created_at: chrono::DateTime<Utc>,
+    updated_at: chrono::DateTime<Utc>,
+}
+
+fn map_migration_staged_record_row(r: MigrationStagedRecordRow) -> MigrationStagedRecord {
+    MigrationStagedRecord {
+        id: MigrationStagedRecordId::from(r.id),
+        organization_id: OrganizationId::from(r.organization_id),
+        job_id: MigrationJobId::from(r.job_id),
+        source_record_id: MigrationSourceRecordId::from(r.source_record_id),
+        target_entity_type: r.target_entity_type,
+        canonical_data: r.canonical_data,
+        status: r.status,
+        validation_errors: r.validation_errors,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+    }
+}
+
+#[derive(FromRow)]
+struct MigrationFieldMappingRow {
+    id: Uuid,
+    organization_id: Uuid,
+    job_id: Uuid,
+    target_entity_type: String,
+    source_field: String,
+    target_field: String,
+    transform_expression: Option<String>,
+    default_value: Option<String>,
+    is_required: bool,
+    created_at: chrono::DateTime<Utc>,
+}
+
+fn map_migration_field_mapping_row(r: MigrationFieldMappingRow) -> MigrationFieldMapping {
+    MigrationFieldMapping {
+        id: MigrationFieldMappingId::from(r.id),
+        organization_id: OrganizationId::from(r.organization_id),
+        job_id: MigrationJobId::from(r.job_id),
+        target_entity_type: r.target_entity_type,
+        source_field: r.source_field,
+        target_field: r.target_field,
+        transform_expression: r.transform_expression,
+        default_value: r.default_value,
+        is_required: r.is_required,
+        created_at: r.created_at,
+    }
+}
+
+#[derive(FromRow)]
+struct MigrationImportResultRow {
+    id: Uuid,
+    organization_id: Uuid,
+    job_id: Uuid,
+    run_id: Uuid,
+    staged_record_id: Uuid,
+    sip_entity_type: String,
+    sip_entity_id: Option<Uuid>,
+    action: String,
+    error_message: Option<String>,
+    created_at: chrono::DateTime<Utc>,
+}
+
+fn map_migration_import_result_row(r: MigrationImportResultRow) -> MigrationImportResult {
+    MigrationImportResult {
+        id: MigrationImportResultId::from(r.id),
+        organization_id: OrganizationId::from(r.organization_id),
+        job_id: MigrationJobId::from(r.job_id),
+        run_id: MigrationRunId::from(r.run_id),
+        staged_record_id: MigrationStagedRecordId::from(r.staged_record_id),
+        sip_entity_type: r.sip_entity_type,
+        sip_entity_id: r.sip_entity_id,
+        action: r.action,
+        error_message: r.error_message,
+        created_at: r.created_at,
+    }
+}
+
+#[derive(FromRow)]
+struct MigrationExternalIdMapRow {
+    id: Uuid,
+    organization_id: Uuid,
+    job_id: Uuid,
+    run_id: Uuid,
+    source_system: String,
+    source_object_type: String,
+    source_external_id: String,
+    sip_entity_type: String,
+    sip_entity_id: Uuid,
+    created_at: chrono::DateTime<Utc>,
+}
+
+fn map_migration_external_id_map_row(r: MigrationExternalIdMapRow) -> MigrationExternalIdMap {
+    MigrationExternalIdMap {
+        id: MigrationExternalIdMapId::from(r.id),
+        organization_id: OrganizationId::from(r.organization_id),
+        job_id: MigrationJobId::from(r.job_id),
+        run_id: MigrationRunId::from(r.run_id),
+        source_system: r.source_system,
+        source_object_type: r.source_object_type,
+        source_external_id: r.source_external_id,
+        sip_entity_type: r.sip_entity_type,
+        sip_entity_id: r.sip_entity_id,
+        created_at: r.created_at,
+    }
+}
+
+#[derive(FromRow)]
+struct MigrationValidationIssueRow {
+    id: Uuid,
+    organization_id: Uuid,
+    job_id: Uuid,
+    staged_record_id: Uuid,
+    severity: String,
+    field: String,
+    message: String,
+    created_at: chrono::DateTime<Utc>,
+}
+
+fn map_migration_validation_issue_row(r: MigrationValidationIssueRow) -> MigrationValidationIssue {
+    MigrationValidationIssue {
+        id: MigrationValidationIssueId::from(r.id),
+        organization_id: OrganizationId::from(r.organization_id),
+        job_id: MigrationJobId::from(r.job_id),
+        staged_record_id: MigrationStagedRecordId::from(r.staged_record_id),
+        severity: r.severity,
+        field: r.field,
+        message: r.message,
+        created_at: r.created_at,
+    }
+}
+
+#[derive(FromRow)]
+struct MigrationDuplicateCandidateRow {
+    id: Uuid,
+    organization_id: Uuid,
+    job_id: Uuid,
+    staged_record_id: Uuid,
+    sip_entity_type: String,
+    sip_entity_id: Uuid,
+    confidence_score: f64,
+    match_reason: String,
+    status: String,
+    created_at: chrono::DateTime<Utc>,
+}
+
+fn map_migration_duplicate_candidate_row(
+    r: MigrationDuplicateCandidateRow,
+) -> MigrationDuplicateCandidate {
+    MigrationDuplicateCandidate {
+        id: MigrationDuplicateCandidateId::from(r.id),
+        organization_id: OrganizationId::from(r.organization_id),
+        job_id: MigrationJobId::from(r.job_id),
+        staged_record_id: MigrationStagedRecordId::from(r.staged_record_id),
+        sip_entity_type: r.sip_entity_type,
+        sip_entity_id: r.sip_entity_id,
+        confidence_score: r.confidence_score,
+        match_reason: r.match_reason,
+        status: r.status,
+        created_at: r.created_at,
+    }
+}
+
+#[derive(FromRow)]
+struct MigrationCheckpointRow {
+    id: Uuid,
+    organization_id: Uuid,
+    job_id: Uuid,
+    run_id: Uuid,
+    checkpoint_type: String,
+    state_data: serde_json::Value,
+    created_at: chrono::DateTime<Utc>,
+}
+
+fn map_migration_checkpoint_row(r: MigrationCheckpointRow) -> MigrationCheckpoint {
+    MigrationCheckpoint {
+        id: MigrationCheckpointId::from(r.id),
+        organization_id: OrganizationId::from(r.organization_id),
+        job_id: MigrationJobId::from(r.job_id),
+        run_id: MigrationRunId::from(r.run_id),
+        checkpoint_type: r.checkpoint_type,
+        state_data: r.state_data,
+        created_at: r.created_at,
+    }
+}
+
+#[cfg(test)]
+mod migration_repo_tests {
+    use super::*;
+
+    #[test]
+    fn test_map_migration_job_row() {
+        let row = MigrationJobRow {
+            id: Uuid::new_v4(),
+            organization_id: Uuid::new_v4(),
+            name: "Test Job".into(),
+            description: Some("Test description".into()),
+            source_system: "Maximo".into(),
+            source_object_type: "asset".into(),
+            status: "DRAFT".into(),
+            source_record_count: 100,
+            valid_record_count: 90,
+            imported_record_count: 0,
+            error_count: 0,
+            created_by: Uuid::new_v4(),
+            metadata: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        let job = map_migration_job_row(row);
+        assert_eq!(job.name, "Test Job");
+        assert_eq!(job.status, MigrationJobStatus::Draft);
+        assert_eq!(job.source_record_count, 100);
     }
 }

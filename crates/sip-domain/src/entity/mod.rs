@@ -15,6 +15,7 @@ pub mod idempotency_key;
 pub mod inspection;
 pub mod location;
 pub mod manufacturer;
+pub mod migration;
 pub mod organization;
 pub mod organization_settings;
 pub mod outbox;

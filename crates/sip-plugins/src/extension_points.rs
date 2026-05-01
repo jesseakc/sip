@@ -200,6 +200,47 @@ pub fn known_extension_points() -> Vec<ExtensionPointDef> {
             description: "Action buttons on user detail page".into(),
             plugin_type: "ui".into(),
         },
+        // ── Migration ──
+        ExtensionPointDef {
+            id: "migration.source_connector".into(),
+            description: "Connects to external source systems for data extraction".into(),
+            plugin_type: "functional".into(),
+        },
+        ExtensionPointDef {
+            id: "migration.file_parser".into(),
+            description: "Parses file formats (CSV, JSON, XML) into source records".into(),
+            plugin_type: "functional".into(),
+        },
+        ExtensionPointDef {
+            id: "migration.field_mapper".into(),
+            description: "Maps source fields to canonical SIP fields".into(),
+            plugin_type: "functional".into(),
+        },
+        ExtensionPointDef {
+            id: "migration.transformer".into(),
+            description: "Transforms field values during mapping (e.g. date format, lookup)".into(),
+            plugin_type: "functional".into(),
+        },
+        ExtensionPointDef {
+            id: "migration.validator".into(),
+            description: "Validates staged records against business rules".into(),
+            plugin_type: "functional".into(),
+        },
+        ExtensionPointDef {
+            id: "migration.duplicate_resolver".into(),
+            description: "Resolves duplicate candidates detected during import".into(),
+            plugin_type: "functional".into(),
+        },
+        ExtensionPointDef {
+            id: "migration.post_import_hook".into(),
+            description: "Hook called after each import run completes".into(),
+            plugin_type: "functional".into(),
+        },
+        ExtensionPointDef {
+            id: "migration.report_generator".into(),
+            description: "Generates formatted migration reports".into(),
+            plugin_type: "functional".into(),
+        },
     ]
 }
 

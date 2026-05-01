@@ -329,6 +329,7 @@ The seed migration creates a complete demo organization. Use these credentials:
 | 16 | **Docker Compose deployment** | 6 services. Auto-migration. Ollama model pull. Health checks on all services. |
 | 17 | **Seed data** | Demo org, 35 assets, 50 work orders across all states, 8 users across all roles, 2 teams, 5 schedules, 2 inspections, 3 documents, AI conversation. |
 | 18 | **Plugin framework** | TOML manifest registry. UI/functional/hybrid plugin types. First-party frontend shipped as `sip-core-ui` plugin. Plugin discovery API endpoints. Sidebar navigation driven by plugin registry. Declarative extension points (35 defined). Manifest validation (unique IDs, semver, dependency checks, navigation validation). |
+| 19 | **Migration Core** | Full migration pipeline: 11 entities, canonical import DTOs, 16 API endpoints, field mappings, source→SIP external ID mapping, dry-run/import/rollback, 8 plugin extension points. RLS on all tables. Gated behind plugins feature flag. |
 
 ### 🚧 Deferred to Later Phases
 
