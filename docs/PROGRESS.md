@@ -146,7 +146,7 @@
 | D22 | Optional external event bus (NATS JetStream) | ⬜ |
 | D23 | Basic automation engine | ⬜ |
 | D24 | API key scoping improvements | ⬜ |
-| D25 | Advanced SIPmem verification (VerificationTrace, VerifiedClaim) | 🚧 (VerificationTrace table exists, basic verification done) |
+| D25 | Advanced SIPmem verification (VerificationTrace, VerifiedClaim) | ✅ (SIPmem core rebuilt: evidence engine with typed memory, fact ledger, verification pipeline, 10 recipes, 50 tests) |
 | D26 | Advanced SIPmem retrieval (RetrievalPlan, RetrievalStep) | ⬜ |
 | — | **Migration Core Framework** (11 entities, 16 API endpoints, 8 plugin extension points) | ✅ |
 | — | Per-tenant LLM config and fallback chains | ⬜ |

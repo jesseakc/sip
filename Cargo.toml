@@ -19,6 +19,8 @@ members = [
     "crates/sip-observability",
     "crates/sip-config",
     "crates/sip-cli",
+    "crates/sipmem-core",
+    "crates/sipmem-adapters",
 ]
 resolver = "2"
 
@@ -96,3 +98,5 @@ sip-search = { path = "crates/sip-search" }
 sip-observability = { path = "crates/sip-observability" }
 sip-config = { path = "crates/sip-config" }
 sip-cli = { path = "crates/sip-cli" }
+sipmem-core = { path = "crates/sipmem-core" }
+sipmem-adapters = { path = "crates/sipmem-adapters" }
