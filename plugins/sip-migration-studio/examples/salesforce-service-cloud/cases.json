@@ -1,0 +1,36 @@
+[
+  {
+    "external_id": "SF-50011001",
+    "title": "AC unit not cooling properly",
+    "description": "Customer reports AC unit is blowing warm air. Thermostat set to 72 but room temp is 82.",
+    "asset_name": "HVAC Unit A-1",
+    "priority": "high",
+    "type": "corrective",
+    "status": "open",
+    "due_date": "2026-05-05",
+    "resolution_notes": null
+  },
+  {
+    "external_id": "SF-50011002",
+    "title": "Conveyor belt making loud noise",
+    "description": "Assembly line conveyor C-3 making grinding noise. Suspect bearing failure.",
+    "asset_name": "Conveyor Belt C-3",
+    "priority": "critical",
+    "type": "corrective",
+    "status": "open",
+    "due_date": "2026-04-28",
+    "resolution_notes": null
+  },
+  {
+    "external_id": "SF-50010987",
+    "title": "Quarterly generator test",
+    "description": "Scheduled quarterly generator load test. Must run for 2 hours under load.",
+    "asset_name": "Generator GEN-1",
+    "priority": "medium",
+    "type": "preventive",
+    "status": "completed",
+    "due_date": "2026-04-15",
+    "completed_date": "2026-04-14",
+    "resolution_notes": "Generator passed all tests. Oil changed, filters replaced."
+  }
+]

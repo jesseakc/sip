@@ -21,6 +21,7 @@ import {
   Calendar,
   ClipboardCheck,
   Wrench,
+  GitBranch,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -56,6 +57,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   'user': User,
   'file-text': FileText,
   'settings': Settings,
+  'git-branch': GitBranch,
 };
 
 function resolveIcon(iconName: string | null | undefined): LucideIcon {

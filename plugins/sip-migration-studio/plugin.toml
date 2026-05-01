@@ -1,0 +1,202 @@
+# sip-migration-studio — SIP Data Migration Plugin
+#
+# A hybrid plugin that imports customer data from external CRMs and CMMS
+# systems into SIP through the Migration Core Framework.
+#
+# Plugin type: hybrid (UI + backend)
+# UI: Web wizard for job creation, field mapping, validation, dry run, execution
+# Backend: CSV/JSON parsing, schema detection, field mapping, transform engine,
+#          validation engine, duplicate detection, import execution, reporting
+
+# ── Identity ──────────────────────────────────────────────────────────────────
+id = "sip-migration-studio"
+name = "SIP Migration Studio"
+version = "0.1.0"
+description = "Import customer data from external CRMs and CMMS systems. Supports CSV, JSON, Salesforce, ServiceNow, Maximo, and custom connectors."
+author = "SIP Project"
+license = "AGPL-3.0-or-later"
+sip_version = "0.1.0"
+
+# ── Type ──────────────────────────────────────────────────────────────────────
+plugin_type = "hybrid"
+enabled_by_default = true
+
+# ── Dependencies ──────────────────────────────────────────────────────────────
+dependencies = ["sip-core-ui"]
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+permissions = [
+    "migration:create",
+    "migration:read",
+    "migration:map",
+    "migration:validate",
+    "migration:dry_run",
+    "migration:execute",
+    "migration:rollback",
+    "migration:delete",
+    "migration:view_raw_source",
+    "assets:read",
+    "work_orders:read",
+    "locations:read",
+    "parts:read",
+    "documents:read",
+]
+
+# ── Capabilities ──────────────────────────────────────────────────────────────
+capabilities = [
+    "csv_import",
+    "json_import",
+    "schema_detection",
+    "field_mapping",
+    "transform_engine",
+    "validation_engine",
+    "duplicate_detection",
+    "dry_run",
+    "resumable_import",
+    "external_id_preservation",
+    "import_reporting",
+]
+
+# ── UI Configuration ──────────────────────────────────────────────────────────
+[ui]
+kind = "web"
+framework = "nextjs"
+entrypoint = "/migration-studio"
+dev_url = "http://localhost:3000"
+production_mount = "/migration-studio"
+api_base_env = "NEXT_PUBLIC_API_URL"
+
+# ── Navigation ────────────────────────────────────────────────────────────────
+[[navigation]]
+id = "migration-studio"
+label = "Migration Studio"
+path = "/migration-studio"
+icon = "git-branch"
+permission = "migration:read"
+order = 45
+
+# ── Backend Configuration ─────────────────────────────────────────────────────
+[backend]
+api_routes = [
+    "/migration/jobs",
+    "/migration/jobs/{id}/files",
+    "/migration/jobs/{id}/detect-schema",
+    "/migration/jobs/{id}/preview",
+    "/migration/jobs/{id}/mapping",
+    "/migration/jobs/{id}/validate",
+    "/migration/jobs/{id}/dry-run",
+    "/migration/jobs/{id}/execute",
+    "/migration/jobs/{id}/report",
+    "/migration/templates",
+]
+
+[[backend.ai_tools]]
+id = "migration_assist_field_mapping"
+name = "Assist Field Mapping"
+description = "Given source field names and target SIP entity type, suggest the best field mapping."
+function = "assist_field_mapping"
+parameters = { type = "object", properties = { source_fields = { type = "array", items = { type = "string" } }, target_entity = { type = "string", enum = ["asset", "work_order", "location", "part", "document"] } } }
+
+[[backend.ai_tools]]
+id = "migration_validate_csv"
+name = "Validate CSV Import"
+description = "Parse a CSV header and detect potential issues before importing."
+function = "validate_csv_headers"
+parameters = { type = "object", properties = { headers = { type = "array", items = { type = "string" } }, target_entity = { type = "string" } } }
+
+# ── Resources ─────────────────────────────────────────────────────────────────
+[[resources]]
+id = "migration_job"
+label = "Migration Job"
+plural_label = "Migration Jobs"
+route_base = "/migration-studio"
+icon = "git-branch"
+
+[[resources.columns]]
+field = "name"
+label = "Name"
+sortable = true
+
+[[resources.columns]]
+field = "source_system"
+label = "Source System"
+sortable = true
+
+[[resources.columns]]
+field = "status"
+label = "Status"
+sortable = true
+
+[[resources.columns]]
+field = "source_record_count"
+label = "Records"
+sortable = true
+
+[[resources.columns]]
+field = "created_at"
+label = "Created"
+sortable = true
+
+[[resources.actions]]
+id = "view"
+label = "Open"
+permission = "migration:read"
+
+[[resources.actions]]
+id = "delete"
+label = "Delete"
+permission = "migration:delete"
+confirmation = "Delete this migration job?"
+
+# ── Extension Points ──────────────────────────────────────────────────────────
+[[extension_points]]
+id = "app.shell.sidebar.nav"
+type = "ui"
+
+[[extension_points]]
+id = "migration.source_connector"
+type = "functional"
+
+[[extension_points]]
+id = "migration.file_parser"
+type = "functional"
+
+[[extension_points]]
+id = "migration.field_mapper"
+type = "functional"
+
+[[extension_points]]
+id = "migration.transformer"
+type = "functional"
+
+[[extension_points]]
+id = "migration.validator"
+type = "functional"
+
+[[extension_points]]
+id = "migration.duplicate_resolver"
+type = "functional"
+
+[[extension_points]]
+id = "migration.post_import_hook"
+type = "functional"
+
+[[extension_points]]
+id = "migration.report_generator"
+type = "functional"
+
+[[extension_points]]
+id = "asset.detail.tabs"
+type = "ui"
+metadata = { tab_id = "import-history", label = "Import History", order = 100 }
+
+[[extension_points]]
+id = "settings.sections"
+type = "ui"
+metadata = { section_id = "migration-settings", label = "Migration", order = 200 }
+
+# ── Marketplace Metadata ──────────────────────────────────────────────────────
+[marketplace]
+category = "integration"
+tags = ["official", "migration", "import", "csv", "json", "salesforce", "servicenow", "maximo"]
+homepage = "https://github.com/jesseakc/sip"

@@ -138,7 +138,7 @@
 | # | Requirement | Status |
 |---|-------------|--------|
 | D16 | Plugin manifest and lifecycle foundation | ✅ (implemented early) |
-| D17 | Reference plugins (CSV import, dashboard) | ⬜ |
+| D17 | Reference plugins (CSV import, dashboard) | 🚧 (`sip-migration-studio` plugin built — CSV/JSON import, mapping wizard, dry run, execute UI) |
 | D18 | Basic UI extension points | ✅ (35 extension points defined) |
 | D19 | LLM provider abstraction (LiteLLM, per-tenant config) | 🚧 (provider trait done; per-tenant tbd) |
 | D20 | Improved RAG pipeline (re-ranking, hybrid search) | ⬜ |

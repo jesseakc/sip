@@ -1,0 +1,11 @@
+name,serial_number,description,status,criticality,purchase_date,warranty_expiry,location,tags
+HVAC Unit A-1,HVAC-A1-2023,Main building HVAC rooftop unit,operational,high,2023-01-15,2028-01-15,Main Building Rooftop,"hvac,critical"
+Conveyor Belt C-3,CB-C3-2022,Assembly line conveyor belt section 3,operational,medium,2022-06-01,2027-06-01,Assembly Floor,conveyor
+Pump P-12,P-P12-2024,Cooling water circulation pump,degraded,high,2024-03-10,2029-03-10,Pump Room B,"pump,cooling"
+Motor M-7,MOT-M7-2023,Drive motor for conveyor C-3,operational,medium,2023-09-20,2028-09-20,Assembly Floor,"motor,drive"
+Air Compressor AC-2,AC2-2024,Shop air compressor,maintenance,low,2024-01-05,2029-01-05,Maintenance Shop,compressor
+Generator GEN-1,GEN1-2022,Backup diesel generator,operational,high,2022-11-15,2027-11-15,Generator Room,"generator,backup"
+Chiller CH-3,CH3-2023,Process cooling chiller,operational,high,2023-05-20,2028-05-20,Chiller Plant,chiller
+Boiler B-1,BOIL-B1-2021,Main steam boiler,operational,high,2021-12-01,2026-12-01,Boiler Room,"boiler,steam"
+Transformer T-4,T-T4-2022,Main power transformer,operational,high,2022-08-10,2032-08-10,Electrical Room,"transformer,power"
+Air Handler AHU-5,AHU5-2024,Office area air handler,operational,medium,2024-02-01,2029-02-01,Office Wing,"hvac,air-handler"

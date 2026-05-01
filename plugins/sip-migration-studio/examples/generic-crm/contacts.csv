@@ -1,0 +1,7 @@
+first_name,last_name,email,phone,company,title,department,notes
+John,Smith,jsmith@acme.com,555-0100,Acme Corp,Facility Manager,Operations,Primary contact for all maintenance
+Sarah,Johnson,sjohnson@acme.com,555-0101,Acme Corp,Maintenance Supervisor,Maintenance,Schedules all preventive maintenance
+Mike,Brown,mbrown@globex.com,555-0200,Globex Inc,Site Manager,Operations,Manages Globex manufacturing site
+Lisa,Davis,ldavis@globex.com,555-0201,Globex Inc,Technician Lead,Maintenance,Senior technician
+Tom,Wilson,twilson@initech.com,555-0300,Initech,Operations Director,Operations,Head of facilities
+Anna,Martinez,amartinez@initech.com,555-0301,Initech,Procurement Manager,Purchasing,Handles parts and equipment orders
