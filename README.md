@@ -1,4 +1,4 @@
-<h1 align="center">SIP — Service Intelligence Platform</h1>
+<h1 align="center">SIP · Service Intelligence Platform</h1>
 
 <p align="center">
   <strong>The open-source, AI-native CMMS and asset CRM for the physical world</strong><br/>
@@ -41,9 +41,9 @@ SIP is also designed as **Harness-as-a-Service**: a structured, permission-aware
 
 ### Machine-readable before human-readable
 
-SIP starts with a **service-domain canonical model** — a cross-industry, structured representation of every asset, work order, repair decision, inspection finding, replacement part, and resolution note. This is not a passive ledger. It is a **structured maintenance substrate** that both humans and AI agents consume through the same public REST API.
+SIP starts with a **service-domain canonical model**: a cross-industry, structured representation of every asset, work order, repair decision, inspection finding, replacement part, and resolution note. This is not a passive ledger. It is a **structured maintenance substrate** that both humans and AI agents consume through the same public REST API.
 
-The principle is simple: if a human can see it, an AI must be able to query it — through the same endpoint, with the same auth, generating the same audit trail.
+The principle is simple: if a human can see it, an AI must be able to query it. Same endpoint, same auth, same audit trail.
 
 ### AI is not a feature. It's the data model.
 
@@ -51,7 +51,7 @@ SIP does not bolt AI onto a legacy schema. The data model itself is AI-native:
 
 - **Every entity is API-queryable.** Assets, work orders, schedules, inspections, parts, documents, and activities all have structured REST endpoints with consistent JSON schemas.
 - **Every state change is audited immutably.** Activity records track who did what, when, and why. AI agents are first-class users with traceable identities.
-- **Every AI answer is grounded.** SIPmem — SIP's hybrid memory system — enforces that answers cite retrievable source records. No hallucinated facts. No unsourced claims.
+- **Every AI answer is grounded.** SIPmem, SIP's hybrid memory system, enforces that answers cite retrievable source records. No hallucinated facts. No unsourced claims.
 - **AI retrieval enforces authorization.** The same RLS and RBAC that protect the API also govern what the AI can retrieve. An AI query from a technician never surfaces data from another organization, or data the technician lacks permission to see.
 
 ### SIPmem: hybrid memory for service intelligence
@@ -69,13 +69,13 @@ A retrieval router classifies each question into one of seven types (exact fact,
 
 ### Open source is a feature, not a tactic
 
-SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs to you. The business model is optional hosting and support — not data lock-in. Every feature available in a hosted version is available in the open-source version.
+SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs to you. The business model is optional hosting and support, not data lock-in. Every feature available in a hosted version is available in the open-source version.
 
 ### Built for the real world
 
-- **Cross-industry by design.** The schema lives in the database, not in the code. Asset types are JSON Schema documents. Any physical object — from a robotic arm to a dishwasher to a lawn — can be modeled without code changes.
+- **Cross-industry by design.** The schema lives in the database, not in the code. Asset types are JSON Schema documents. Any physical object can be modeled without code changes, from a robotic arm to a dishwasher to a lawn mower.
 - **Modular monolith.** 19 Rust crates with well-defined interface boundaries. Services extract only when there is a measurable bottleneck. Cargo feature flags let you compile only what you need.
-- **Single command deploy.** `docker compose up` brings up the full stack: API, frontend, PostgreSQL+pgvector, Redis, MinIO, and Ollama — with migrations applied and seed data loaded.
+- **Single command deploy.** `docker compose up` brings up the full stack: API, frontend, PostgreSQL+pgvector, Redis, MinIO, and Ollama. Migrations run automatically and seed data loads on first start.
 
 ---
 
@@ -83,7 +83,7 @@ SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs t
 
 ### Legacy CMMS: data silos that can't reason
 
-Every factory, hospital, fleet, building, and power plant relies on a **CMMS** (Computerized Maintenance Management System) to track assets, schedule preventive maintenance, and log work orders. The market for this software is $1.2 billion and growing at 9% CAGR — yet the dominant platforms (IBM Maximo, SAP PM, Oracle EAM) were architected decades ago. They share the same fundamental flaws:
+Every factory, hospital, fleet, building, and power plant relies on a **CMMS** (Computerized Maintenance Management System) to track assets, schedule preventive maintenance, and log work orders. The market for this software is $1.2 billion and growing at 9% CAGR. Yet the dominant platforms (IBM Maximo, SAP PM, Oracle EAM) were architected decades ago. They share the same fundamental flaws:
 
 | Problem | What It Means In Practice |
 |----------|---------------------------|
@@ -92,13 +92,13 @@ Every factory, hospital, fleet, building, and power plant relies on a **CMMS** (
 | **AI bolted on as marketing** | Legacy vendors add a "chat with your data" widget that RAGs over unstructured PDFs. No structured retrieval. No citations. No audit trail. No RBAC enforcement in the retrieval path. |
 | **Closed-source lock-in** | Maintenance data outlives the software vendor. Organizations risk data hostage situations. Switching costs are existential. |
 | **Reactive, not intelligent** | Work orders are logged after the fact. The question "what fixed this last time?" requires calling a senior technician, not querying a database. There is no compounding operational intelligence. |
-| **No agentic surface** | AI agents cannot create work orders, assign technicians, check inventory, or surface compliance gaps — because the platform has no structured, permissioned API for them to use. |
+| **No agentic surface** | AI agents cannot create work orders, assign technicians, check inventory, or surface compliance gaps. The platform has no structured, permissioned API for them to use. |
 
 ### Asset CRM: the missing category
 
 CRM (Customer Relationship Management) transformed sales and support by giving every customer a structured, queryable record with full interaction history. Salesforce built a $300 billion business on that insight. **But assets have no equivalent.**
 
-When a technician writes "replaced bearing, found inner race spalling due to contamination" in a work order, that note should become retrievable intelligence for every future query about that asset type. Instead, it disappears into a closed database. There is no asset CRM — no system that treats assets as first-class entities with a complete, queryable, AI-consumable operational history.
+When a technician writes "replaced bearing, found inner race spalling due to contamination" in a work order, that note should become retrievable intelligence for every future query about that asset type. Instead, it disappears into a closed database. There is no asset CRM: no system that treats assets as first-class entities with a complete, queryable, AI-consumable operational history.
 
 ### Why existing tools fall short
 
@@ -108,7 +108,7 @@ When a technician writes "replaced bearing, found inner race spalling due to con
 | **Mid-Market CMMS** | Fiix, MaintainX, UpKeep | Single-industry focus, closed-source, AI is a marketing afterthought |
 | **Open-Source CMMS** | openMAINT, Fracttal | No AI layer, no plugin ecosystem, limited adoption |
 | **Horizontal Tools** | Jira, ServiceNow, Monday.com | Not maintenance-native; work orders need the asset context that these tools lack |
-| **AI Wrappers** | CustomGPT, ChatPDF | Surface-level RAG over unstructured data — no permission model, no citation tracking, no audit trail, no state machine enforcement |
+| **AI Wrappers** | CustomGPT, ChatPDF | Surface-level RAG over unstructured data. No permission model, no citation tracking, no audit trail, no state machine enforcement. |
 
 ---
 
@@ -124,7 +124,7 @@ When a technician writes "replaced bearing, found inner race spalling due to con
 - [API Reference](#api-reference)
 - [Project Structure](#project-structure)
 - [Development](#development)
-- [SIPmem — Hybrid Memory System](#sipmem--hybrid-memory-system)
+- [SIPmem · Hybrid Memory System](#sipmem--hybrid-memory-system)
 - [Service Domain Model](#service-domain-model)
 - [Documentation](#documentation)
 - [License](#license)
@@ -182,7 +182,7 @@ The SIP architecture treats the platform as a **harness layer** between humans, 
 
 ### Plugin Architecture
 
-**The official SIP frontend is itself a UI plugin.** It is not a hardcoded special case — it ships as `sip-core-ui`, registered and discovered through the same plugin framework that future plugins will use.
+**The official SIP frontend is itself a UI plugin.** It is not a hardcoded special case. It ships as `sip-core-ui`, registered and discovered through the same plugin framework that future plugins will use.
 
 Plugins should extend SIP's **Harness-as-a-Service model** rather than bypass it. Functional plugins, UI plugins, migration plugins, automation plugins, and AI plugins all interact through documented APIs, shared permissions, event logs, and auditable service workflows. No plugin gets a back door.
 
@@ -208,17 +208,17 @@ plugins/
 
 📖 **Plugin Development Docs:**
 - [Plugin Architecture Overview](./docs/plugins/overview.md)
-- [Manifest Reference](./docs/plugins/manifest-reference.md) — every field in `plugin.toml`
-- [API Reference](./docs/plugins/api-reference.md) — plugin discovery endpoints
-- [Extension Points](./docs/plugins/extension-points.md) — 35 UI injection slots
-- [Examples](./docs/plugins/examples.md) — walkthroughs for common plugin types
+- [Manifest Reference](./docs/plugins/manifest-reference.md). Every field in `plugin.toml`.
+- [API Reference](./docs/plugins/api-reference.md). Plugin discovery endpoints.
+- [Extension Points](./docs/plugins/extension-points.md). 35 UI injection slots.
+- [Examples](./docs/plugins/examples.md). Walkthroughs for common plugin types.
 
 📖 **Migration Docs:**
 - [Migration API Reference](./docs/migrations/api-reference.md)
 - [External ID Mapping](./docs/migrations/external-id-mapping.md)
 - [Migration Studio Plugin](./plugins/sip-migration-studio/README.md)
 
-📖 **Implementation Tracker:** [PROGRESS.md](./docs/PROGRESS.md) — full PRD implementation status
+📖 **Implementation Tracker:** [PROGRESS.md](./docs/PROGRESS.md). Full PRD implementation status.
 
 ---
 
@@ -227,7 +227,7 @@ plugins/
 ### Prerequisites
 
 - **Docker** and **Docker Compose v2+**
-- 16 GB RAM recommended (12 minimum — Ollama needs ~4 GB)
+- 16 GB RAM recommended (12 minimum; Ollama needs ~4 GB)
 
 ### Start the Full Stack
 
@@ -316,7 +316,7 @@ Key configuration sections:
 ```bash
 curl http://localhost:8000/admin/config/status -H "Authorization: Bearer <token>"
 ```
-Shows active environment, AI provider, enabled features, validation status, and redacted config — never exposes secrets.
+Shows active environment, AI provider, enabled features, validation status, and redacted config. Never exposes secrets.
 
 ---
 
