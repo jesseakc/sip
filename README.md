@@ -15,7 +15,44 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPLv3-green" /></a>
   <a href="./docs/openapi.yaml"><img src="https://img.shields.io/badge/API-OpenAPI_3.0-orange" /></a>
   <img src="https://img.shields.io/badge/language-Rust_+_TypeScript-purple" />
+  <img src="https://img.shields.io/badge/Rust-1.80%2B-orange" />
+  <img src="https://img.shields.io/badge/PostgreSQL-16-blue" />
+  <img src="https://img.shields.io/badge/Next.js-15-black" />
 </p>
+
+---
+
+## Current Testing Status
+
+**Verified commit**: `ddba42f4923fbda3d118b2ad8c895f53f040105a`
+
+| Check | Status |
+|-------|--------|
+| `cargo fmt --all -- --check` | ✅ Pass |
+| `cargo check -p sip-api --all-features` | ✅ Pass |
+| `cargo check --workspace --all-features` | ✅ Pass (22+ crates) |
+| `cargo test --workspace` | ✅ Pass (103 tests, 0 failures) |
+| `npm run build` (frontend) | ✅ Pass |
+| `MigrationService` compiled + linked | ✅ Confirmed |
+| `docker compose config` | ⬜ Needs Docker-enabled machine |
+| `./scripts/preflight.sh` | ⬜ Needs Docker-enabled machine |
+| `./scripts/smoke.sh` | ⬜ Needs Docker-enabled machine |
+
+Weekend test guide: [`docs/testing-weekend.md`](./docs/testing-weekend.md)
+
+---
+
+## Who SIP Is For
+
+SIP is designed for:
+
+- **Field service teams** maintaining physical equipment and infrastructure
+- **Robotics companies** managing deployed machines and service fleets
+- **Hospital biomedical** and clinical engineering teams
+- **Facilities and plant maintenance** teams
+- **Fleet, vehicle, and heavy equipment** service organizations
+- **Developers** building AI agents, service plugins, and operational automation
+- **Organizations migrating** away from closed CMMS or asset management systems
 
 ---
 
@@ -179,7 +216,7 @@ The SIP architecture treats the platform as a **harness layer** between humans, 
 | **Object Storage** | MinIO (self-hosted) | Document uploads, extracted text |
 | **Plugins** | TOML manifests + Rust registry | UI, functional, and hybrid plugins with declarative navigation |
 | **UI Components** | React + Tailwind + design tokens | Shared SIP UI kit (11 components), theme tokens, dark mode |
-| **Deployment** | Docker Compose | 6 containers, single `docker compose up` |
+| **Deployment** | Docker Compose | 5 default containers + optional Ollama profile |
 
 ### Plugin Architecture
 
@@ -258,6 +295,15 @@ docker compose --profile ollama up --build
 #    - MinIO:     http://localhost:9001
 #    - Ollama:    http://localhost:11434  (only with --profile ollama)
 ```
+
+### Verify the Install
+
+```bash
+./scripts/preflight.sh    # Check prerequisites and configuration
+./scripts/smoke.sh        # End-to-end API test (health → login → migration → rollback)
+```
+
+`preflight.sh` checks Docker, ports, `.env`, and compose config. `smoke.sh` verifies health, login, plugin discovery, migration creation, validation, dry run, import, and rollback.
 
 ### Services (docker-compose.yml)
 
@@ -344,6 +390,26 @@ The seed migration creates a complete demo organization. Use these credentials:
 
 ---
 
+## Test a Sample Migration
+
+After the stack is running and you are logged in as `admin@acme.local`, open **Migration Studio** and use the sample files in `plugins/sip-migration-studio/examples/generic-cmms/`.
+
+**First test:**
+1. Create a new migration job (source: CSV, object: Asset).
+2. Upload `assets.csv`.
+3. Map source fields to SIP asset fields (name → name, serial_number → serial_number, status → status).
+4. Run validation — should produce 0 errors.
+5. Run dry run — should show 4 records ready to create.
+6. Execute import — 4 assets created.
+7. Confirm imported assets appear in the asset registry (`/assets`).
+8. Roll back the import — 4 assets archived.
+
+For the full weekend test path: [`docs/testing-weekend.md`](./docs/testing-weekend.md)
+
+---
+
+---
+
 ## MVP Features
 
 ### ✅ Implemented
@@ -365,7 +431,7 @@ The seed migration creates a complete demo organization. Use these credentials:
 | 13 | **AI Q&A (Knowledge Agent)** | SSE streaming chat. RAG pipeline with relational context retrieval. Vector similarity search (pgvector). Structured JSON responses with confidence, citations, sources. |
 | 14 | **AI citations** | Every response includes source citations (work order ID, document name, timestamp, quote). "I don't know" fallback when no context. |
 | 15 | **Work order assignments** | Multi-assignee support (User, Team, Vendor, AI Agent). Role-based assignment (Primary, Secondary, Observer, Approver, etc.). |
-| 16 | **Docker Compose deployment** | 6 services. Auto-migration. Ollama model pull. Health checks on all services. |
+| 16 | **Docker Compose deployment** | 5 default services plus optional Ollama profile. Auto-migration. Health checks on core services. |
 | 17 | **Seed data** | Demo org, 35 assets, 50 work orders across all states, 8 users across all roles, 2 teams, 5 schedules, 2 inspections, 3 documents, AI conversation. |
 | 18 | **Plugin framework** | TOML manifest registry. UI/functional/hybrid plugin types. First-party frontend shipped as `sip-core-ui` plugin. Plugin discovery API endpoints. Sidebar navigation driven by plugin registry. Declarative extension points (35 defined). Manifest validation (unique IDs, semver, dependency checks, navigation validation). |
 | 19 | **Migration Core** | Full migration pipeline: 11 entities, canonical import DTOs, 16 API endpoints, field mappings, source→SIP external ID mapping, dry-run/import/rollback, 8 plugin extension points. RLS on all tables. Gated behind plugins feature flag. |
