@@ -731,12 +731,8 @@ fn map_work_order_row(r: WorkOrderRow) -> WorkOrder {
         actual_start: r.actual_start,
         actual_end: r.actual_end,
         due_at: r.due_at,
-        estimated_hours: r
-            .estimated_hours
-            .and_then(rust_decimal::Decimal::from_f64),
-        actual_hours: r
-            .actual_hours
-            .and_then(rust_decimal::Decimal::from_f64),
+        estimated_hours: r.estimated_hours.and_then(rust_decimal::Decimal::from_f64),
+        actual_hours: r.actual_hours.and_then(rust_decimal::Decimal::from_f64),
         resolution_notes: r.resolution_notes,
         failure_code: r.failure_code,
         root_cause: r.root_cause,
@@ -1815,9 +1811,7 @@ fn map_ai_retrieval_trace_row(r: AIRetrievalTraceRow) -> AIRetrievalTrace {
         records_queried: r.records_queried.unwrap_or(0),
         records_returned: r.records_returned.unwrap_or(0),
         duration_ms: r.duration_ms.unwrap_or(0),
-        score: r
-            .score
-            .and_then(rust_decimal::Decimal::from_f64),
+        score: r.score.and_then(rust_decimal::Decimal::from_f64),
         included_in_context: r.included_in_context,
         source_scope: r.source_scope,
         verified_by_sql: r.verified_by_sql.unwrap_or(false),
@@ -2808,13 +2802,9 @@ fn map_part_row(r: PartRow) -> Part {
         part_number: r.part_number,
         description: r.description,
         quantity_on_hand: rust_decimal::Decimal::from_f64(r.quantity_on_hand).unwrap_or_default(),
-        quantity_minimum: r
-            .quantity_minimum
-            .and_then(rust_decimal::Decimal::from_f64),
+        quantity_minimum: r.quantity_minimum.and_then(rust_decimal::Decimal::from_f64),
         unit: r.unit,
-        unit_cost: r
-            .unit_cost
-            .and_then(rust_decimal::Decimal::from_f64),
+        unit_cost: r.unit_cost.and_then(rust_decimal::Decimal::from_f64),
         storage_location: r.storage_location,
         created_at: r.created_at,
         updated_at: r.updated_at,

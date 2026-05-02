@@ -616,13 +616,12 @@ pub fn validate_config(config: &AppConfig) -> ConfigValidation {
             warnings.push("RAG feature enabled but AI is disabled — RAG will not function".into());
         }
     }
-    if config.features.semantic_search_enabled && !config.ai.enabled
-        && is_strict {
-            warnings.push(
-                "Semantic search requires AI for embeddings. Enable AI or disable semantic search."
-                    .into(),
-            );
-        }
+    if config.features.semantic_search_enabled && !config.ai.enabled && is_strict {
+        warnings.push(
+            "Semantic search requires AI for embeddings. Enable AI or disable semantic search."
+                .into(),
+        );
+    }
     if config.features.document_ingestion_enabled && config.object_storage.is_none() {
         if is_strict {
             errors.push("Document ingestion requires object storage configuration".into());

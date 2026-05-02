@@ -58,9 +58,11 @@ fn map_migration_error(e: SipError) -> (StatusCode, Json<serde_json::Value>) {
         SipError::TenantScopeViolation => {
             migration_error(StatusCode::FORBIDDEN, "FORBIDDEN", e.to_string())
         }
-        SipError::CapabilityNotAvailable(_) => {
-            migration_error(StatusCode::NOT_IMPLEMENTED, "CAPABILITY_UNAVAILABLE", e.to_string())
-        }
+        SipError::CapabilityNotAvailable(_) => migration_error(
+            StatusCode::NOT_IMPLEMENTED,
+            "CAPABILITY_UNAVAILABLE",
+            e.to_string(),
+        ),
     }
 }
 

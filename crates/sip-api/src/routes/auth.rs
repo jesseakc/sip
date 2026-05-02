@@ -109,18 +109,28 @@ pub async fn me(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let user_id = match ctx.user_id {
         Some(id) => id,
-        None => return Err((StatusCode::UNAUTHORIZED, Json(json!({"error": {"code": "UNAUTHORIZED", "message": "No user in token"}})))),
+        None => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": {"code": "UNAUTHORIZED", "message": "No user in token"}})),
+            ))
+        }
     };
 
     // Look up user from database to get name and email
     let row = sqlx::query_as::<_, (String, String, String)>(
-        "SELECT email, name, role FROM users WHERE id = $1 AND organization_id = $2"
+        "SELECT email, name, role FROM users WHERE id = $1 AND organization_id = $2",
     )
     .bind(Uuid::from(user_id))
     .bind(Uuid::from(ctx.organization_id))
     .fetch_optional(&state.pool)
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}}))))?;
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+        )
+    })?;
 
     match row {
         Some((email, name, role)) => Ok(Json(json!({
@@ -133,6 +143,9 @@ pub async fn me(
                 "permissions": ctx.permissions,
             }
         }))),
-        None => Err((StatusCode::UNAUTHORIZED, Json(json!({"error": {"code": "UNAUTHORIZED", "message": "User not found"}})))),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": {"code": "UNAUTHORIZED", "message": "User not found"}})),
+        )),
     }
 }

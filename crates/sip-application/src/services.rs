@@ -13,10 +13,9 @@ use sip_domain::{
     entity::location::{Location, LocationType},
     entity::manufacturer::Manufacturer,
     entity::migration::{
-        MigrationDuplicateCandidate, MigrationExternalIdMap,
-        MigrationFieldMapping, MigrationImportResult, MigrationJob, MigrationJobStatus,
-        MigrationRun, MigrationRunStatus, MigrationRunType, MigrationSourceRecord,
-        MigrationStagedRecord, MigrationValidationIssue,
+        MigrationDuplicateCandidate, MigrationExternalIdMap, MigrationFieldMapping,
+        MigrationImportResult, MigrationJob, MigrationJobStatus, MigrationRun, MigrationRunStatus,
+        MigrationRunType, MigrationSourceRecord, MigrationStagedRecord, MigrationValidationIssue,
     },
     entity::organization::Organization,
     entity::part::Part,
@@ -32,8 +31,7 @@ use sip_domain::{
     id::{
         AIConversationId, AIMessageId, AIRetrievalTraceId, ActivityId, AgentIdentityId, AssetId,
         AssetModelId, AssetTypeId, DocumentId, InspectionChecklistItemId, InspectionId, LocationId,
-        ManufacturerId,
-        MigrationExternalIdMapId, MigrationImportResultId, MigrationJobId,
+        ManufacturerId, MigrationExternalIdMapId, MigrationImportResultId, MigrationJobId,
         MigrationRunId, MigrationSourceRecordId, MigrationStagedRecordId,
         MigrationValidationIssueId, OrganizationId, PartId, ScheduleId, TeamId, UserId,
         WorkOrderAssignmentId, WorkOrderId, WorkOrderStatusHistoryId,
@@ -324,7 +322,9 @@ impl<R: sip_domain::repository::AssetRepository> AssetService<R> {
             ));
         }
         let patch = serde_json::json!({"status": format!("{:?}", status).to_uppercase()});
-        self.repo.update_asset(ctx, id, current.version, patch).await
+        self.repo
+            .update_asset(ctx, id, current.version, patch)
+            .await
     }
 
     pub async fn archive(&self, ctx: &TenantContext, id: AssetId) -> Result<Asset, SipError> {
@@ -431,8 +431,16 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
                     retries -= 1;
                     // Only retry on display_number collision (unique constraint violation)
                     let msg = e.to_string().to_lowercase();
-                    if retries > 0 && (msg.contains("unique") || msg.contains("duplicate") || msg.contains("display_number")) {
-                        tracing::warn!("Display number collision, retrying ({} attempts left): {}", retries, msg);
+                    if retries > 0
+                        && (msg.contains("unique")
+                            || msg.contains("duplicate")
+                            || msg.contains("display_number"))
+                    {
+                        tracing::warn!(
+                            "Display number collision, retrying ({} attempts left): {}",
+                            retries,
+                            msg
+                        );
                         continue;
                     }
                     return Err(e);
@@ -3199,47 +3207,47 @@ impl MigrationService {
                     if canonical
                         .get("name")
                         .and_then(|v| v.as_str())
-                        .map_or(true, |s| s.is_empty())
-                    => {
-                        issues.push(Self::create_issue(
-                            ctx.organization_id,
-                            job_id,
-                            staged_rec.id,
-                            "error",
-                            "name",
-                            "Asset name is required",
-                        ));
-                    }
+                        .map_or(true, |s| s.is_empty()) =>
+                {
+                    issues.push(Self::create_issue(
+                        ctx.organization_id,
+                        job_id,
+                        staged_rec.id,
+                        "error",
+                        "name",
+                        "Asset name is required",
+                    ));
+                }
                 "work_order"
                     if canonical
                         .get("title")
                         .and_then(|v| v.as_str())
-                        .map_or(true, |s| s.is_empty())
-                    => {
-                        issues.push(Self::create_issue(
-                            ctx.organization_id,
-                            job_id,
-                            staged_rec.id,
-                            "error",
-                            "title",
-                            "Work order title is required",
-                        ));
-                    }
+                        .map_or(true, |s| s.is_empty()) =>
+                {
+                    issues.push(Self::create_issue(
+                        ctx.organization_id,
+                        job_id,
+                        staged_rec.id,
+                        "error",
+                        "title",
+                        "Work order title is required",
+                    ));
+                }
                 "location"
                     if canonical
                         .get("name")
                         .and_then(|v| v.as_str())
-                        .map_or(true, |s| s.is_empty())
-                    => {
-                        issues.push(Self::create_issue(
-                            ctx.organization_id,
-                            job_id,
-                            staged_rec.id,
-                            "error",
-                            "name",
-                            "Location name is required",
-                        ));
-                    }
+                        .map_or(true, |s| s.is_empty()) =>
+                {
+                    issues.push(Self::create_issue(
+                        ctx.organization_id,
+                        job_id,
+                        staged_rec.id,
+                        "error",
+                        "name",
+                        "Location name is required",
+                    ));
+                }
                 "part" => {
                     if canonical
                         .get("name")

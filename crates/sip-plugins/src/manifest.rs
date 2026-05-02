@@ -622,5 +622,3 @@ impl Default for PluginManifest {
         }
     }
 }
-
-

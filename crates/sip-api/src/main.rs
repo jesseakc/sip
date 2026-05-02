@@ -717,12 +717,7 @@ async fn main() -> anyhow::Result<()> {
                     .map(|o| o.parse().unwrap())
                     .collect::<Vec<_>>(),
             )
-            .allow_methods([
-                Method::GET,
-                Method::POST,
-                Method::PATCH,
-                Method::DELETE,
-            ])
+            .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
             .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
     };
 
