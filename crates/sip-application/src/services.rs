@@ -382,45 +382,63 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         input: CreateWorkOrderInput,
     ) -> Result<WorkOrder, SipError> {
         ctx.require_permission("work_order:create")?;
-        let wo = WorkOrder {
-            id: WorkOrderId::new(),
-            organization_id: ctx.organization_id,
-            asset_id: input.asset_id,
-            parent_id: None,
-            schedule_id: None,
-            work_order_type: input.work_order_type,
-            priority: input.priority,
-            status: WorkOrderStatus::Draft,
-            title: input.title,
-            display_number: self.generate_display_number(ctx).await?,
-            description: input.description,
-            scheduled_start: input.scheduled_start,
-            scheduled_end: input.scheduled_end,
-            actual_start: None,
-            actual_end: None,
-            due_at: input.due_at,
-            estimated_hours: input.estimated_hours,
-            actual_hours: None,
-            resolution_notes: None,
-            failure_code: None,
-            root_cause: None,
-            created_by_id: ctx.user_id.ok_or(SipError::PermissionDenied)?,
-            source_type: WorkOrderSourceType::Manual,
-            source_system: None,
-            external_id: None,
-            external_url: None,
-            reopened_count: 0,
-            last_reopened_at: None,
-            last_reopened_by_id: None,
-            version: 1,
-            archived_at: None,
-            archived_by_id: None,
-            archive_reason: None,
-            metadata: None,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
-        self.repo.create_work_order(ctx, &wo).await
+
+        // Retry up to 3 times if display_number collides (concurrent creates)
+        let mut retries = 3;
+        loop {
+            let wo = WorkOrder {
+                id: WorkOrderId::new(),
+                organization_id: ctx.organization_id,
+                asset_id: input.asset_id,
+                parent_id: None,
+                schedule_id: None,
+                work_order_type: input.work_order_type,
+                priority: input.priority,
+                status: WorkOrderStatus::Draft,
+                title: input.title.clone(),
+                display_number: self.generate_display_number(ctx).await?,
+                description: input.description.clone(),
+                scheduled_start: input.scheduled_start,
+                scheduled_end: input.scheduled_end,
+                actual_start: None,
+                actual_end: None,
+                due_at: input.due_at,
+                estimated_hours: input.estimated_hours,
+                actual_hours: None,
+                resolution_notes: None,
+                failure_code: None,
+                root_cause: None,
+                created_by_id: ctx.user_id.ok_or(SipError::PermissionDenied)?,
+                source_type: WorkOrderSourceType::Manual,
+                source_system: None,
+                external_id: None,
+                external_url: None,
+                reopened_count: 0,
+                last_reopened_at: None,
+                last_reopened_by_id: None,
+                version: 1,
+                archived_at: None,
+                archived_by_id: None,
+                archive_reason: None,
+                metadata: None,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            };
+
+            match self.repo.create_work_order(ctx, &wo).await {
+                Ok(result) => return Ok(result),
+                Err(e) => {
+                    retries -= 1;
+                    // Only retry on display_number collision (unique constraint violation)
+                    let msg = e.to_string().to_lowercase();
+                    if retries > 0 && (msg.contains("unique") || msg.contains("duplicate") || msg.contains("display_number")) {
+                        tracing::warn!("Display number collision, retrying ({} attempts left): {}", retries, msg);
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
+        }
     }
 
     pub async fn get(

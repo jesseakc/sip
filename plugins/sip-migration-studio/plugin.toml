@@ -78,16 +78,20 @@ order = 45
 # ── Backend Configuration ─────────────────────────────────────────────────────
 [backend]
 api_routes = [
-    "/migration/jobs",
-    "/migration/jobs/{id}/files",
-    "/migration/jobs/{id}/detect-schema",
-    "/migration/jobs/{id}/preview",
-    "/migration/jobs/{id}/mapping",
-    "/migration/jobs/{id}/validate",
-    "/migration/jobs/{id}/dry-run",
-    "/migration/jobs/{id}/execute",
-    "/migration/jobs/{id}/report",
-    "/migration/templates",
+    "/api/v1/migrations",
+    "/api/v1/migrations/{job_id}",
+    "/api/v1/migrations/{job_id}/source-records",
+    "/api/v1/migrations/{job_id}/staged-records",
+    "/api/v1/migrations/{job_id}/mappings",
+    "/api/v1/migrations/{job_id}/validate",
+    "/api/v1/migrations/{job_id}/dry-run",
+    "/api/v1/migrations/{job_id}/import",
+    "/api/v1/migrations/{job_id}/rollback",
+    "/api/v1/migrations/{job_id}/cancel",
+    "/api/v1/migrations/{job_id}/validation-issues",
+    "/api/v1/migrations/{job_id}/duplicates",
+    "/api/v1/migrations/{job_id}/external-id-maps",
+    "/api/v1/migrations/{job_id}/report",
 ]
 
 [[backend.ai_tools]]

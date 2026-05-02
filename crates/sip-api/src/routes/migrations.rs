@@ -94,7 +94,7 @@ pub async fn list_jobs(
                 "name": j.name,
                 "source_system": j.source_system,
                 "source_object_type": j.source_object_type,
-                "status": format!("{:?}", j.status),
+                "status": serde_json::to_value(j.status).unwrap_or_default().as_str().unwrap_or("unknown"),
                 "source_record_count": j.source_record_count,
                 "valid_record_count": j.valid_record_count,
                 "imported_record_count": j.imported_record_count,
@@ -129,7 +129,7 @@ pub async fn create_job(
                 "name": job.name,
                 "source_system": job.source_system,
                 "source_object_type": job.source_object_type,
-                "status": format!("{:?}", job.status),
+                "status": serde_json::to_value(job.status).unwrap_or_default().as_str().unwrap_or("unknown"),
             }
         }))),
         Err(e) => Err(map_migration_error(e)),
@@ -156,7 +156,7 @@ pub async fn get_job(
                 "description": job.description,
                 "source_system": job.source_system,
                 "source_object_type": job.source_object_type,
-                "status": format!("{:?}", job.status),
+                "status": serde_json::to_value(job.status).unwrap_or_default().as_str().unwrap_or("unknown"),
                 "source_record_count": job.source_record_count,
                 "valid_record_count": job.valid_record_count,
                 "imported_record_count": job.imported_record_count,
@@ -319,8 +319,8 @@ pub async fn dry_run(
         Ok(run) => Ok(Json(json!({
             "data": {
                 "run_id": run.id.to_string(),
-                "run_type": format!("{:?}", run.run_type),
-                "status": format!("{:?}", run.status),
+                "run_type": serde_json::to_value(run.run_type).unwrap_or_default().as_str().unwrap_or("unknown"),
+                "status": serde_json::to_value(run.status).unwrap_or_default().as_str().unwrap_or("unknown"),
                 "records_processed": run.records_processed,
                 "records_to_create": run.records_created,
                 "records_with_errors": run.records_failed,
@@ -346,7 +346,7 @@ pub async fn execute_import(
         Ok(run) => Ok(Json(json!({
             "data": {
                 "run_id": run.id.to_string(),
-                "status": format!("{:?}", run.status),
+                "status": serde_json::to_value(run.status).unwrap_or_default().as_str().unwrap_or("unknown"),
                 "records_processed": run.records_processed,
                 "records_created": run.records_created,
                 "records_updated": run.records_updated,
@@ -374,7 +374,7 @@ pub async fn rollback_job(
         Ok(run) => Ok(Json(json!({
             "data": {
                 "run_id": run.id.to_string(),
-                "status": format!("{:?}", run.status),
+                "status": serde_json::to_value(run.status).unwrap_or_default().as_str().unwrap_or("unknown"),
                 "records_processed": run.records_processed,
             }
         }))),
