@@ -75,7 +75,7 @@ SIP is **AGPLv3**. You can self-host it forever. Your maintenance data belongs t
 
 - **Cross-industry by design.** The schema lives in the database, not in the code. Asset types are JSON Schema documents. Any physical object can be modeled without code changes, from a robotic arm to a dishwasher to a lawn mower.
 - **Modular monolith.** 19 Rust crates with well-defined interface boundaries. Services extract only when there is a measurable bottleneck. Cargo feature flags let you compile only what you need.
-- **Single command deploy.** `docker compose up` brings up the full stack: API, frontend, PostgreSQL+pgvector, Redis, MinIO, and Ollama. Migrations run automatically and seed data loads on first start.
+- **Single command deploy.** `docker compose up` brings up the full stack: API, frontend, PostgreSQL+pgvector, Redis, and MinIO. Migrations run automatically and seed data loads on first start. Ollama is optional via `--profile ollama`.
 
 ---
 
