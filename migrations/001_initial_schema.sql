@@ -74,7 +74,7 @@ CREATE TABLE locations (
     parent_id UUID REFERENCES locations(id) ON DELETE RESTRICT,
     name TEXT NOT NULL,
     type location_type NOT NULL DEFAULT 'OTHER',
-    geo JSONB NOT NULL DEFAULT '{}',
+    geo JSONB,
     metadata JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
