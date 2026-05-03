@@ -353,7 +353,7 @@ async fn main() -> anyhow::Result<()> {
             get(routes::plugins::list_enabled_plugins),
         )
         .route(
-            "/api/v1/plugins/:plugin_id",
+            "/api/v1/plugins/{plugin_id}",
             get(routes::plugins::get_plugin),
         )
         .route("/api/v1/ui/plugins", get(routes::plugins::list_ui_plugins))
@@ -395,15 +395,15 @@ async fn main() -> anyhow::Result<()> {
             get(routes::locations::list_locations).post(routes::locations::create_location),
         )
         .route(
-            "/api/v1/locations/:id",
+            "/api/v1/locations/{id}",
             get(routes::locations::get_location).patch(routes::locations::update_location),
         )
         .route(
-            "/api/v1/locations/:id/children",
+            "/api/v1/locations/{id}/children",
             get(routes::locations::list_location_children),
         )
         .route(
-            "/api/v1/locations/:id/assets",
+            "/api/v1/locations/{id}/assets",
             get(routes::locations::list_location_assets),
         )
         .route(
@@ -411,7 +411,7 @@ async fn main() -> anyhow::Result<()> {
             get(routes::asset_types::list_asset_types).post(routes::asset_types::create_asset_type),
         )
         .route(
-            "/api/v1/asset-types/:id",
+            "/api/v1/asset-types/{id}",
             get(routes::asset_types::get_asset_type).patch(routes::asset_types::update_asset_type),
         )
         .route(
@@ -420,24 +420,24 @@ async fn main() -> anyhow::Result<()> {
                 .post(routes::manufacturers::create_manufacturer),
         )
         .route(
-            "/api/v1/manufacturers/:id",
+            "/api/v1/manufacturers/{id}",
             get(routes::manufacturers::get_manufacturer),
         )
         .route(
-            "/api/v1/manufacturers/:id/models",
+            "/api/v1/manufacturers/{id}/models",
             get(routes::manufacturers::list_manufacturer_models),
         )
         .route(
             "/api/v1/models",
             get(routes::models::list_models).post(routes::models::create_model),
         )
-        .route("/api/v1/models/:id", get(routes::models::get_model))
+        .route("/api/v1/models/{id}", get(routes::models::get_model))
         .route(
             "/api/v1/users",
             get(routes::users::list_users).post(routes::users::create_user),
         )
         .route(
-            "/api/v1/users/:id",
+            "/api/v1/users/{id}",
             get(routes::users::get_user).patch(routes::users::update_user),
         )
         .route(
@@ -445,7 +445,7 @@ async fn main() -> anyhow::Result<()> {
             get(routes::teams::list_teams).post(routes::teams::create_team),
         )
         .route(
-            "/api/v1/teams/:id",
+            "/api/v1/teams/{id}",
             get(routes::teams::get_team).patch(routes::teams::update_team),
         )
         .route(
@@ -453,19 +453,19 @@ async fn main() -> anyhow::Result<()> {
             get(routes::assets::list_assets).post(routes::assets::create_asset),
         )
         .route(
-            "/api/v1/assets/:id",
+            "/api/v1/assets/{id}",
             get(routes::assets::get_asset).patch(routes::assets::update_asset_status),
         )
         .route(
-            "/api/v1/assets/:id/archive",
+            "/api/v1/assets/{id}/archive",
             post(routes::assets::archive_asset),
         )
         .route(
-            "/api/v1/assets/:id/children",
+            "/api/v1/assets/{id}/children",
             get(routes::assets::list_asset_children),
         )
         .route(
-            "/api/v1/assets/:id/work-orders",
+            "/api/v1/assets/{id}/work-orders",
             get(routes::assets::list_asset_work_orders),
         )
         .route(
@@ -473,61 +473,61 @@ async fn main() -> anyhow::Result<()> {
             get(routes::work_orders::list_work_orders).post(routes::work_orders::create_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id",
+            "/api/v1/work-orders/{id}",
             get(routes::work_orders::get_work_order)
                 .patch(routes::work_orders::transition_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/publish",
+            "/api/v1/work-orders/{id}/publish",
             post(routes::work_orders::publish_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/start",
+            "/api/v1/work-orders/{id}/start",
             post(routes::work_orders::start_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/hold",
+            "/api/v1/work-orders/{id}/hold",
             post(routes::work_orders::hold_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/resume",
+            "/api/v1/work-orders/{id}/resume",
             post(routes::work_orders::resume_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/complete",
+            "/api/v1/work-orders/{id}/complete",
             post(routes::work_orders::complete_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/review",
+            "/api/v1/work-orders/{id}/review",
             post(routes::work_orders::review_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/close",
+            "/api/v1/work-orders/{id}/close",
             post(routes::work_orders::close_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/cancel",
+            "/api/v1/work-orders/{id}/cancel",
             post(routes::work_orders::cancel_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/archive",
+            "/api/v1/work-orders/{id}/archive",
             post(routes::work_orders::archive_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/reopen",
+            "/api/v1/work-orders/{id}/reopen",
             post(routes::work_orders::reopen_work_order),
         )
         .route(
-            "/api/v1/work-orders/:id/assignments",
+            "/api/v1/work-orders/{id}/assignments",
             get(routes::work_orders::list_assignments).post(routes::work_orders::create_assignment),
         )
         .route(
-            "/api/v1/work-orders/:id/assignments/:assignment_id",
+            "/api/v1/work-orders/{id}/assignments/{assignment_id}",
             delete(routes::work_orders::delete_assignment)
                 .patch(routes::work_orders::update_assignment),
         )
         .route(
-            "/api/v1/work-orders/:id/parts",
+            "/api/v1/work-orders/{id}/parts",
             get(routes::work_orders::list_parts).post(routes::work_orders::create_part_usage),
         )
         .route(
@@ -535,11 +535,11 @@ async fn main() -> anyhow::Result<()> {
             get(routes::schedules::list_schedules).post(routes::schedules::create_schedule),
         )
         .route(
-            "/api/v1/schedules/:id",
+            "/api/v1/schedules/{id}",
             get(routes::schedules::get_schedule).patch(routes::schedules::update_schedule),
         )
         .route(
-            "/api/v1/schedules/:id/archive",
+            "/api/v1/schedules/{id}/archive",
             post(routes::schedules::archive_schedule),
         )
         .route(
@@ -547,11 +547,11 @@ async fn main() -> anyhow::Result<()> {
             get(routes::inspections::list_inspections),
         )
         .route(
-            "/api/v1/inspections/:id",
+            "/api/v1/inspections/{id}",
             get(routes::inspections::get_inspection),
         )
         .route(
-            "/api/v1/inspections/:id/items",
+            "/api/v1/inspections/{id}/items",
             patch(routes::inspections::update_checklist_items),
         )
         .route(
@@ -559,7 +559,7 @@ async fn main() -> anyhow::Result<()> {
             get(routes::parts::list_parts).post(routes::parts::create_part),
         )
         .route(
-            "/api/v1/parts/:id",
+            "/api/v1/parts/{id}",
             get(routes::parts::get_part).patch(routes::parts::update_part),
         );
 
@@ -571,11 +571,11 @@ async fn main() -> anyhow::Result<()> {
                 get(routes::documents::list_documents).post(routes::documents::create_document),
             )
             .route(
-                "/api/v1/documents/:id",
+                "/api/v1/documents/{id}",
                 get(routes::documents::get_document),
             )
             .route(
-                "/api/v1/documents/:id/archive",
+                "/api/v1/documents/{id}/archive",
                 post(routes::documents::archive_document),
             );
     }
@@ -586,7 +586,7 @@ async fn main() -> anyhow::Result<()> {
             get(routes::activities::list_activities),
         )
         .route(
-            "/api/v1/activities/:entity_type/:entity_id",
+            "/api/v1/activities/{entity_type}/{entity_id}",
             get(routes::activities::list_activities_by_entity),
         );
 
@@ -608,57 +608,57 @@ async fn main() -> anyhow::Result<()> {
                 get(routes::migrations::list_jobs).post(routes::migrations::create_job),
             )
             .route(
-                "/api/v1/migrations/:job_id",
+                "/api/v1/migrations/{job_id}",
                 get(routes::migrations::get_job),
             )
             .route(
-                "/api/v1/migrations/:job_id/source-records",
+                "/api/v1/migrations/{job_id}/source-records",
                 get(routes::migrations::get_source_records)
                     .post(routes::migrations::add_source_records),
             )
             .route(
-                "/api/v1/migrations/:job_id/staged-records",
+                "/api/v1/migrations/{job_id}/staged-records",
                 get(routes::migrations::get_staged_records),
             )
             .route(
-                "/api/v1/migrations/:job_id/mappings",
+                "/api/v1/migrations/{job_id}/mappings",
                 get(routes::migrations::get_field_mappings)
                     .post(routes::migrations::save_field_mappings),
             )
             .route(
-                "/api/v1/migrations/:job_id/validate",
+                "/api/v1/migrations/{job_id}/validate",
                 post(routes::migrations::validate_job),
             )
             .route(
-                "/api/v1/migrations/:job_id/dry-run",
+                "/api/v1/migrations/{job_id}/dry-run",
                 post(routes::migrations::dry_run),
             )
             .route(
-                "/api/v1/migrations/:job_id/import",
+                "/api/v1/migrations/{job_id}/import",
                 post(routes::migrations::execute_import),
             )
             .route(
-                "/api/v1/migrations/:job_id/rollback",
+                "/api/v1/migrations/{job_id}/rollback",
                 post(routes::migrations::rollback_job),
             )
             .route(
-                "/api/v1/migrations/:job_id/cancel",
+                "/api/v1/migrations/{job_id}/cancel",
                 post(routes::migrations::cancel_job),
             )
             .route(
-                "/api/v1/migrations/:job_id/validation-issues",
+                "/api/v1/migrations/{job_id}/validation-issues",
                 get(routes::migrations::get_validation_issues),
             )
             .route(
-                "/api/v1/migrations/:job_id/duplicates",
+                "/api/v1/migrations/{job_id}/duplicates",
                 get(routes::migrations::get_duplicates),
             )
             .route(
-                "/api/v1/migrations/:job_id/external-id-maps",
+                "/api/v1/migrations/{job_id}/external-id-maps",
                 get(routes::migrations::get_external_id_maps),
             )
             .route(
-                "/api/v1/migrations/:job_id/report",
+                "/api/v1/migrations/{job_id}/report",
                 get(routes::migrations::get_report),
             );
     }
@@ -674,19 +674,19 @@ async fn main() -> anyhow::Result<()> {
                     get(routes::ai_conversations::list_conversations),
                 )
                 .route(
-                    "/api/v1/ai/conversations/:id",
+                    "/api/v1/ai/conversations/{id}",
                     get(routes::ai_conversations::get_conversation),
                 )
                 .route(
-                    "/api/v1/ai/messages/:id/retrieval-trace",
+                    "/api/v1/ai/messages/{id}/retrieval-trace",
                     get(routes::ai_conversations::get_retrieval_trace),
                 )
                 .route(
-                    "/api/v1/ai/messages/:id/verification-trace",
+                    "/api/v1/ai/messages/{id}/verification-trace",
                     get(routes::ai_conversations::get_verification_trace),
                 )
                 .route(
-                    "/api/v1/ai/messages/:id/feedback",
+                    "/api/v1/ai/messages/{id}/feedback",
                     post(routes::ai_conversations::submit_feedback),
                 );
         }

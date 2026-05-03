@@ -389,7 +389,7 @@ fn default_log_level() -> String {
 pub fn load_config() -> Result<AppConfig, Box<figment::Error>> {
     Figment::new()
         .merge(Toml::file("Sip.toml"))
-        .merge(Env::prefixed("SIP_"))
+        .merge(Env::prefixed("SIP_").split("_"))
         .extract()
         .map_err(Box::new)
 }
@@ -398,7 +398,7 @@ pub fn load_config() -> Result<AppConfig, Box<figment::Error>> {
 pub fn load_config_from(path: &str) -> Result<AppConfig, Box<figment::Error>> {
     Figment::new()
         .merge(Toml::file(path))
-        .merge(Env::prefixed("SIP_"))
+        .merge(Env::prefixed("SIP_").split("_"))
         .extract()
         .map_err(Box::new)
 }
@@ -411,7 +411,7 @@ pub fn load_config_from(path: &str) -> Result<AppConfig, Box<figment::Error>> {
 /// SIP_LLM_PROVIDER, etc. directly as env vars.
 pub fn load_config_docker() -> Result<AppConfig, Box<figment::Error>> {
     Figment::new()
-        .merge(Env::prefixed("SIP_"))
+        .merge(Env::prefixed("SIP_").split("_"))
         .extract()
         .map_err(Box::new)
 }
@@ -1451,7 +1451,7 @@ mod tests {
         std::env::set_var("SIP_DATABASE_URL", "postgres://localhost/test");
 
         let mut config = Figment::new()
-            .merge(Env::prefixed("SIP_"))
+            .merge(Env::prefixed("SIP_").split("_"))
             .extract::<AppConfig>()
             .unwrap();
 
