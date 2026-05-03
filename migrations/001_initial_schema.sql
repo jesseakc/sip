@@ -4,7 +4,8 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "vector";
 CREATE EXTENSION IF NOT EXISTS "ltree";
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- PostGIS not included in base pgvector image; geo stored as JSONB
+-- CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- Enums
@@ -73,7 +74,7 @@ CREATE TABLE locations (
     parent_id UUID REFERENCES locations(id) ON DELETE RESTRICT,
     name TEXT NOT NULL,
     type location_type NOT NULL DEFAULT 'OTHER',
-    geo GEOGRAPHY(POINT, 4326),
+    geo JSONB NOT NULL DEFAULT '{}',
     metadata JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
