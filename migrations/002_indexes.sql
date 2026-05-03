@@ -116,11 +116,6 @@ CREATE INDEX idx_idk_org ON idempotency_keys (organization_id, key);
 CREATE INDEX idx_outbox_ready ON outbox (status, next_attempt_at, created_at)
     WHERE status IN ('PENDING', 'FAILED');
 
--- verification_traces
-CREATE INDEX IF NOT EXISTS idx_vt_msg ON verification_traces (organization_id, message_id);
-
--- ai_answer_feedback
-CREATE INDEX IF NOT EXISTS idx_aaf_msg ON ai_answer_feedback (organization_id, message_id);
 
 -- FK indexes for query support
 CREATE INDEX IF NOT EXISTS idx_assets_model ON assets (model_id);

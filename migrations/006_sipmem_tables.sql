@@ -75,3 +75,7 @@ BEGIN
     BEGIN ALTER TYPE ai_retrieval_type ADD VALUE 'GRAPH'; EXCEPTION WHEN duplicate_object THEN NULL; END;
     BEGIN ALTER TYPE ai_retrieval_type ADD VALUE 'TEMPORAL'; EXCEPTION WHEN duplicate_object THEN NULL; END;
 END $$;
+
+-- Indexes for verification_traces and ai_answer_feedback
+CREATE INDEX IF NOT EXISTS idx_vt_msg ON verification_traces (organization_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_aaf_msg ON ai_answer_feedback (organization_id, message_id);
