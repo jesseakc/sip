@@ -82,6 +82,8 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    volumes:
+      - ./Sip.toml:/app/Sip.toml:ro
     environment:
       # Environment
       SIP_ENV: ${SIP_ENV:-local}
@@ -99,7 +101,7 @@ services:
       SIP_OBJECT_STORAGE__BUCKET: sip-documents
 
       # Auth
-      SIP_AUTH__JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      SIP_AUTH__JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-for-local-testing-only}
 
       # Server
       SIP_SERVER__PORT: 8000

@@ -27,3 +27,22 @@ pub struct AssetModel {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lifecycle_status_serde_roundtrip() {
+        for status in [
+            LifecycleStatus::Active,
+            LifecycleStatus::Deprecated,
+            LifecycleStatus::EndOfSupport,
+            LifecycleStatus::Retired,
+        ] {
+            let json = serde_json::to_string(&status).unwrap();
+            let back: LifecycleStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, status);
+        }
+    }
+}

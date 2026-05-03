@@ -79,7 +79,7 @@ impl PgUserRepository {
 
     pub async fn get_by_email(&self, email: &str) -> Result<Option<(User, String)>, SipError> {
         let row = sqlx::query_as::<_, UserRow>(
-            "SELECT id, organization_id, email, name, role, skills, certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users WHERE email = $1"
+            "SELECT id, organization_id, email, name, role, skills, to_jsonb(certifications) as certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users WHERE email = $1"
         )
         .bind(email)
         .fetch_optional(&self.pool)
@@ -94,7 +94,7 @@ impl PgUserRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, UserRow>(
-            "SELECT id, organization_id, email, name, role, skills, certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users WHERE id = $1"
+            "SELECT id, organization_id, email, name, role, skills, to_jsonb(certifications) as certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users WHERE id = $1"
         )
         .bind(Uuid::from(id))
         .fetch_optional(&self.pool)
@@ -108,7 +108,7 @@ impl PgUserRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, UserRow>(
-            "SELECT id, organization_id, email, name, role, skills, certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users ORDER BY name LIMIT 200"
+            "SELECT id, organization_id, email, name, role, skills, to_jsonb(certifications) as certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users ORDER BY name LIMIT 200"
         )
         .fetch_all(&self.pool)
         .await
@@ -126,7 +126,7 @@ impl PgUserRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, UserRow>(
-            "INSERT INTO users (id, organization_id, email, name, role, skills, certifications, working_hours, is_active, password_hash, created_at, updated_at)
+            "INSERT INTO users (id, organization_id, email, name, role, skills, to_jsonb(certifications) as certifications, working_hours, is_active, password_hash, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
              RETURNING *"
         )

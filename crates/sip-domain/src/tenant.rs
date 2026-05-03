@@ -37,3 +37,67 @@ impl TenantContext {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::id::OrganizationId;
+
+    fn make_ctx() -> TenantContext {
+        TenantContext::new(OrganizationId::new(), None)
+    }
+
+    #[test]
+    fn test_has_permission_exact_match() {
+        let ctx = make_ctx().with_permissions(vec!["asset:read".to_string()]);
+        assert!(ctx.has_permission("asset:read"));
+    }
+
+    #[test]
+    fn test_has_permission_not_found() {
+        let ctx = make_ctx().with_permissions(vec!["asset:read".to_string()]);
+        assert!(!ctx.has_permission("asset:delete"));
+    }
+
+    #[test]
+    fn test_has_permission_wildcard() {
+        let ctx = make_ctx().with_permissions(vec!["*".to_string()]);
+        assert!(ctx.has_permission("asset:delete"));
+        assert!(ctx.has_permission("anything:any"));
+    }
+
+    #[test]
+    fn test_has_permission_empty() {
+        let ctx = make_ctx();
+        assert!(!ctx.has_permission("asset:read"));
+    }
+
+    #[test]
+    fn test_has_permission_multiple_with_wildcard() {
+        let ctx = make_ctx().with_permissions(vec!["asset:read".to_string(), "*".to_string()]);
+        assert!(ctx.has_permission("asset:read"));
+        assert!(ctx.has_permission("asset:delete"));
+    }
+
+    #[test]
+    fn test_require_permission_success() {
+        let ctx = make_ctx().with_permissions(vec!["asset:read".to_string()]);
+        assert!(ctx.require_permission("asset:read").is_ok());
+    }
+
+    #[test]
+    fn test_require_permission_denied() {
+        let ctx = make_ctx().with_permissions(vec!["asset:read".to_string()]);
+        let err = ctx.require_permission("asset:delete").unwrap_err();
+        assert_eq!(err, SipError::PermissionDenied);
+    }
+
+    #[test]
+    fn test_with_permissions_replaces() {
+        let ctx = make_ctx()
+            .with_permissions(vec!["a:read".to_string()])
+            .with_permissions(vec!["b:write".to_string()]);
+        assert!(ctx.has_permission("b:write"));
+        assert!(!ctx.has_permission("a:read"));
+    }
+}

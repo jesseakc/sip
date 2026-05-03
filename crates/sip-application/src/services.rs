@@ -3863,3 +3863,114 @@ impl MigrationService {
         Ok(rx)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sip_domain::entity::user::UserRole;
+
+    #[test]
+    fn test_role_permissions_admin_has_wildcard() {
+        let perms = role_permissions(&UserRole::Admin);
+        assert!(perms.contains(&"*".to_string()));
+    }
+
+    #[test]
+    fn test_role_permissions_manager() {
+        let perms = role_permissions(&UserRole::Manager);
+        assert!(perms.contains(&"org:manage".to_string()));
+        assert!(perms.contains(&"migration:execute".to_string()));
+        assert!(!perms.contains(&"*".to_string()));
+    }
+
+    #[test]
+    fn test_role_permissions_technician() {
+        let perms = role_permissions(&UserRole::Technician);
+        assert!(perms.contains(&"work_order:create".to_string()));
+        assert!(perms.contains(&"part:consume".to_string()));
+        assert!(!perms.contains(&"user:manage".to_string()));
+    }
+
+    #[test]
+    fn test_role_permissions_viewer() {
+        let perms = role_permissions(&UserRole::Viewer);
+        assert!(perms.contains(&"asset:read".to_string()));
+        assert!(!perms.contains(&"asset:create".to_string()));
+    }
+
+    #[test]
+    fn test_role_permissions_vendor() {
+        let perms = role_permissions(&UserRole::Vendor);
+        assert!(perms.contains(&"asset:read".to_string()));
+        assert!(!perms.contains(&"org:read".to_string()));
+    }
+
+    #[test]
+    fn test_role_permissions_auditor() {
+        let perms = role_permissions(&UserRole::Auditor);
+        assert!(perms.contains(&"activity:read".to_string()));
+        assert!(!perms.contains(&"asset:create".to_string()));
+    }
+
+    #[test]
+    fn test_role_permissions_no_wildcard_except_admin() {
+        for role in [UserRole::Manager, UserRole::Technician, UserRole::Viewer, UserRole::Vendor, UserRole::Auditor] {
+            let perms = role_permissions(&role);
+            assert!(!perms.contains(&"*".to_string()));
+        }
+    }
+
+    #[test]
+    fn test_classify_query_exact_fact_serial() {
+        let result = AIService::classify_query("what is the serial number of pump 42");
+        assert!(matches!(result.question_type, QuestionType::ExactFact));
+    }
+
+    #[test]
+    fn test_classify_query_exact_fact_status() {
+        let result = AIService::classify_query("what is the status of work order WO-2025-00001");
+        assert!(matches!(result.question_type, QuestionType::ExactFact));
+    }
+
+    #[test]
+    fn test_classify_query_similarity() {
+        let result = AIService::classify_query("find similar failures to this symptom of overheating");
+        assert!(matches!(result.question_type, QuestionType::Similarity));
+    }
+
+    #[test]
+    fn test_classify_query_relationship() {
+        let result = AIService::classify_query("which assets are powered by generator A");
+        assert!(matches!(result.question_type, QuestionType::Relationship));
+    }
+
+    #[test]
+    fn test_classify_query_temporal() {
+        let result = AIService::classify_query("what changed since last time we inspected");
+        assert!(matches!(result.question_type, QuestionType::Temporal));
+    }
+
+    #[test]
+    fn test_classify_query_document_qa() {
+        let result = AIService::classify_query("how to perform the annual maintenance procedure");
+        assert!(matches!(result.question_type, QuestionType::DocumentQA));
+    }
+
+    #[test]
+    fn test_classify_query_root_cause() {
+        let result = AIService::classify_query("why does conveyor belt keep failing");
+        assert!(matches!(result.question_type, QuestionType::RootCause));
+    }
+
+    #[test]
+    fn test_classify_query_general_hybrid() {
+        let result = AIService::classify_query("hello, tell me about our assets");
+        assert!(matches!(result.question_type, QuestionType::GeneralHybrid));
+    }
+
+    #[test]
+    fn test_classify_query_case_insensitive() {
+        let result = AIService::classify_query("SHOW ME THE HISTORY OF MOTOR REPAIRS");
+        assert!(matches!(result.question_type, QuestionType::Temporal));
+    }
+}

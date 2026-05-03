@@ -27,3 +27,17 @@ pub struct Schedule {
     pub archived_by_id: Option<UserId>,
     pub archive_reason: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_schedule_trigger_type_serde_roundtrip() {
+        for ty in [ScheduleTriggerType::Cron, ScheduleTriggerType::Meter] {
+            let json = serde_json::to_string(&ty).unwrap();
+            let back: ScheduleTriggerType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, ty);
+        }
+    }
+}

@@ -1,0 +1,5 @@
+[auth]
+jwt_secret = "dev-jwt-secret-for-local-testing-only"
+
+[server]
+port = 8000

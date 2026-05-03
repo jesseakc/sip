@@ -7,19 +7,15 @@ pub async fn set_rls_org(
     org_id: OrganizationId,
 ) -> Result<(), sqlx::Error> {
     let org_str = org_id.to_string();
-    sqlx::query("SET LOCAL app.current_organization_id = $1")
-        .bind(&org_str)
-        .execute(executor)
-        .await?;
+    let query = format!("SET LOCAL app.current_organization_id = '{}'", org_str);
+    sqlx::query(&query).execute(executor).await?;
     Ok(())
 }
 
 pub async fn set_rls_org_pool(pool: &PgPool, org_id: OrganizationId) -> Result<(), sqlx::Error> {
     let org_str = org_id.to_string();
-    sqlx::query("SET app.current_organization_id = $1")
-        .bind(&org_str)
-        .execute(pool)
-        .await?;
+    let query = format!("SET app.current_organization_id = '{}'", org_str);
+    sqlx::query(&query).execute(pool).await?;
     Ok(())
 }
 

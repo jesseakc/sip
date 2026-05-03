@@ -47,6 +47,198 @@ impl WorkOrderStatus {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── WorkOrderStatus::is_terminal ───
+
+    #[test]
+    fn test_terminal_states() {
+        assert!(WorkOrderStatus::Closed.is_terminal());
+        assert!(WorkOrderStatus::Cancelled.is_terminal());
+    }
+
+    #[test]
+    fn test_non_terminal_states() {
+        assert!(!WorkOrderStatus::Draft.is_terminal());
+        assert!(!WorkOrderStatus::Open.is_terminal());
+        assert!(!WorkOrderStatus::Assigned.is_terminal());
+        assert!(!WorkOrderStatus::Accepted.is_terminal());
+        assert!(!WorkOrderStatus::InProgress.is_terminal());
+        assert!(!WorkOrderStatus::OnHold.is_terminal());
+        assert!(!WorkOrderStatus::Completed.is_terminal());
+        assert!(!WorkOrderStatus::Reviewed.is_terminal());
+    }
+
+    // ─── WorkOrderStatus serde ───
+
+    #[test]
+    fn test_work_order_status_serde_draft() {
+        let json = serde_json::to_string(&WorkOrderStatus::Draft).unwrap();
+        let parsed: WorkOrderStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, WorkOrderStatus::Draft);
+    }
+
+    #[test]
+    fn test_work_order_status_serde_cancelled() {
+        let json = serde_json::to_string(&WorkOrderStatus::Cancelled).unwrap();
+        let parsed: WorkOrderStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, WorkOrderStatus::Cancelled);
+    }
+
+    #[test]
+    fn test_work_order_status_all_variants_roundtrip() {
+        for status in [
+            WorkOrderStatus::Draft,
+            WorkOrderStatus::Open,
+            WorkOrderStatus::Assigned,
+            WorkOrderStatus::Accepted,
+            WorkOrderStatus::InProgress,
+            WorkOrderStatus::OnHold,
+            WorkOrderStatus::Completed,
+            WorkOrderStatus::Reviewed,
+            WorkOrderStatus::Closed,
+            WorkOrderStatus::Cancelled,
+        ] {
+            let json = serde_json::to_string(&status).unwrap();
+            let back: WorkOrderStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, status);
+        }
+    }
+
+    // ─── WorkOrderType serde ───
+
+    #[test]
+    fn test_work_order_type_serde_roundtrip() {
+        for ty in [
+            WorkOrderType::Preventive,
+            WorkOrderType::Corrective,
+            WorkOrderType::Inspection,
+            WorkOrderType::Emergency,
+        ] {
+            let json = serde_json::to_string(&ty).unwrap();
+            let back: WorkOrderType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, ty);
+        }
+    }
+
+    // ─── WorkOrderPriority serde ───
+
+    #[test]
+    fn test_work_order_priority_serde_roundtrip() {
+        for p in [
+            WorkOrderPriority::Low,
+            WorkOrderPriority::Medium,
+            WorkOrderPriority::High,
+            WorkOrderPriority::Critical,
+        ] {
+            let json = serde_json::to_string(&p).unwrap();
+            let back: WorkOrderPriority = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, p);
+        }
+    }
+
+    // ─── WorkOrderSourceType serde ───
+
+    #[test]
+    fn test_work_order_source_type_serde_roundtrip() {
+        for src in [
+            WorkOrderSourceType::Manual,
+            WorkOrderSourceType::Schedule,
+            WorkOrderSourceType::AiAgent,
+            WorkOrderSourceType::Api,
+            WorkOrderSourceType::Import,
+            WorkOrderSourceType::Plugin,
+            WorkOrderSourceType::System,
+        ] {
+            let json = serde_json::to_string(&src).unwrap();
+            let back: WorkOrderSourceType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, src);
+        }
+    }
+
+    // ─── Assignment enums serde ───
+
+    #[test]
+    fn test_assignee_type_serde_roundtrip() {
+        for ty in [
+            AssigneeType::User,
+            AssigneeType::Team,
+            AssigneeType::Vendor,
+            AssigneeType::AiAgent,
+        ] {
+            let json = serde_json::to_string(&ty).unwrap();
+            let back: AssigneeType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, ty);
+        }
+    }
+
+    #[test]
+    fn test_assignment_role_serde_roundtrip() {
+        for role in [
+            AssignmentRole::Primary,
+            AssignmentRole::Secondary,
+            AssignmentRole::Observer,
+            AssignmentRole::Approver,
+            AssignmentRole::DispatchedTech,
+            AssignmentRole::RemoteSupport,
+        ] {
+            let json = serde_json::to_string(&role).unwrap();
+            let back: AssignmentRole = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, role);
+        }
+    }
+
+    #[test]
+    fn test_assignment_status_serde_roundtrip() {
+        for status in [
+            AssignmentStatus::Assigned,
+            AssignmentStatus::Accepted,
+            AssignmentStatus::Declined,
+            AssignmentStatus::Removed,
+            AssignmentStatus::Completed,
+        ] {
+            let json = serde_json::to_string(&status).unwrap();
+            let back: AssignmentStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, status);
+        }
+    }
+
+    #[test]
+    fn test_actor_type_serde_roundtrip() {
+        for ty in [
+            ActorType::Human,
+            ActorType::AiAgent,
+            ActorType::System,
+            ActorType::Plugin,
+        ] {
+            let json = serde_json::to_string(&ty).unwrap();
+            let back: ActorType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, ty);
+        }
+    }
+
+    // ─── WorkOrderStatus transitions (boundary) ───
+
+    #[test]
+    fn test_work_order_cancelled_has_no_transitions() {
+        assert!(!WorkOrderStatus::Cancelled.can_transition_to(WorkOrderStatus::Draft));
+        assert!(!WorkOrderStatus::Cancelled.can_transition_to(WorkOrderStatus::Open));
+        assert!(!WorkOrderStatus::Cancelled.can_transition_to(WorkOrderStatus::InProgress));
+        assert!(!WorkOrderStatus::Cancelled.can_transition_to(WorkOrderStatus::Closed));
+    }
+
+    #[test]
+    fn test_work_order_closed_can_reopen() {
+        assert!(WorkOrderStatus::Closed.can_transition_to(WorkOrderStatus::Open));
+        assert!(WorkOrderStatus::Closed.can_transition_to(WorkOrderStatus::InProgress));
+        assert!(WorkOrderStatus::Closed.can_transition_to(WorkOrderStatus::Cancelled));
+        assert!(!WorkOrderStatus::Closed.can_transition_to(WorkOrderStatus::Draft));
+        assert!(!WorkOrderStatus::Closed.can_transition_to(WorkOrderStatus::Reviewed));
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkOrderType {
     Preventive,

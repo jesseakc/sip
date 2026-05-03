@@ -82,3 +82,38 @@ pub struct Source {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ai_message_role_serde_roundtrip() {
+        for role in [
+            AiMessageRole::User,
+            AiMessageRole::Assistant,
+            AiMessageRole::System,
+            AiMessageRole::Tool,
+        ] {
+            let json = serde_json::to_string(&role).unwrap();
+            let back: AiMessageRole = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, role);
+        }
+    }
+
+    #[test]
+    fn test_retriever_type_serde_roundtrip() {
+        for rt in [
+            RetrieverType::SQL,
+            RetrieverType::Vector,
+            RetrieverType::RAG,
+            RetrieverType::GRAPH,
+            RetrieverType::TEMPORAL,
+            RetrieverType::Tool,
+        ] {
+            let json = serde_json::to_string(&rt).unwrap();
+            let back: RetrieverType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, rt);
+        }
+    }
+}

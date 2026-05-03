@@ -18,3 +18,27 @@ pub fn verify_password(password: &str, hash: &str) -> Result<bool, argon2::passw
         Err(e) => Err(e),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_and_verify_roundtrip() {
+        let password = "correct-horse-battery-staple";
+        let hash = hash_password(password).expect("hash should succeed");
+        assert!(verify_password(password, &hash).expect("verify should succeed"));
+    }
+
+    #[test]
+    fn test_verify_wrong_password_returns_false() {
+        let hash = hash_password("real-password").expect("hash should succeed");
+        assert!(!verify_password("wrong-password", &hash).expect("verify should succeed"));
+    }
+
+    #[test]
+    fn test_verify_invalid_hash_format_fails() {
+        let result = verify_password("anything", "not-a-valid-hash");
+        assert!(result.is_err());
+    }
+}

@@ -26,3 +26,24 @@ pub struct Location {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_location_type_serde_roundtrip() {
+        for ty in [
+            LocationType::Site,
+            LocationType::Building,
+            LocationType::Floor,
+            LocationType::Room,
+            LocationType::Area,
+            LocationType::Other,
+        ] {
+            let json = serde_json::to_string(&ty).unwrap();
+            let back: LocationType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, ty);
+        }
+    }
+}

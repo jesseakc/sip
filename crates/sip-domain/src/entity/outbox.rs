@@ -26,3 +26,23 @@ pub struct OutboxEvent {
     pub error: Option<String>,
     pub created_at: DateTime<Utc>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_outbox_status_serde_roundtrip() {
+        for status in [
+            OutboxStatus::Pending,
+            OutboxStatus::Processing,
+            OutboxStatus::Published,
+            OutboxStatus::Failed,
+            OutboxStatus::DeadLetter,
+        ] {
+            let json = serde_json::to_string(&status).unwrap();
+            let back: OutboxStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, status);
+        }
+    }
+}

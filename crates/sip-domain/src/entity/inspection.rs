@@ -37,3 +37,26 @@ pub struct InspectionChecklistItem {
     pub finding: Option<String>,
     pub photo_url: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_checklist_response_type_serde_roundtrip() {
+        for ty in [ChecklistResponseType::PassFail, ChecklistResponseType::Numeric, ChecklistResponseType::Text, ChecklistResponseType::Photo] {
+            let json = serde_json::to_string(&ty).unwrap();
+            let back: ChecklistResponseType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, ty);
+        }
+    }
+
+    #[test]
+    fn test_checklist_result_serde_roundtrip() {
+        for result in [ChecklistResult::Pass, ChecklistResult::Fail, ChecklistResult::NotApplicable] {
+            let json = serde_json::to_string(&result).unwrap();
+            let back: ChecklistResult = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, result);
+        }
+    }
+}

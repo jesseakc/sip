@@ -27,3 +27,22 @@ pub struct EmbeddingRecord {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_embedding_source_type_serde_roundtrip() {
+        for ty in [
+            EmbeddingSourceType::Asset,
+            EmbeddingSourceType::WorkOrder,
+            EmbeddingSourceType::DocumentChunk,
+            EmbeddingSourceType::InspectionFinding,
+        ] {
+            let json = serde_json::to_string(&ty).unwrap();
+            let back: EmbeddingSourceType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, ty);
+        }
+    }
+}

@@ -121,3 +121,104 @@ pub struct DocumentChunk {
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_document_type_serde_roundtrip() {
+        for ty in [
+            DocumentType::Manual,
+            DocumentType::Procedure,
+            DocumentType::Diagram,
+            DocumentType::Warranty,
+            DocumentType::Certificate,
+            DocumentType::Photo,
+            DocumentType::Other,
+        ] {
+            let json = serde_json::to_string(&ty).unwrap();
+            let back: DocumentType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, ty);
+        }
+    }
+
+    #[test]
+    fn test_document_source_type_serde_roundtrip() {
+        for src in [
+            DocumentSourceType::Upload,
+            DocumentSourceType::Api,
+            DocumentSourceType::Plugin,
+            DocumentSourceType::System,
+            DocumentSourceType::Vendor,
+            DocumentSourceType::PublicImport,
+        ] {
+            let json = serde_json::to_string(&src).unwrap();
+            let back: DocumentSourceType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, src);
+        }
+    }
+
+    #[test]
+    fn test_visibility_serde_roundtrip() {
+        for v in [
+            Visibility::PrivateTenant,
+            Visibility::SharedVendor,
+            Visibility::Public,
+            Visibility::SystemDefault,
+        ] {
+            let json = serde_json::to_string(&v).unwrap();
+            let back: Visibility = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, v);
+        }
+    }
+
+    #[test]
+    fn test_processing_status_serde_roundtrip() {
+        for ps in [
+            ProcessingStatus::Pending,
+            ProcessingStatus::Extracting,
+            ProcessingStatus::Extracted,
+            ProcessingStatus::Chunking,
+            ProcessingStatus::Embedding,
+            ProcessingStatus::Indexed,
+            ProcessingStatus::Failed,
+        ] {
+            let json = serde_json::to_string(&ps).unwrap();
+            let back: ProcessingStatus = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, ps);
+        }
+    }
+
+    #[test]
+    fn test_link_entity_type_serde_roundtrip() {
+        for et in [
+            LinkEntityType::Asset,
+            LinkEntityType::WorkOrder,
+            LinkEntityType::AssetModel,
+            LinkEntityType::Manufacturer,
+            LinkEntityType::Part,
+            LinkEntityType::Inspection,
+        ] {
+            let json = serde_json::to_string(&et).unwrap();
+            let back: LinkEntityType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, et);
+        }
+    }
+
+    #[test]
+    fn test_relationship_type_serde_roundtrip() {
+        for rt in [
+            RelationshipType::ManualFor,
+            RelationshipType::PhotoOf,
+            RelationshipType::WarrantyFor,
+            RelationshipType::ProcedureFor,
+            RelationshipType::EvidenceFor,
+            RelationshipType::Attachment,
+        ] {
+            let json = serde_json::to_string(&rt).unwrap();
+            let back: RelationshipType = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, rt);
+        }
+    }
+}

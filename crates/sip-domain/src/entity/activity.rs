@@ -35,3 +35,24 @@ pub struct Activity {
     pub user_agent: Option<String>,
     pub created_at: DateTime<Utc>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_activity_source_serde_roundtrip() {
+        for src in [
+            ActivitySource::Api,
+            ActivitySource::Ui,
+            ActivitySource::Ai,
+            ActivitySource::Automation,
+            ActivitySource::Plugin,
+            ActivitySource::System,
+        ] {
+            let json = serde_json::to_string(&src).unwrap();
+            let back: ActivitySource = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, src);
+        }
+    }
+}
