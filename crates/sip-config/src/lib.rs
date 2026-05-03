@@ -389,7 +389,7 @@ fn default_log_level() -> String {
 pub fn load_config() -> Result<AppConfig, Box<figment::Error>> {
     Figment::new()
         .merge(Toml::file("Sip.toml"))
-        .merge(Env::prefixed("SIP_").split("_"))
+        .merge(Env::prefixed("SIP_").split("__"))
         .extract()
         .map_err(Box::new)
 }
@@ -398,7 +398,7 @@ pub fn load_config() -> Result<AppConfig, Box<figment::Error>> {
 pub fn load_config_from(path: &str) -> Result<AppConfig, Box<figment::Error>> {
     Figment::new()
         .merge(Toml::file(path))
-        .merge(Env::prefixed("SIP_").split("_"))
+        .merge(Env::prefixed("SIP_").split("__"))
         .extract()
         .map_err(Box::new)
 }
@@ -407,11 +407,11 @@ pub fn load_config_from(path: &str) -> Result<AppConfig, Box<figment::Error>> {
 /// Used by Docker where structured TOML is inconvenient; we map flat SIP_ vars
 /// into the nested config tree via figment's join/downcast.
 ///
-/// This is a convenience: in Docker, users set SIP_DATABASE_URL, SIP_AI_ENABLED,
-/// SIP_LLM_PROVIDER, etc. directly as env vars.
+/// This is a convenience: in Docker, users set SIP_DATABASE__URL, SIP_AI__ENABLED,
+/// SIP_LLM__PROVIDER, etc. directly as env vars.
 pub fn load_config_docker() -> Result<AppConfig, Box<figment::Error>> {
     Figment::new()
-        .merge(Env::prefixed("SIP_").split("_"))
+        .merge(Env::prefixed("SIP_").split("__"))
         .extract()
         .map_err(Box::new)
 }
@@ -1451,7 +1451,7 @@ mod tests {
         std::env::set_var("SIP_DATABASE_URL", "postgres://localhost/test");
 
         let mut config = Figment::new()
-            .merge(Env::prefixed("SIP_").split("_"))
+            .merge(Env::prefixed("SIP_").split("__"))
             .extract::<AppConfig>()
             .unwrap();
 

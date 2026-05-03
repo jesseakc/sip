@@ -87,30 +87,30 @@ services:
       SIP_ENV: ${SIP_ENV:-local}
 
       # Database
-      SIP_DATABASE_URL: postgres://sip:sip@postgres:5432/sip
+      SIP_DATABASE__URL: postgres://sip:sip@postgres:5432/sip
 
       # Redis
-      SIP_REDIS_URL: redis://redis:6379
+      SIP_REDIS__URL: redis://redis:6379
 
       # Object Storage
-      SIP_OBJECT_STORAGE_ENDPOINT: http://minio:9000
-      SIP_OBJECT_STORAGE_ACCESS_KEY: minioadmin
-      SIP_OBJECT_STORAGE_SECRET_KEY: minioadmin
-      SIP_OBJECT_STORAGE_BUCKET: sip-documents
+      SIP_OBJECT_STORAGE__ENDPOINT: http://minio:9000
+      SIP_OBJECT_STORAGE__ACCESS_KEY: minioadmin
+      SIP_OBJECT_STORAGE__SECRET_KEY: minioadmin
+      SIP_OBJECT_STORAGE__BUCKET: sip-documents
 
       # Auth
-      SIP_AUTH_JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      SIP_AUTH__JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
 
       # Server
-      SIP_SERVER_PORT: 8000
+      SIP_SERVER__PORT: 8000
 
       # AI — default to Ollama for demo mode
-      # Set SIP_AI_ENABLED=false to disable AI entirely
-      # Set SIP_AI_PROVIDER=openai and SIP_AI_OPENAI_API_KEY=... for hosted mode
-      SIP_AI_ENABLED: ${SIP_AI_ENABLED:-false}
-      SIP_AI_PROVIDER: ${SIP_AI_PROVIDER:-disabled}
-      SIP_AI_OLLAMA_URL: http://ollama:11434
-      SIP_AI_OLLAMA_MODEL: ${SIP_OLLAMA_MODEL:-llama3.1:8b}
+      # Set SIP_AI__ENABLED=false to disable AI entirely
+      # Set SIP_AI__PROVIDER=openai and SIP_AI__OPENAI__API_KEY=... for hosted mode
+      SIP_AI__ENABLED: ${SIP_AI_ENABLED:-false}
+      SIP_AI__PROVIDER: ${SIP_AI_PROVIDER:-disabled}
+      SIP_AI__OLLAMA__URL: http://ollama:11434
+      SIP_AI__OLLAMA__MODEL: ${SIP_OLLAMA_MODEL:-llama3.1:8b}
     depends_on:
       postgres:
         condition: service_healthy
