@@ -141,6 +141,14 @@ fn register_default_navigation(registry: &mut PluginRegistry) {
                 40,
             ),
             nav_item(
+                "migration-studio",
+                "Migration Studio",
+                "/migration-studio",
+                "git-branch",
+                "migration:read",
+                45,
+            ),
+            nav_item(
                 "inspections",
                 "Inspections",
                 "/inspections",

@@ -3,3 +3,7 @@ jwt_secret = "dev-jwt-secret-for-local-testing-only"
 
 [server]
 port = 8000
+
+[features]
+plugin_system_enabled = true
+marketplace_enabled = true

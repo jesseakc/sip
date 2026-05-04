@@ -31,6 +31,7 @@ const FALLBACK_NAV_ITEMS = [
   { id: 'assets', label: 'Assets', href: '/assets', icon: 'packages' },
   { id: 'work-orders', label: 'Work Orders', href: '/work-orders', icon: 'clipboard-list' },
   { id: 'schedules', label: 'Schedules', href: '/schedules', icon: 'calendar' },
+  { id: 'migration-studio', label: 'Migration Studio', href: '/migration-studio', icon: 'git-branch' },
   { id: 'inspections', label: 'Inspections', href: '/inspections', icon: 'clipboard-check' },
   { id: 'parts', label: 'Parts', href: '/parts', icon: 'wrench' },
   { id: 'ai-chat', label: 'AI Chat', href: '/ai-chat', icon: 'message-square' },

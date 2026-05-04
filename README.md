@@ -22,21 +22,55 @@
 
 ---
 
-## Current Testing Status
+## Development & Testing
 
-**Verified commit**: `ddba42f4923fbda3d118b2ad8c895f53f040105a`
+### Quick Test
 
-| Check | Status |
-|-------|--------|
-| `cargo fmt --all -- --check` | ✅ Pass |
-| `cargo check -p sip-api --all-features` | ✅ Pass |
-| `cargo check --workspace --all-features` | ✅ Pass (22+ crates) |
-| `cargo test --workspace` | ✅ Pass (103 tests, 0 failures) |
-| `npm run build` (frontend) | ✅ Pass |
-| `MigrationService` compiled + linked | ✅ Confirmed |
-| `docker compose config` | ⬜ Needs Docker-enabled machine |
-| `./scripts/preflight.sh` | ⬜ Needs Docker-enabled machine |
-| `./scripts/smoke.sh` | ⬜ Needs Docker-enabled machine |
+```bash
+# Run all tests (260+ tests across all crates)
+cargo test --workspace --all-features
+
+# Test a specific crate
+cargo test -p sip-auth
+cargo test -p sip-domain
+cargo test -p sip-application
+
+# Type-check and lint
+cargo check --workspace --all-features
+cargo clippy --workspace --all-features -- -D warnings
+cargo fmt --all -- --check
+
+# Frontend
+cd frontend && npx tsc --noEmit && npm run build
+```
+
+### Test Coverage by Crate
+
+| Crate | Tests | Focus |
+|-------|-------|-------|
+| `sip-auth` | 24 | JWT encode/decode roundtrip, password hash/verify, RBAC roles, permission checks, default map |
+| `sip-domain` | 48 | SipError Display/constructors, TenantContext permissions, state machine transitions, serde roundtrip for all 28 domain enums |
+| `sip-application` | 16 | role_permissions for all UserRole variants, classify_query for all 7 question types |
+| `sip-api` | 3 | JSON response envelope shapes (success, paginated, error) |
+| `sip-config` | 13 | Default config loading, environment helpers, secret redaction, feature dependency validation, JWT/API key validation |
+| `sip-ai` | 40 | Key rotation, provider registry, failover logic, error classification |
+| `sip-plugins` | 29 | Manifest validation, registry operations, navigation aggregation |
+| `sipmem-core` | 32 | Memory types, fact ledger, temporal resolver, evidence scoring, recipes, verification |
+| `sipmem-adapters` | 18 | Retriever stubs, pipeline orchestration, router recipes, cross-reference verification |
+| **Total** | **~260** | **0 failures across all crates** |
+
+### Docker E2E Testing
+
+```bash
+# Pre-flight checks
+./scripts/preflight.sh
+
+# Start full stack
+docker compose up --build
+
+# Full API smoke test (health → login → migration → import → rollback)
+./scripts/smoke.sh
+```
 
 Weekend test guide: [`docs/testing-weekend.md`](./docs/testing-weekend.md)
 
@@ -646,7 +680,7 @@ All API responses use a consistent envelope:
 
 ```
 sip/
-├── Cargo.toml                    # Rust workspace (19 crates)
+├── Cargo.toml                    # Rust workspace (21 crates)
 ├── Cargo.lock                    # Pinned dependencies
 ├── .dockerignore
 ├── .gitignore
@@ -721,9 +755,12 @@ sip/
 │   ├── 001_initial_schema.sql    # 30 tables, enums, extensions
 │   ├── 002_indexes.sql           # HNSW, B-tree indexes
 │   ├── 003_rls_policies.sql      # Row-level security policies
-│   ├── 004_seed_data.sql         # Demo data
-│   ├── 005_fix_schema_issues.sql # Document enum fix, asset version
-│   └── 006_sipmem_tables.sql     # Verification traces, feedback, enum extensions
+│   ├── 004_seed_data.sql         # Demo data (org, 8 users, 35 assets, etc.)
+│   ├── 005_fix_schema_issues.sql # Document enum fix, asset version, outbox RLS
+│   ├── 006_sipmem_tables.sql     # Verification traces, feedback, enum extensions
+│   ├── 007_migration_core.sql    # Migration job/run tables
+│   ├── 008_convert_enums_to_text.sql # Convert 31 PG enums to TEXT for sqlx compat
+│   └── 009_fix_certifications_type.sql # JSONB[] -> JSONB column type fix
 │
 ├── docker/                       # Dockerfiles
 │   ├── Dockerfile.api             # Multi-stage Rust build
@@ -920,16 +957,18 @@ Copy `.env.example` to `.env` and adjust:
 
 | Variable | Default | Required |
 |----------|---------|----------|
-| `SIP_DATABASE_URL` | `postgres://sip:sip@localhost:5432/sip` | Yes |
-| `SIP_SERVER_HOST` | `0.0.0.0` | Yes |
-| `SIP_SERVER_PORT` | `8000` | Yes |
-| `SIP_JWT_SECRET` | `change-me-in-production-...` | **Change for production** |
-| `SIP_REDIS_URL` | `redis://localhost:6379` | Yes |
-| `SIP_MINIO_ENDPOINT` | `http://localhost:9000` | Yes |
-| `SIP_MINIO_BUCKET` | `sip-documents` | Yes |
-| `SIP_OLLAMA_URL` | `http://localhost:11434` | Yes |
-| `SIP_OLLAMA_MODEL` | `llama3.1:8b` | Yes |
+| `SIP__DATABASE_URL` | `postgres://sip:sip@localhost:5432/sip` | Yes |
+| `SIP__SERVER__HOST` | `0.0.0.0` | Yes |
+| `SIP__SERVER__PORT` | `8000` | Yes |
+| `SIP__AUTH__JWT_SECRET` | (required, min 32 chars) | **Change for production** |
+| `SIP__REDIS_URL` | `redis://localhost:6379` | Yes |
+| `SIP__OBJECT_STORAGE__ENDPOINT` | `http://localhost:9000` | Yes |
+| `SIP__OBJECT_STORAGE__BUCKET` | `sip-documents` | Yes |
+| `SIP__AI__OLLAMA__URL` | `http://localhost:11434` | Yes |
+| `SIP__AI__OLLAMA__MODEL` | `llama3.1:8b` | Yes |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000/api/v1` | Yes |
+
+> **Note:** SIP uses `__` (double underscore) as a nesting separator for environment variables. `SIP__AUTH__JWT_SECRET` maps to `auth.jwt_secret` in the nested config. See [`Sip.toml`](./Sip.toml) for a TOML-based config file alternative.
 
 ### Feature Flags
 
