@@ -416,19 +416,6 @@ For the full weekend test path: [`docs/testing-weekend.md`](./docs/testing-weeke
 | 20 | **SIPmem evidence engine** | 14 typed memory categories, Fact Ledger (atomic claims), TemporalResolver (valid_from/to/stale), VerificationEngine (pluggable verifiers), 10 retrieval recipes, ContradictionRecord persistence, SipmemPipeline orchestration. 50 tests. |
 | 21 | **UI Plugin Platform** | Manifest contract: UiCompatibility (native/compatible/standalone), UiThemeConfig, UiRouteDef, UiActionDef. Design tokens v1.0 (30+ CSS custom properties, dark mode, density modes). 11 shared SIP UI components (SipPage, SipCard, SipButton, SipBadge, SipAlert, etc.). /api/v1/ui/theme endpoint. Example native plugin manifest. |
 
-### 🚧 Deferred to Later Phases
-
-| Feature | Phase |
-|---------|-------|
-| Per-tenant LLM provider config | 1.5 |
-| Advanced RAG pipeline (re-ranking, hybrid search) | 1.5 |
-| Notification service (email, push, webhook) | 2 |
-| AI tool execution (create WO, update status) | 2 |
-| Predictive maintenance ML | 3 |
-| Compliance agent (ISO/OSHA/FDA) | 3 |
-| Native mobile apps | 4 |
-| Enterprise SSO (SAML/OIDC) | 4 |
-
 ---
 
 ## API Reference
@@ -1041,6 +1028,19 @@ docker compose up --build
 ```
 
 Weekend test guide: [`docs/testing-weekend.md`](./docs/testing-weekend.md)
+
+## Future Goals
+
+| Feature | Phase |
+|---------|-------|
+| Per-tenant LLM provider config | 1.5 |
+| Advanced RAG pipeline (re-ranking, hybrid search) | 1.5 |
+| Notification service (email, push, webhook) | 2 |
+| AI tool execution (create WO, update status) | 2 |
+| Predictive maintenance ML | 3 |
+| Compliance agent (ISO/OSHA/FDA) | 3 |
+| Native mobile apps | 4 |
+| Enterprise SSO (SAML/OIDC) | 4 |
 
 ## License
 
