@@ -20,62 +20,6 @@
   <img src="https://img.shields.io/badge/Next.js-15-black" />
 </p>
 
----
-
-## Development & Testing
-
-### Quick Test
-
-```bash
-# Run all tests (260+ tests across all crates)
-cargo test --workspace --all-features
-
-# Test a specific crate
-cargo test -p sip-auth
-cargo test -p sip-domain
-cargo test -p sip-application
-
-# Type-check and lint
-cargo check --workspace --all-features
-cargo clippy --workspace --all-features -- -D warnings
-cargo fmt --all -- --check
-
-# Frontend
-cd frontend && npx tsc --noEmit && npm run build
-```
-
-### Test Coverage by Crate
-
-| Crate | Tests | Focus |
-|-------|-------|-------|
-| `sip-auth` | 24 | JWT encode/decode roundtrip, password hash/verify, RBAC roles, permission checks, default map |
-| `sip-domain` | 48 | SipError Display/constructors, TenantContext permissions, state machine transitions, serde roundtrip for all 28 domain enums |
-| `sip-application` | 16 | role_permissions for all UserRole variants, classify_query for all 7 question types |
-| `sip-api` | 3 | JSON response envelope shapes (success, paginated, error) |
-| `sip-config` | 13 | Default config loading, environment helpers, secret redaction, feature dependency validation, JWT/API key validation |
-| `sip-ai` | 40 | Key rotation, provider registry, failover logic, error classification |
-| `sip-plugins` | 29 | Manifest validation, registry operations, navigation aggregation |
-| `sipmem-core` | 32 | Memory types, fact ledger, temporal resolver, evidence scoring, recipes, verification |
-| `sipmem-adapters` | 18 | Retriever stubs, pipeline orchestration, router recipes, cross-reference verification |
-| **Total** | **~260** | **0 failures across all crates** |
-
-### Docker E2E Testing
-
-```bash
-# Pre-flight checks
-./scripts/preflight.sh
-
-# Start full stack
-docker compose up --build
-
-# Full API smoke test (health → login → migration → import → rollback)
-./scripts/smoke.sh
-```
-
-Weekend test guide: [`docs/testing-weekend.md`](./docs/testing-weekend.md)
-
----
-
 ## Who SIP Is For
 
 SIP is designed for:
@@ -1043,6 +987,60 @@ Every tenant-owned table has RLS enabled with `organization_id = current_org_id(
 | [External ID Mapping](./docs/migrations/external-id-mapping.md) | Source→SIP traceability |
 | [Migration Studio](./plugins/sip-migration-studio/README.md) | Reference hybrid import plugin |
 | [Transform Functions](./plugins/sip-migration-studio/docs/transform-functions.md) | 14 field transform functions |
+
+---
+
+## Development & Testing
+
+### Quick Test
+
+```bash
+# Run all tests (260+ tests across all crates)
+cargo test --workspace --all-features
+
+# Test a specific crate
+cargo test -p sip-auth
+cargo test -p sip-domain
+cargo test -p sip-application
+
+# Type-check and lint
+cargo check --workspace --all-features
+cargo clippy --workspace --all-features -- -D warnings
+cargo fmt --all -- --check
+
+# Frontend
+cd frontend && npx tsc --noEmit && npm run build
+```
+
+### Test Coverage by Crate
+
+| Crate | Tests | Focus |
+|-------|-------|-------|
+| `sip-auth` | 24 | JWT encode/decode roundtrip, password hash/verify, RBAC roles, permission checks, default map |
+| `sip-domain` | 48 | SipError Display/constructors, TenantContext permissions, state machine transitions, serde roundtrip for all 28 domain enums |
+| `sip-application` | 16 | role_permissions for all UserRole variants, classify_query for all 7 question types |
+| `sip-api` | 3 | JSON response envelope shapes (success, paginated, error) |
+| `sip-config` | 13 | Default config loading, environment helpers, secret redaction, feature dependency validation, JWT/API key validation |
+| `sip-ai` | 40 | Key rotation, provider registry, failover logic, error classification |
+| `sip-plugins` | 29 | Manifest validation, registry operations, navigation aggregation |
+| `sipmem-core` | 32 | Memory types, fact ledger, temporal resolver, evidence scoring, recipes, verification |
+| `sipmem-adapters` | 18 | Retriever stubs, pipeline orchestration, router recipes, cross-reference verification |
+| **Total** | **~260** | **0 failures across all crates** |
+
+### Docker E2E Testing
+
+```bash
+# Pre-flight checks
+./scripts/preflight.sh
+
+# Start full stack
+docker compose up --build
+
+# Full API smoke test (health → login → migration → import → rollback)
+./scripts/smoke.sh
+```
+
+Weekend test guide: [`docs/testing-weekend.md`](./docs/testing-weekend.md)
 
 ## License
 
