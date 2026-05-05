@@ -162,6 +162,7 @@ Icons come from [Lucide](https://lucide.dev). Common choices:
 | `bar-chart` | Bar chart | Reports |
 | `zap` | Lightning | Quick actions |
 | `puzzle` | Puzzle piece | Plugins, integrations |
+| `git-branch` | Branch | Migration Studio, imports |
 | `shield` | Shield | Security, compliance |
 | `search` | Magnifier | Search |
 

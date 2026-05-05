@@ -48,12 +48,12 @@
 | P5 | Operational actions create reusable intelligence | ✅ |
 | P6 | Service-domain canonical model is the moat | ✅ |
 | P7 | Plugins extend without compromising | ✅ (plugin framework supports this) |
-| P8 | Modular monolith until scale demands otherwise | ✅ (19 crates) |
+| P8 | Modular monolith until scale demands otherwise | ✅ (21 crates) |
 | P9 | Modular at the data layer | ✅ |
 | P10 | Audit everything, immutably | ✅ |
 | P11 | Open source as a feature (AGPLv3) | ✅ |
 | P12 | Progressive AI autonomy | ⬜ (future phases) |
-| P13 | Documentation is an acquisition surface | 🚧 (in progress) |
+| P13 | Documentation is an acquisition surface | ✅ |
 
 ### Rust Implementation Principles (R1-R7)
 
@@ -387,13 +387,22 @@
 
 | Phase | Total Requirements | Done | In Progress | Not Started |
 |-------|--------------------|------|-------------|-------------|
-| MVP (Phase 1) | 17 capabilities + 20 principles + 10 AI reqs + 6 memory layers + 85 endpoints | 78 | 0 | 7 |
-| Phase 1.5 | 11 deliverables + migration core | 3 | 3 | 6 |
+| MVP (Phase 1) | 17 capabilities + 20 principles + 10 AI reqs + 6 memory layers + 85 endpoints | 85 | 0 | 0 |
+| Phase 1.5 | 11 deliverables + migration core | 4 | 2 | 6 |
 | Phase 2 | 7 deliverables | 0 | 0 | 7 |
 | Phase 3 | 6 deliverables | 0 | 0 | 6 |
 | Phase 4 | 13 deliverables | 0 | 0 | 13 |
-| **All** | **~100+** | **~80** | **3** | **~40** |
+| **All** | **~100+** | **~89** | **2** | **~34** |
 
 ---
 
-_Last updated: 2026-05-01_
+_Last updated: 2026-05-04_
+
+### Testing
+
+- **~260 unit tests** across all crates, 0 failures
+- **126 new tests** added in May 2026: sip-auth (24), sip-domain (48), sip-application (16), sip-api (3), plus serde roundtrip coverage for all 28 domain enums
+- Docker E2E verified: all containers healthy, auth flow working, assets/api/plugins all functional
+- 9 database migrations applied successfully
+- Migration 008: converted 31 Postgres ENUM types to TEXT for sqlx compatibility
+- Migration 009: fixed certifications column type from JSONB[] to JSONB
