@@ -20,6 +20,25 @@
   <img src="https://img.shields.io/badge/Next.js-15-black" />
 </p>
 
+## Install & Run
+
+```bash
+git clone https://github.com/jesseakc/sip.git && cd sip
+docker compose up --build
+```
+
+Then open **http://localhost:3000** and login with `admin@acme.local` / `password`.
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:3000 |
+| API | http://localhost:8000 |
+| API Health | http://localhost:8000/api/v1/health |
+
+AI is disabled by default for fastest startup. For Ollama: `docker compose --profile ollama up --build`. Full guide: [`QUICKSTART.md`](./QUICKSTART.md).
+
+---
+
 ## Who SIP Is For
 
 SIP is designed for:
