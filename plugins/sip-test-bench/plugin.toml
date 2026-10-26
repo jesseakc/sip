@@ -1,0 +1,49 @@
+id = "sip-test-bench"
+name = "SIP Test Bench"
+version = "0.1.0"
+description = "Test harness UI for SIP: load fixtures through the migration pipeline, query the AI and inspect its traces, exercise the API as any role, and run integrity checks. Hosted as a standalone UI plugin; it is not part of the first-party frontend."
+author = "SIP Project"
+license = "AGPL-3.0-or-later"
+sip_version = "0.1.0"
+plugin_type = "ui"
+enabled_by_default = true
+permissions = ["migration:read", "migration:create", "migration:validate", "migration:dry_run", "migration:execute", "migration:rollback", "asset:read", "work_order:read", "part:read", "location:read", "ai:query", "org:read"]
+
+[ui]
+kind = "web"
+framework = "react"
+entrypoint = "/test-bench"
+dev_url = "http://localhost:5173"
+production_mount = "/api/v1/ui/plugins/sip-test-bench/app/index.html"
+api_base_env = "SIP_API_BASE"
+
+[ui.compatibility]
+level = "standalone"
+requires_shell = false
+uses_sip_components = false
+uses_theme_tokens = true
+allows_global_css = true
+
+[[ui.routes]]
+id = "test-bench"
+path = "/test-bench"
+mount = "/api/v1/ui/plugins/sip-test-bench/app/index.html"
+layout = "standalone"
+title = "SIP Test Bench"
+breadcrumb = "Test Bench"
+
+[[navigation]]
+id = "test-bench"
+label = "Test Bench"
+path = "/test-bench"
+icon = "flask-conical"
+order = 200
+
+[[extension_points]]
+id = "app.shell.sidebar.nav"
+type = "ui"
+
+[marketplace]
+category = "ui"
+tags = ["testing", "harness", "migration", "observability"]
+homepage = "https://github.com/jesseakc/sip"

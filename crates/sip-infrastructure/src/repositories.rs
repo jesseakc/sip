@@ -126,7 +126,7 @@ impl PgUserRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, UserRow>(
-            "INSERT INTO users (id, organization_id, email, name, role, skills, to_jsonb(certifications) as certifications, working_hours, is_active, password_hash, created_at, updated_at)
+            "INSERT INTO users (id, organization_id, email, name, role, skills, certifications, working_hours, is_active, password_hash, created_at, updated_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
              RETURNING *"
         )
@@ -136,7 +136,13 @@ impl PgUserRepository {
         .bind(&user.name)
         .bind(format!("{:?}", user.role).to_uppercase())
         .bind(&user.skills)
-        .bind(&user.certifications)
+        // The domain models certifications as a list, but migration 009 changed
+        // the column from jsonb[] to jsonb, and the column is NOT NULL with a
+        // default of '[]'. Binding the Vec directly fails on type, and binding
+        // None overrides the default with NULL, so always send a JSON array.
+        .bind(serde_json::Value::Array(
+            user.certifications.clone().unwrap_or_default(),
+        ))
         .bind(&user.working_hours)
         .bind(user.is_active)
         .bind(password_hash)
@@ -474,6 +480,34 @@ impl PgWorkOrderRepository {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
     }
+
+    /// Work orders changed strictly after a cursor, oldest first.
+    ///
+    /// The cursor is (updated_at, id), not updated_at alone: two rows written in
+    /// the same millisecond would otherwise straddle a page boundary and one would
+    /// never be sent, so an offline client would silently miss a change. Archived
+    /// rows are included deliberately — the client needs them as tombstones.
+    pub async fn changed_since(
+        &self,
+        ctx: &TenantContext,
+        since: chrono::DateTime<Utc>,
+        after_id: Option<Uuid>,
+        limit: i64,
+    ) -> Result<Vec<WorkOrder>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let rows = sqlx::query_as::<_, WorkOrderRow>(
+            "SELECT id, organization_id, asset_id, parent_id, schedule_id, type AS work_order_type, priority, status, title, display_number, description, scheduled_start, scheduled_end, actual_start, actual_end, due_at, estimated_hours::float8 AS estimated_hours, actual_hours::float8 AS actual_hours, resolution_notes, failure_code, root_cause, created_by_id, source_type, source_system, external_id, external_url, reopened_count, last_reopened_at, last_reopened_by_id, version, archived_at, archived_by_id, archive_reason, metadata, created_at, updated_at FROM work_orders WHERE updated_at > $1 OR (updated_at = $1 AND id > $2) ORDER BY updated_at, id LIMIT $3",
+        )
+        .bind(since)
+        .bind(after_id.unwrap_or(Uuid::nil()))
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(rows.into_iter().map(map_work_order_row).collect())
+    }
 }
 
 #[async_trait]
@@ -486,10 +520,9 @@ impl WorkOrderRepository for PgWorkOrderRepository {
         set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
-        let row = sqlx::query_as::<_, WorkOrderRow>(
+        sqlx::query(
             "INSERT INTO work_orders (id, organization_id, asset_id, parent_id, schedule_id, type, priority, status, title, display_number, description, scheduled_start, scheduled_end, actual_start, actual_end, due_at, estimated_hours, actual_hours, resolution_notes, failure_code, root_cause, created_by_id, source_type, source_system, external_id, external_url, reopened_count, last_reopened_at, last_reopened_by_id, version, archived_at, archived_by_id, archive_reason, metadata, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)
-             RETURNING *"
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)"
         )
         .bind(Uuid::from(wo.id))
         .bind(Uuid::from(wo.organization_id))
@@ -524,13 +557,30 @@ impl WorkOrderRepository for PgWorkOrderRepository {
         .bind(wo.archived_at)
         .bind(wo.archived_by_id.map(Uuid::from))
         .bind(&wo.archive_reason)
-        .bind(&wo.metadata)
+        // `metadata` is NOT NULL in the schema but the domain models it as
+        // Option. A freshly built work order has None, so binding it straight
+        // through violated the constraint and every create failed. Default to an
+        // empty object, which is what the column's own default is.
+        .bind(
+            wo.metadata
+                .clone()
+                .unwrap_or_else(|| serde_json::json!({})),
+        )
         .bind(wo.created_at)
         .bind(wo.updated_at)
-        .fetch_one(&self.pool)
+        .execute(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
-        Ok(map_work_order_row(row))
+
+        // Read the row back through `get_work_order` rather than `RETURNING *`:
+        // RETURNING hands back the raw NUMERIC columns, which cannot decode into
+        // the row struct's f64 fields, so a successful insert was reported as an
+        // error. The caller then retried and created a duplicate.
+        self.get_work_order(ctx, wo.id)
+            .await?
+            .ok_or(SipError::Validation(
+                "Work order not found after insert".into(),
+            ))
     }
 
     async fn get_work_order(
@@ -541,11 +591,13 @@ impl WorkOrderRepository for PgWorkOrderRepository {
         set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
-        let row = sqlx::query_as::<_, WorkOrderRow>("SELECT * FROM work_orders WHERE id = $1")
-            .bind(Uuid::from(id))
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row = sqlx::query_as::<_, WorkOrderRow>(
+            "SELECT id, organization_id, asset_id, parent_id, schedule_id, type AS work_order_type, priority, status, title, display_number, description, scheduled_start, scheduled_end, actual_start, actual_end, due_at, estimated_hours::float8 AS estimated_hours, actual_hours::float8 AS actual_hours, resolution_notes, failure_code, root_cause, created_by_id, source_type, source_system, external_id, external_url, reopened_count, last_reopened_at, last_reopened_by_id, version, archived_at, archived_by_id, archive_reason, metadata, created_at, updated_at FROM work_orders WHERE id = $1",
+        )
+        .bind(Uuid::from(id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(row.map(map_work_order_row))
     }
 
@@ -611,11 +663,13 @@ impl WorkOrderRepository for PgWorkOrderRepository {
             });
         }
 
-        let row = sqlx::query_as::<_, WorkOrderRow>("SELECT * FROM work_orders WHERE id = $1")
-            .bind(Uuid::from(id))
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row = sqlx::query_as::<_, WorkOrderRow>(
+            "SELECT id, organization_id, asset_id, parent_id, schedule_id, type AS work_order_type, priority, status, title, display_number, description, scheduled_start, scheduled_end, actual_start, actual_end, due_at, estimated_hours::float8 AS estimated_hours, actual_hours::float8 AS actual_hours, resolution_notes, failure_code, root_cause, created_by_id, source_type, source_system, external_id, external_url, reopened_count, last_reopened_at, last_reopened_by_id, version, archived_at, archived_by_id, archive_reason, metadata, created_at, updated_at FROM work_orders WHERE id = $1",
+        )
+        .bind(Uuid::from(id))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(map_work_order_row(row))
     }
 
@@ -624,7 +678,7 @@ impl WorkOrderRepository for PgWorkOrderRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, WorkOrderRow>(
-            "SELECT * FROM work_orders ORDER BY created_at DESC LIMIT 200",
+            "SELECT id, organization_id, asset_id, parent_id, schedule_id, type AS work_order_type, priority, status, title, display_number, description, scheduled_start, scheduled_end, actual_start, actual_end, due_at, estimated_hours::float8 AS estimated_hours, actual_hours::float8 AS actual_hours, resolution_notes, failure_code, root_cause, created_by_id, source_type, source_system, external_id, external_url, reopened_count, last_reopened_at, last_reopened_by_id, version, archived_at, archived_by_id, archive_reason, metadata, created_at, updated_at FROM work_orders ORDER BY created_at DESC LIMIT 200",
         )
         .fetch_all(&self.pool)
         .await
@@ -665,11 +719,13 @@ impl WorkOrderRepository for PgWorkOrderRepository {
             .execute(&self.pool)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
-        let row = sqlx::query_as::<_, WorkOrderRow>("SELECT * FROM work_orders WHERE id = $1")
-            .bind(Uuid::from(id))
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row = sqlx::query_as::<_, WorkOrderRow>(
+            "SELECT id, organization_id, asset_id, parent_id, schedule_id, type AS work_order_type, priority, status, title, display_number, description, scheduled_start, scheduled_end, actual_start, actual_end, due_at, estimated_hours::float8 AS estimated_hours, actual_hours::float8 AS actual_hours, resolution_notes, failure_code, root_cause, created_by_id, source_type, source_system, external_id, external_url, reopened_count, last_reopened_at, last_reopened_by_id, version, archived_at, archived_by_id, archive_reason, metadata, created_at, updated_at FROM work_orders WHERE id = $1",
+        )
+        .bind(Uuid::from(id))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(map_work_order_row(row))
     }
 
@@ -682,7 +738,7 @@ impl WorkOrderRepository for PgWorkOrderRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, WorkOrderRow>(
-            "SELECT * FROM work_orders WHERE asset_id = $1 ORDER BY created_at DESC LIMIT 200",
+            "SELECT id, organization_id, asset_id, parent_id, schedule_id, type AS work_order_type, priority, status, title, display_number, description, scheduled_start, scheduled_end, actual_start, actual_end, due_at, estimated_hours::float8 AS estimated_hours, actual_hours::float8 AS actual_hours, resolution_notes, failure_code, root_cause, created_by_id, source_type, source_system, external_id, external_url, reopened_count, last_reopened_at, last_reopened_by_id, version, archived_at, archived_by_id, archive_reason, metadata, created_at, updated_at FROM work_orders WHERE asset_id = $1 ORDER BY created_at DESC LIMIT 200",
         )
         .bind(Uuid::from(asset_id))
         .fetch_all(&self.pool)
@@ -930,8 +986,41 @@ struct LocationRow {
     name: String,
     location_type: String,
     metadata: Option<serde_json::Value>,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
     created_at: chrono::DateTime<Utc>,
     updated_at: chrono::DateTime<Utc>,
+}
+
+/// A location plus the great-circle distance the proximity query computed for it.
+#[derive(Debug, sqlx::FromRow)]
+struct LocationNearRow {
+    id: Uuid,
+    organization_id: Uuid,
+    parent_id: Option<Uuid>,
+    name: String,
+    location_type: String,
+    metadata: Option<serde_json::Value>,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+    created_at: chrono::DateTime<Utc>,
+    updated_at: chrono::DateTime<Utc>,
+    distance_km: f64,
+}
+
+fn map_location_near_row(r: LocationNearRow) -> Location {
+    map_location_row(LocationRow {
+        id: r.id,
+        organization_id: r.organization_id,
+        parent_id: r.parent_id,
+        name: r.name,
+        location_type: r.location_type,
+        metadata: r.metadata,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+    })
 }
 
 impl PgLocationRepository {
@@ -944,12 +1033,70 @@ impl PgLocationRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, LocationRow>(
-            "SELECT id, organization_id, parent_id, name, type as location_type, metadata, created_at, updated_at FROM locations ORDER BY name LIMIT 200"
+            "SELECT id, organization_id, parent_id, name, type as location_type, metadata, latitude, longitude, created_at, updated_at FROM locations ORDER BY name LIMIT 200"
         )
         .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(rows.into_iter().map(map_location_row).collect())
+    }
+
+    /// Locations within `radius_km` of a point, nearest first.
+    ///
+    /// A lat/lon bounding box (index-assisted) narrows the candidates before the
+    /// great-circle distance is computed, so the trigonometry runs on a handful of
+    /// rows instead of the whole table. A field technician's device asks this to
+    /// answer "which site am I standing at".
+    pub async fn find_near(
+        &self,
+        ctx: &TenantContext,
+        latitude: f64,
+        longitude: f64,
+        radius_km: f64,
+    ) -> Result<Vec<(Location, f64)>, SipError> {
+        set_rls_org_pool(&self.pool, ctx.organization_id)
+            .await
+            .map_err(|e| SipError::Validation(e.to_string()))?;
+
+        const KM_PER_DEGREE: f64 = 111.045;
+        let lat_delta = radius_km / KM_PER_DEGREE;
+        // A degree of longitude shrinks towards the poles. Clamp the cosine so a
+        // location near a pole cannot divide by ~0 and produce an unbounded box.
+        let cos_lat = latitude.to_radians().cos().abs().max(1e-6);
+        let lon_delta = radius_km / (KM_PER_DEGREE * cos_lat);
+
+        let rows = sqlx::query_as::<_, LocationNearRow>(
+            "SELECT id, organization_id, parent_id, name, type AS location_type, metadata,
+                    latitude, longitude, created_at, updated_at,
+                    (6371.0 * 2 * asin(least(1.0, sqrt(
+                        power(sin(radians($1 - latitude) / 2), 2)
+                        + cos(radians($1)) * cos(radians(latitude))
+                          * power(sin(radians($2 - longitude) / 2), 2)
+                    )))) AS distance_km
+             FROM locations
+             WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+               AND latitude BETWEEN $3 AND $4
+               AND longitude BETWEEN $5 AND $6
+             ORDER BY distance_km
+             LIMIT 50",
+        )
+        .bind(latitude)
+        .bind(longitude)
+        .bind(latitude - lat_delta)
+        .bind(latitude + lat_delta)
+        .bind(longitude - lon_delta)
+        .bind(longitude + lon_delta)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let distance_km = r.distance_km;
+                (map_location_near_row(r), distance_km)
+            })
+            .collect())
     }
 
     pub async fn get(
@@ -961,7 +1108,7 @@ impl PgLocationRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, LocationRow>(
-            "SELECT id, organization_id, parent_id, name, type as location_type, metadata, created_at, updated_at FROM locations WHERE id = $1"
+            "SELECT id, organization_id, parent_id, name, type as location_type, metadata, latitude, longitude, created_at, updated_at FROM locations WHERE id = $1"
         )
         .bind(Uuid::from(id))
         .fetch_optional(&self.pool)
@@ -1027,7 +1174,7 @@ impl PgLocationRepository {
                 .map_err(|e| SipError::Validation(e.to_string()))?;
         }
         let row = sqlx::query_as::<_, LocationRow>(
-            "SELECT id, organization_id, parent_id, name, type as location_type, metadata, created_at, updated_at FROM locations WHERE id = $1"
+            "SELECT id, organization_id, parent_id, name, type as location_type, metadata, latitude, longitude, created_at, updated_at FROM locations WHERE id = $1"
         )
         .bind(Uuid::from(id))
         .fetch_one(&self.pool)
@@ -1045,7 +1192,7 @@ impl PgLocationRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, LocationRow>(
-            "SELECT id, organization_id, parent_id, name, type as location_type, metadata, created_at, updated_at FROM locations WHERE parent_id = $1 ORDER BY name LIMIT 200"
+            "SELECT id, organization_id, parent_id, name, type as location_type, metadata, latitude, longitude, created_at, updated_at FROM locations WHERE parent_id = $1 ORDER BY name LIMIT 200"
         )
         .bind(Uuid::from(parent_id))
         .fetch_all(&self.pool)
@@ -1087,8 +1234,8 @@ fn map_location_row(r: LocationRow) -> Location {
             "AREA" => LocationType::Area,
             _ => LocationType::Other,
         },
-        geo_latitude: None,
-        geo_longitude: None,
+        geo_latitude: r.latitude,
+        geo_longitude: r.longitude,
         metadata: r.metadata,
         created_at: r.created_at,
         updated_at: r.updated_at,
@@ -2191,11 +2338,13 @@ impl DocumentRepository for PgDocumentRepository {
         set_rls_org_pool(&self.pool, ctx.organization_id)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
-        let row = sqlx::query_as::<_, DocumentRow>("SELECT * FROM documents WHERE id = $1")
-            .bind(Uuid::from(id))
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row = sqlx::query_as::<_, DocumentRow>(
+            "SELECT id, organization_id, name, type AS document_type, mime_type, size_bytes, document_version, checksum, source_type, source_system, external_id, external_url, storage_path, visibility, processing_status, processing_error, extracted_text_path, text_content, effective_date, expiration_date, supersedes_document_id, version, archived_at, archived_by_id, archive_reason, metadata, uploaded_by_id, created_at, updated_at FROM documents WHERE id = $1",
+        )
+        .bind(Uuid::from(id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(row.map(map_document_row))
     }
 
@@ -2216,11 +2365,13 @@ impl DocumentRepository for PgDocumentRepository {
             .execute(&self.pool)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
-        let row = sqlx::query_as::<_, DocumentRow>("SELECT * FROM documents WHERE id = $1")
-            .bind(Uuid::from(id))
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row = sqlx::query_as::<_, DocumentRow>(
+            "SELECT id, organization_id, name, type AS document_type, mime_type, size_bytes, document_version, checksum, source_type, source_system, external_id, external_url, storage_path, visibility, processing_status, processing_error, extracted_text_path, text_content, effective_date, expiration_date, supersedes_document_id, version, archived_at, archived_by_id, archive_reason, metadata, uploaded_by_id, created_at, updated_at FROM documents WHERE id = $1",
+        )
+        .bind(Uuid::from(id))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(map_document_row(row))
     }
 
@@ -2229,7 +2380,7 @@ impl DocumentRepository for PgDocumentRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, DocumentRow>(
-            "SELECT * FROM documents ORDER BY created_at DESC LIMIT 200",
+            "SELECT id, organization_id, name, type AS document_type, mime_type, size_bytes, document_version, checksum, source_type, source_system, external_id, external_url, storage_path, visibility, processing_status, processing_error, extracted_text_path, text_content, effective_date, expiration_date, supersedes_document_id, version, archived_at, archived_by_id, archive_reason, metadata, uploaded_by_id, created_at, updated_at FROM documents ORDER BY created_at DESC LIMIT 200",
         )
         .fetch_all(&self.pool)
         .await
@@ -2254,11 +2405,13 @@ impl DocumentRepository for PgDocumentRepository {
             .execute(&self.pool)
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
-        let row = sqlx::query_as::<_, DocumentRow>("SELECT * FROM documents WHERE id = $1")
-            .bind(Uuid::from(id))
-            .fetch_one(&self.pool)
-            .await
-            .map_err(|e| SipError::Validation(e.to_string()))?;
+        let row = sqlx::query_as::<_, DocumentRow>(
+            "SELECT id, organization_id, name, type AS document_type, mime_type, size_bytes, document_version, checksum, source_type, source_system, external_id, external_url, storage_path, visibility, processing_status, processing_error, extracted_text_path, text_content, effective_date, expiration_date, supersedes_document_id, version, archived_at, archived_by_id, archive_reason, metadata, uploaded_by_id, created_at, updated_at FROM documents WHERE id = $1",
+        )
+        .bind(Uuid::from(id))
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?;
         Ok(map_document_row(row))
     }
 }
@@ -2533,7 +2686,7 @@ impl PartUsageRepository for PgPartUsageRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows =
-            sqlx::query_as::<_, PartUsageRow>("SELECT * FROM part_usage WHERE work_order_id = $1")
+            sqlx::query_as::<_, PartUsageRow>("SELECT id, work_order_id, part_id, quantity::float8 AS quantity, used_by_id FROM part_usage WHERE work_order_id = $1")
                 .bind(Uuid::from(work_order_id))
                 .fetch_all(&self.pool)
                 .await
@@ -2851,7 +3004,7 @@ impl PartRepository for PgPartRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let row = sqlx::query_as::<_, PartRow>(
-            "SELECT * FROM parts WHERE id = $1 AND organization_id = $2",
+            "SELECT id, organization_id, name, part_number, description, quantity_on_hand::float8 AS quantity_on_hand, quantity_minimum::float8 AS quantity_minimum, unit, unit_cost::float8 AS unit_cost, storage_location, created_at, updated_at FROM parts WHERE id = $1 AND organization_id = $2",
         )
         .bind(Uuid::from(id))
         .bind(Uuid::from(ctx.organization_id))
@@ -2866,7 +3019,7 @@ impl PartRepository for PgPartRepository {
             .await
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let rows = sqlx::query_as::<_, PartRow>(
-            "SELECT * FROM parts WHERE organization_id = $1 ORDER BY name LIMIT 200",
+            "SELECT id, organization_id, name, part_number, description, quantity_on_hand::float8 AS quantity_on_hand, quantity_minimum::float8 AS quantity_minimum, unit, unit_cost::float8 AS unit_cost, storage_location, created_at, updated_at FROM parts WHERE organization_id = $1 ORDER BY name LIMIT 200",
         )
         .bind(Uuid::from(ctx.organization_id))
         .fetch_all(&self.pool)
@@ -2922,7 +3075,7 @@ impl PartRepository for PgPartRepository {
         .map_err(|e| SipError::Validation(e.to_string()))?;
 
         let row = sqlx::query_as::<_, PartRow>(
-            "SELECT * FROM parts WHERE id = $1 AND organization_id = $2",
+            "SELECT id, organization_id, name, part_number, description, quantity_on_hand::float8 AS quantity_on_hand, quantity_minimum::float8 AS quantity_minimum, unit, unit_cost::float8 AS unit_cost, storage_location, created_at, updated_at FROM parts WHERE id = $1 AND organization_id = $2",
         )
         .bind(Uuid::from(id))
         .bind(Uuid::from(ctx.organization_id))

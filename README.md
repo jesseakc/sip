@@ -243,8 +243,11 @@ plugins/
 
 **`sip-migration-studio`** — A hybrid plugin that imports customer data from external CRMs and CMMS systems. CSV and JSON file upload with client-side parsing → field mapping wizard → validation → dry run → execute import → rollback. Built on the Migration Core Framework. Consumes the same `/api/v1/migrations/*` API that any plugin can use.
 
+**`sip-test-bench`** — A standalone UI plugin that hosts its own application. Loads the SMRT fixture through the full migration pipeline, streams AI answers and shows their retrieval and verification traces, exercises any endpoint as any of the six demo roles, and runs a battery of integrity checks. It is the first plugin to ship its own UI: the API serves `plugins/sip-test-bench/dist/` and the shell mounts it in an iframe. See [Hosting a Plugin's UI](./docs/plugin-hosting.md).
+
 📖 **Plugin Development Docs:**
 - [Plugin Architecture Overview](./docs/plugins/overview.md)
+- [Hosting a Plugin's UI](./docs/plugin-hosting.md). The iframe host, the `mount` field, and the token handshake.
 - [Manifest Reference](./docs/plugins/manifest-reference.md). Every field in `plugin.toml`.
 - [API Reference](./docs/plugins/api-reference.md). Plugin discovery endpoints.
 - [Extension Points](./docs/plugins/extension-points.md). 35 UI injection slots.
@@ -252,8 +255,12 @@ plugins/
 
 📖 **Migration Docs:**
 - [Migration API Reference](./docs/migrations/api-reference.md)
+- [Importable object types and load order](./docs/migrations/overview.md#supported-object-types)
 - [External ID Mapping](./docs/migrations/external-id-mapping.md)
 - [Migration Studio Plugin](./plugins/sip-migration-studio/README.md)
+
+📖 **Test Data:**
+- [SMRT Maintenance Logs fixture](./data/smrt-maintenance-logs/README.md). 10,785 real maintenance narratives mapped onto SIP's domain model: 585 assets, 766 parts, 10,785 work orders with full text for SIPmem and AI-citation testing.
 
 📖 **Implementation Tracker:** [PROGRESS.md](./docs/PROGRESS.md). Full PRD implementation status.
 
@@ -716,6 +723,14 @@ sip/
 │   ├── Dockerfile.api             # Multi-stage Rust build
 │   └── Dockerfile.frontend        # Next.js standalone build
 │
+├── plugins/                      # Plugins, loaded from SIP_PLUGIN_DIR
+│   ├── sip-core-ui/              # First-party web frontend (manifest)
+│   ├── sip-migration-studio/     # CRM/CMMS import plugin (manifest + docs + examples)
+│   └── sip-test-bench/           # Test harness UI plugin (manifest + own Vite app + dist)
+│
+├── data/                         # Loadable test corpora
+│   └── smrt-maintenance-logs/    # 10,785 real maintenance logs -> SIP canonical records
+│
 └── docs/                         # Documentation
     ├── PRD-v2.md                 # Full Product Requirements Document (v5.7)
     └── openapi.yaml              # OpenAPI 3.0 specification (1700+ lines)
@@ -973,6 +988,7 @@ Every tenant-owned table has RLS enabled with `organization_id = current_org_id(
 | [openapi.yaml](./docs/openapi.yaml) | OpenAPI 3.0 specification |
 | **Plugin Engine** | |
 | [Plugin Overview](./docs/plugins/overview.md) | Plugin architecture, lifecycle, types |
+| [Hosting a Plugin's UI](./docs/plugin-hosting.md) | Route `mount`, iframe host, token handshake |
 | [Manifest Reference](./docs/plugins/manifest-reference.md) | Complete `plugin.toml` field reference |
 | [Extension Points](./docs/plugins/extension-points.md) | 35 UI injection slots + 8 migration slots |
 | [Plugin Examples](./docs/plugins/examples.md) | 5 walkthroughs for common plugin types |
@@ -1025,13 +1041,13 @@ cd frontend && npx tsc --noEmit && npm run build
 | `sip-auth` | 24 | JWT encode/decode roundtrip, password hash/verify, RBAC roles, permission checks, default map |
 | `sip-domain` | 48 | SipError Display/constructors, TenantContext permissions, state machine transitions, serde roundtrip for all 28 domain enums |
 | `sip-application` | 16 | role_permissions for all UserRole variants, classify_query for all 7 question types |
-| `sip-api` | 3 | JSON response envelope shapes (success, paginated, error) |
+| `sip-api` | 5 | JSON response envelope shapes, plugin app asset path guards |
 | `sip-config` | 13 | Default config loading, environment helpers, secret redaction, feature dependency validation, JWT/API key validation |
 | `sip-ai` | 40 | Key rotation, provider registry, failover logic, error classification |
-| `sip-plugins` | 29 | Manifest validation, registry operations, navigation aggregation |
+| `sip-plugins` | 33 | Manifest validation, registry operations, navigation aggregation, public-view route/action exposure |
 | `sipmem-core` | 32 | Memory types, fact ledger, temporal resolver, evidence scoring, recipes, verification |
 | `sipmem-adapters` | 18 | Retriever stubs, pipeline orchestration, router recipes, cross-reference verification |
-| **Total** | **~260** | **0 failures across all crates** |
+| **Total** | **209** | **0 failures.** Measured with `cargo test --workspace --all-features` |
 
 ### Docker E2E Testing
 

@@ -1,3 +1,4 @@
+use crate::migration_import;
 use chrono::{Datelike, Utc};
 use serde::Serialize;
 use sip_ai::{CompletionOptions, LlmProvider};
@@ -37,9 +38,9 @@ use sip_domain::{
         WorkOrderAssignmentId, WorkOrderId, WorkOrderStatusHistoryId,
     },
     repository::{
-        AIConversationRepository, ActivityRepository, AssetRepository, DocumentRepository,
-        InspectionRepository, PartRepository, PartUsageRepository, ScheduleRepository,
-        WorkOrderAssignmentRepository, WorkOrderStatusHistoryRepository,
+        AIConversationRepository, ActivityRepository, DocumentRepository, InspectionRepository,
+        PartRepository, PartUsageRepository, ScheduleRepository, WorkOrderAssignmentRepository,
+        WorkOrderStatusHistoryRepository,
     },
     tenant::TenantContext,
 };
@@ -387,7 +388,7 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         let mut retries = 3;
         loop {
             let wo = WorkOrder {
-                id: WorkOrderId::new(),
+                id: input.id.unwrap_or_default(),
                 organization_id: ctx.organization_id,
                 asset_id: input.asset_id,
                 parent_id: None,
@@ -945,6 +946,10 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
 }
 
 pub struct CreateWorkOrderInput {
+    /// Client-supplied identifier, used by offline clients so a retried create
+    /// cannot produce a duplicate ticket. `None` means "assign a server-side id",
+    /// which is what the online API has always done.
+    pub id: Option<WorkOrderId>,
     pub asset_id: AssetId,
     pub work_order_type: WorkOrderType,
     pub priority: WorkOrderPriority,
@@ -2395,6 +2400,37 @@ impl LocationService {
         self.repo.list(ctx).await
     }
 
+    /// Locations within `radius_km` of a coordinate, nearest first.
+    pub async fn near(
+        &self,
+        ctx: &TenantContext,
+        latitude: f64,
+        longitude: f64,
+        radius_km: f64,
+    ) -> Result<Vec<(Location, f64)>, SipError> {
+        ctx.require_permission("asset:read")?;
+        // Reject impossible input up front rather than letting the database CHECK
+        // constraints reject it later with a less useful message.
+        if !(-90.0..=90.0).contains(&latitude) {
+            return Err(SipError::Validation(
+                "latitude must be between -90 and 90".into(),
+            ));
+        }
+        if !(-180.0..=180.0).contains(&longitude) {
+            return Err(SipError::Validation(
+                "longitude must be between -180 and 180".into(),
+            ));
+        }
+        if !(0.0..=100.0).contains(&radius_km) {
+            return Err(SipError::Validation(
+                "radius_km must be between 0 and 100".into(),
+            ));
+        }
+        self.repo
+            .find_near(ctx, latitude, longitude, radius_km)
+            .await
+    }
+
     pub async fn get(
         &self,
         ctx: &TenantContext,
@@ -3143,16 +3179,33 @@ impl MigrationService {
         let mut issues: Vec<MigrationValidationIssue> = Vec::new();
 
         for src in &source_records {
-            let mut canonical = serde_json::json!({});
             let entity_type = &src.source_object_type;
-
-            for mapping in mappings
+            let type_mappings: Vec<&MigrationFieldMapping> = mappings
                 .iter()
                 .filter(|m| m.target_entity_type == *entity_type)
-            {
+                .collect();
+
+            // A record that already arrives in canonical shape needs no field
+            // mappings: that is the canonical import contract, and it is how a
+            // plugin (or a prepared fixture) hands over records it has already
+            // translated. Without this fallback an unmapped job staged an empty
+            // object for every record and then rejected all of them for a
+            // missing required field, so only assets ever imported.
+            let mut canonical = if type_mappings.is_empty() {
+                src.raw_data.clone()
+            } else {
+                serde_json::json!({})
+            };
+
+            // Issues are tracked per record. They used to be tested against the
+            // accumulator shared by the whole loop, so a single bad row marked
+            // every later row invalid as well.
+            let mut record_issues: Vec<MigrationValidationIssue> = Vec::new();
+
+            for mapping in &type_mappings {
                 let source_val = src.raw_data.get(&mapping.source_field);
                 if source_val.is_none() && mapping.is_required {
-                    issues.push(MigrationValidationIssue {
+                    record_issues.push(MigrationValidationIssue {
                         id: MigrationValidationIssueId::new(),
                         organization_id: ctx.organization_id,
                         job_id,
@@ -3169,6 +3222,11 @@ impl MigrationService {
                 }
             }
 
+            let has_blocking = record_issues
+                .iter()
+                .any(|i| i.severity == "error" || i.severity == "blocking");
+            issues.extend(record_issues.iter().cloned());
+
             let staged_record = MigrationStagedRecord {
                 id: MigrationStagedRecordId::new(),
                 organization_id: ctx.organization_id,
@@ -3176,15 +3234,15 @@ impl MigrationService {
                 source_record_id: src.id,
                 target_entity_type: entity_type.clone(),
                 canonical_data: canonical,
-                status: if issues.is_empty() {
-                    "pending_validation".to_string()
-                } else {
+                status: if has_blocking {
                     "invalid".to_string()
+                } else {
+                    "pending_validation".to_string()
                 },
-                validation_errors: if issues.is_empty() {
+                validation_errors: if record_issues.is_empty() {
                     None
                 } else {
-                    Some(serde_json::json!(issues
+                    Some(serde_json::json!(record_issues
                         .iter()
                         .map(|i| serde_json::json!({
                             "severity": i.severity,
@@ -3505,8 +3563,6 @@ impl MigrationService {
     ) -> Result<MigrationRun, SipError> {
         ctx.require_permission("migration:execute")?;
         let repo = PgMigrationRepository::new(self.pool.clone());
-        let asset_repo =
-            sip_infrastructure::repositories::PgAssetRepository::new(self.pool.clone());
 
         repo.update_job_status(ctx, job_id, MigrationJobStatus::Importing)
             .await?;
@@ -3531,129 +3587,85 @@ impl MigrationService {
 
         let staged_records = repo.get_staged_records(ctx, job_id).await?;
 
+        // Display numbers are allocated once for the whole run. The runtime path
+        // derives each one from MAX(display_number), which across a multi-thousand
+        // row import would mean an extra query and a collision retry per record.
+        let mut display_numbers =
+            migration_import::DisplayNumberAllocator::new(&self.pool, ctx).await?;
+
         for staged in &staged_records {
             if staged.status != "pending_validation" {
                 run.records_skipped += 1;
                 continue;
             }
 
-            let result = match staged.target_entity_type.as_str() {
-                "asset" => {
-                    let dto = serde_json::from_value::<
-                        sip_domain::entity::migration::CanonicalAssetImport,
-                    >(staged.canonical_data.clone());
-                    match dto {
-                        Ok(dto) => {
-                            let asset = Asset {
-                                id: AssetId::new(),
-                                organization_id: ctx.organization_id,
-                                location_id: None,
-                                parent_id: None,
-                                asset_type_id: AssetTypeId::from(Uuid::new_v4()),
-                                model_id: None,
-                                name: dto.name.clone(),
-                                description: dto.notes.clone(),
-                                serial_number: dto.serial_number.clone(),
-                                firmware_version: None,
-                                software_version: None,
-                                hardware_revision: None,
-                                status: AssetStatus::Operational,
-                                version: 1,
-                                criticality: sip_domain::entity::asset::Criticality::Medium,
-                                installed_date: None,
-                                warranty_expiry: None,
-                                attributes: dto.custom_attributes.clone(),
-                                tags: dto.tags.unwrap_or_default(),
-                                metadata: None,
-                                created_at: Utc::now(),
-                                updated_at: Utc::now(),
-                            };
-                            match asset_repo.create_asset(ctx, &asset).await {
-                                Ok(created) => {
-                                    if let Some(ref ext_id) = dto.external_id {
-                                        let _ = repo
-                                            .create_external_id_map(
-                                                ctx,
-                                                &MigrationExternalIdMap {
-                                                    id: MigrationExternalIdMapId::new(),
-                                                    organization_id: ctx.organization_id,
-                                                    job_id,
-                                                    run_id: run.id,
-                                                    source_system: "import".into(),
-                                                    source_object_type: "asset".into(),
-                                                    source_external_id: ext_id.clone(),
-                                                    sip_entity_type: "asset".into(),
-                                                    sip_entity_id: Uuid::from(created.id),
-                                                    created_at: Utc::now(),
-                                                },
-                                            )
-                                            .await;
-                                    }
-                                    MigrationImportResult {
-                                        id: MigrationImportResultId::new(),
-                                        organization_id: ctx.organization_id,
-                                        job_id,
-                                        run_id: run.id,
-                                        staged_record_id: staged.id,
-                                        sip_entity_type: "asset".into(),
-                                        sip_entity_id: Some(Uuid::from(created.id)),
-                                        action: "created".into(),
-                                        error_message: None,
-                                        created_at: Utc::now(),
-                                    }
-                                }
-                                Err(e) => MigrationImportResult {
-                                    id: MigrationImportResultId::new(),
-                                    organization_id: ctx.organization_id,
-                                    job_id,
-                                    run_id: run.id,
-                                    staged_record_id: staged.id,
-                                    sip_entity_type: "asset".into(),
-                                    sip_entity_id: None,
-                                    action: "failed".into(),
-                                    error_message: Some(e.to_string()),
-                                    created_at: Utc::now(),
-                                },
-                            }
-                        }
-                        Err(e) => MigrationImportResult {
-                            id: MigrationImportResultId::new(),
-                            organization_id: ctx.organization_id,
-                            job_id,
-                            run_id: run.id,
-                            staged_record_id: staged.id,
-                            sip_entity_type: "asset".into(),
-                            sip_entity_id: None,
-                            action: "failed".into(),
-                            error_message: Some(format!("Invalid DTO: {}", e)),
-                            created_at: Utc::now(),
-                        },
-                    }
-                }
-                _ => MigrationImportResult {
-                    id: MigrationImportResultId::new(),
-                    organization_id: ctx.organization_id,
-                    job_id,
-                    run_id: run.id,
-                    staged_record_id: staged.id,
-                    sip_entity_type: staged.target_entity_type.clone(),
-                    sip_entity_id: None,
-                    action: "skipped".into(),
-                    error_message: Some(format!(
+            let outcome = migration_import::import_staged_record(
+                &self.pool,
+                ctx,
+                &staged.target_entity_type,
+                &staged.canonical_data,
+                &mut display_numbers,
+            )
+            .await;
+
+            let (action, created_id, error_message) = match outcome {
+                Ok(migration_import::ImportOutcome::Created(id)) => ("created", Some(id), None),
+                Ok(migration_import::ImportOutcome::Unhandled) => (
+                    "skipped",
+                    None,
+                    Some(format!(
                         "No import handler for entity type '{}'",
                         staged.target_entity_type
                     )),
-                    created_at: Utc::now(),
-                },
+                ),
+                Err(e) => ("failed", None, Some(e.to_string())),
             };
 
-            let is_error = result.action == "failed";
-            if is_error {
-                run.records_failed += 1;
-            } else if result.action == "created" {
-                run.records_created += 1;
-            } else {
-                run.records_skipped += 1;
+            // Register the external-ID mapping so later objects in this job, and
+            // rollback, can resolve the entity that was just created.
+            if let (Some(entity_id), Some(ext_id)) = (
+                created_id,
+                staged
+                    .canonical_data
+                    .get("external_id")
+                    .and_then(|v| v.as_str()),
+            ) {
+                let _ = repo
+                    .create_external_id_map(
+                        ctx,
+                        &MigrationExternalIdMap {
+                            id: MigrationExternalIdMapId::new(),
+                            organization_id: ctx.organization_id,
+                            job_id,
+                            run_id: run.id,
+                            source_system: migration_import::IMPORT_SOURCE_SYSTEM.to_string(),
+                            source_object_type: staged.target_entity_type.clone(),
+                            source_external_id: ext_id.to_string(),
+                            sip_entity_type: staged.target_entity_type.clone(),
+                            sip_entity_id: entity_id,
+                            created_at: Utc::now(),
+                        },
+                    )
+                    .await;
+            }
+
+            let result = MigrationImportResult {
+                id: MigrationImportResultId::new(),
+                organization_id: ctx.organization_id,
+                job_id,
+                run_id: run.id,
+                staged_record_id: staged.id,
+                sip_entity_type: staged.target_entity_type.clone(),
+                sip_entity_id: created_id,
+                action: action.to_string(),
+                error_message,
+                created_at: Utc::now(),
+            };
+
+            match action {
+                "failed" => run.records_failed += 1,
+                "created" => run.records_created += 1,
+                _ => run.records_skipped += 1,
             }
             run.records_processed += 1;
 
@@ -3710,8 +3722,6 @@ impl MigrationService {
     ) -> Result<MigrationRun, SipError> {
         ctx.require_permission("migration:rollback")?;
         let repo = PgMigrationRepository::new(self.pool.clone());
-        let asset_repo =
-            sip_infrastructure::repositories::PgAssetRepository::new(self.pool.clone());
 
         let now = Utc::now();
         let mut run = MigrationRun {
@@ -3734,35 +3744,60 @@ impl MigrationService {
         let external_id_maps = repo.get_external_id_maps(ctx, job_id).await?;
 
         for entry in &external_id_maps {
-            if entry.sip_entity_type == "asset" {
-                match asset_repo
-                    .archive_asset(ctx, AssetId::from(entry.sip_entity_id))
-                    .await
-                {
-                    Ok(_) => {
-                        run.records_processed += 1;
-                        run.records_created += 1;
-                    }
-                    Err(e) => {
-                        run.records_failed += 1;
-                        let _ = repo
-                            .create_import_result(
-                                ctx,
-                                &MigrationImportResult {
-                                    id: MigrationImportResultId::new(),
-                                    organization_id: ctx.organization_id,
-                                    job_id,
-                                    run_id: run.id,
-                                    staged_record_id: MigrationStagedRecordId::new(),
-                                    sip_entity_type: "asset".into(),
-                                    sip_entity_id: Some(entry.sip_entity_id),
-                                    action: "rollback_failed".into(),
-                                    error_message: Some(e.to_string()),
-                                    created_at: Utc::now(),
-                                },
-                            )
-                            .await;
-                    }
+            match migration_import::rollback_entity(
+                &self.pool,
+                ctx,
+                &entry.sip_entity_type,
+                entry.sip_entity_id,
+            )
+            .await
+            {
+                Ok(None) => {
+                    run.records_processed += 1;
+                    run.records_created += 1;
+                }
+                Ok(Some(reason)) => {
+                    // The entity type has no archive path in SIP; record why it
+                    // was left in place instead of reporting a false rollback.
+                    run.records_processed += 1;
+                    run.records_skipped += 1;
+                    let _ = repo
+                        .create_import_result(
+                            ctx,
+                            &MigrationImportResult {
+                                id: MigrationImportResultId::new(),
+                                organization_id: ctx.organization_id,
+                                job_id,
+                                run_id: run.id,
+                                staged_record_id: MigrationStagedRecordId::new(),
+                                sip_entity_type: entry.sip_entity_type.clone(),
+                                sip_entity_id: Some(entry.sip_entity_id),
+                                action: "rollback_skipped".into(),
+                                error_message: Some(reason),
+                                created_at: Utc::now(),
+                            },
+                        )
+                        .await;
+                }
+                Err(e) => {
+                    run.records_failed += 1;
+                    let _ = repo
+                        .create_import_result(
+                            ctx,
+                            &MigrationImportResult {
+                                id: MigrationImportResultId::new(),
+                                organization_id: ctx.organization_id,
+                                job_id,
+                                run_id: run.id,
+                                staged_record_id: MigrationStagedRecordId::new(),
+                                sip_entity_type: entry.sip_entity_type.clone(),
+                                sip_entity_id: Some(entry.sip_entity_id),
+                                action: "rollback_failed".into(),
+                                error_message: Some(e.to_string()),
+                                created_at: Utc::now(),
+                            },
+                        )
+                        .await;
                 }
             }
         }
@@ -3914,7 +3949,13 @@ mod tests {
 
     #[test]
     fn test_role_permissions_no_wildcard_except_admin() {
-        for role in [UserRole::Manager, UserRole::Technician, UserRole::Viewer, UserRole::Vendor, UserRole::Auditor] {
+        for role in [
+            UserRole::Manager,
+            UserRole::Technician,
+            UserRole::Viewer,
+            UserRole::Vendor,
+            UserRole::Auditor,
+        ] {
             let perms = role_permissions(&role);
             assert!(!perms.contains(&"*".to_string()));
         }
@@ -3934,7 +3975,8 @@ mod tests {
 
     #[test]
     fn test_classify_query_similarity() {
-        let result = AIService::classify_query("find similar failures to this symptom of overheating");
+        let result =
+            AIService::classify_query("find similar failures to this symptom of overheating");
         assert!(matches!(result.question_type, QuestionType::Similarity));
     }
 

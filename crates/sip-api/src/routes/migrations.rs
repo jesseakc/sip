@@ -84,10 +84,33 @@ pub struct SaveFieldMappingsRequest {
     pub mappings: Vec<MigrationFieldMapping>,
 }
 
+/// Migration and import endpoints are administrator-only.
+///
+/// They were previously reachable by any authenticated user in any tenant: the
+/// handlers took a `TenantContext` but never checked a permission on it, so a
+/// viewer could create an import job and bulk-load records. Gated on a dedicated
+/// permission so a future role can be granted it deliberately.
+fn require_migration_admin(
+    ctx: &TenantContext,
+) -> Result<(), (StatusCode, Json<serde_json::Value>)> {
+    ctx.require_permission("migration:manage").map_err(|_| {
+        (
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "error": {
+                    "code": "FORBIDDEN",
+                    "message": "migration and import management requires an administrator",
+                }
+            })),
+        )
+    })
+}
+
 pub async fn list_jobs(
     State(state): State<Arc<AppState>>,
     Extension(ctx): Extension<TenantContext>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let service = MigrationService::new(state.pool.clone());
     match service.list_jobs(&ctx).await {
         Ok(jobs) => Ok(Json(json!({
@@ -114,6 +137,7 @@ pub async fn create_job(
     Extension(ctx): Extension<TenantContext>,
     Json(body): Json<CreateMigrationJobRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let service = MigrationService::new(state.pool.clone());
     match service
         .create_job(
@@ -143,6 +167,7 @@ pub async fn get_job(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -180,6 +205,7 @@ pub async fn get_source_records(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -208,6 +234,7 @@ pub async fn add_source_records(
     Path(job_id): Path<String>,
     Json(body): Json<AddSourceRecordsRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -232,6 +259,7 @@ pub async fn save_field_mappings(
     Path(job_id): Path<String>,
     Json(body): Json<SaveFieldMappingsRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -254,6 +282,7 @@ pub async fn get_field_mappings(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -282,6 +311,7 @@ pub async fn validate_job(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -310,6 +340,7 @@ pub async fn dry_run(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -337,6 +368,7 @@ pub async fn execute_import(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -365,6 +397,7 @@ pub async fn rollback_job(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -389,6 +422,7 @@ pub async fn cancel_job(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -411,6 +445,7 @@ pub async fn get_validation_issues(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -436,6 +471,7 @@ pub async fn get_duplicates(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -463,6 +499,7 @@ pub async fn get_external_id_maps(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -490,6 +527,7 @@ pub async fn get_staged_records(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -516,6 +554,7 @@ pub async fn get_report(
     Extension(ctx): Extension<TenantContext>,
     Path(job_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    require_migration_admin(&ctx)?;
     let id = MigrationJobId::from_str(&job_id).map_err(|_| {
         (
             StatusCode::BAD_REQUEST,

@@ -16,6 +16,14 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Plugin build output IS the deployment unit: the SIP API serves it from
+# /api/v1/ui/plugins/<id>/app/. Keep it tracked so a clone has a working plugin.
+!plugins/*/dist/
+
+# Fixtures are copied into a plugin's public/ by its prebuild step; the source of
+# truth is data/<corpus>/fixture/.
+plugins/*/public/fixtures/
+
 # Environment
 .env
 .env.local
@@ -36,6 +44,11 @@ Thumbs.db
 coverage/
 *.profraw
 
+# Test data
+# The raw source corpus is committed; derived fixtures are generated. See
+# data/smrt-maintenance-logs/README.md for the one-command rebuild.
+data/*/fixture/
+
 # TypeScript build artifacts
 *.tsbuildinfo
 
@@ -48,3 +61,12 @@ frontend/out/
 frontend/dist/
 frontend/node_modules/
 *.tsbuildinfo
+
+# Downloaded corpora and derived fixture bundles. The code that consumes them
+# stays in the repo; the records themselves are the operator's to fetch locally.
+data/*/raw/
+plugins/*/dist/fixtures/
+
+# Python bytecode (never commit compiled caches)
+__pycache__/
+*.pyc

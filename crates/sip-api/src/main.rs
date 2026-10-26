@@ -66,6 +66,9 @@ async fn capabilities_handler(
                 "graph": cfg.features.graph_enabled,
                 "dispatch": cfg.features.dispatch_enabled,
                 "parts_inventory": cfg.features.parts_inventory_enabled,
+                // Advertises that test-only affordances are appropriate here.
+                // Clients must hide them when this is false.
+                "demo_mode": cfg.features.demo_mode,
             },
             "ai": {
                 "enabled": cfg.ai.enabled,
@@ -75,6 +78,13 @@ async fn capabilities_handler(
             },
             "plugins": {
                 "enabled": cfg.features.plugin_system_enabled && cfg!(feature = "plugins")
+            },
+            // Build identity, injected at image build time. Readiness should be
+            // judged on this plus service health, not on a feature flag alone: a
+            // flag proves a capability was compiled in, not which revision is
+            // running.
+            "build": {
+                "commit": std::env::var("SIP_BUILD_COMMIT").unwrap_or_else(|_| "unknown".to_string())
             }
         }
     }))
@@ -329,6 +339,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/health/ready", get(routes::health::ready))
         .route("/api/v1/auth/login", post(routes::auth::login))
         .route("/api/v1/auth/refresh", post(routes::auth::refresh))
+        // First-administrator setup for an empty deployment. Public by necessity
+        // (there is no user to authenticate yet) but fail-closed on a configured
+        // token and closed for good once any user exists.
+        .route("/api/v1/auth/bootstrap", post(routes::auth::bootstrap))
         .route("/api/v1/capabilities", get(capabilities_handler))
         .route("/.well-known/sip-api", get(|| async {
             axum::Json(serde_json::json!({
@@ -377,7 +391,12 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/ui/navigation",
             get(routes::plugins::get_ui_navigation),
         )
-        .route("/api/v1/ui/theme", get(routes::plugins::get_ui_theme));
+        .route("/api/v1/ui/theme", get(routes::plugins::get_ui_theme))
+        // Hosts each plugin's own built UI bundle out of plugins/<id>/dist.
+        .route(
+            "/api/v1/ui/plugins/{plugin_id}/app/{*path}",
+            get(routes::plugins::plugin_app_asset),
+        );
 
     // Navigation endpoint always available (without plugins feature, falls back to embedded defaults)
     #[cfg(not(feature = "plugins"))]
@@ -402,6 +421,13 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/locations",
             get(routes::locations::list_locations).post(routes::locations::create_location),
         )
+        // Registered before the `{id}` route for readability. Axum matches static
+        // segments ahead of dynamic ones regardless, so `/near` is never treated
+        // as a location id.
+        .route(
+            "/api/v1/locations/near",
+            get(routes::locations::list_nearby_locations),
+        )
         .route(
             "/api/v1/locations/{id}",
             get(routes::locations::get_location).patch(routes::locations::update_location),
@@ -414,6 +440,11 @@ async fn main() -> anyhow::Result<()> {
             "/api/v1/locations/{id}/assets",
             get(routes::locations::list_location_assets),
         )
+        // Offline sync for field clients. Push is idempotent per client-generated
+        // id; pull is a (updated_at, id) cursor feed so a page boundary cannot skip
+        // a row written in the same millisecond.
+        .route("/api/v1/sync/push", post(routes::sync::push))
+        .route("/api/v1/sync/pull", get(routes::sync::pull))
         .route(
             "/api/v1/asset-types",
             get(routes::asset_types::list_asset_types).post(routes::asset_types::create_asset_type),

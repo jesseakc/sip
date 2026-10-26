@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Extension, Json, Path, State},
+    extract::{Extension, Json, Path, Query, State},
     http::StatusCode,
 };
 use serde::Deserialize;
@@ -37,6 +37,8 @@ pub async fn list_locations(
                 "name": l.name,
                 "type": format!("{:?}", l.location_type).to_uppercase(),
                 "parent_id": l.parent_id.map(|id| id.to_string()),
+                "latitude": l.geo_latitude,
+                "longitude": l.geo_longitude,
                 "created_at": l.created_at,
                 "updated_at": l.updated_at,
             })).collect::<Vec<_>>()
@@ -68,6 +70,8 @@ pub async fn get_location(
                 "name": location.name,
                 "type": format!("{:?}", location.location_type).to_uppercase(),
                 "parent_id": location.parent_id.map(|id| id.to_string()),
+                "latitude": location.geo_latitude,
+                "longitude": location.geo_longitude,
                 "metadata": location.metadata,
                 "created_at": location.created_at,
                 "updated_at": location.updated_at,
@@ -179,6 +183,8 @@ pub async fn list_location_children(
                 "name": l.name,
                 "type": format!("{:?}", l.location_type).to_uppercase(),
                 "parent_id": l.parent_id.map(|id| id.to_string()),
+                "latitude": l.geo_latitude,
+                "longitude": l.geo_longitude,
                 "created_at": l.created_at,
                 "updated_at": l.updated_at,
             })).collect::<Vec<_>>()
@@ -216,5 +222,66 @@ pub async fn list_location_assets(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
         )),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct NearbyQuery {
+    pub lat: f64,
+    pub lng: f64,
+    #[serde(default = "default_radius_km")]
+    pub radius_km: f64,
+}
+
+fn default_radius_km() -> f64 {
+    10.0
+}
+
+/// `GET /api/v1/locations/near?lat=&lng=&radius_km=`
+///
+/// What the field app asks with the device's GPS fix: "which site am I at".
+/// Nearest first, and each row carries its distance so the client can decide
+/// whether a fix is close enough to auto-select a site or should ask the
+/// technician to choose.
+pub async fn list_nearby_locations(
+    State(state): State<Arc<AppState>>,
+    Extension(ctx): Extension<TenantContext>,
+    Query(params): Query<NearbyQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let repo = PgLocationRepository::new(state.pool.clone());
+    let service = LocationService::new(repo);
+    match service
+        .near(&ctx, params.lat, params.lng, params.radius_km)
+        .await
+    {
+        Ok(matches) => Ok(Json(json!({
+            "data": matches.into_iter().map(|(l, distance_km)| json!({
+                "id": l.id.to_string(),
+                "name": l.name,
+                "type": format!("{:?}", l.location_type).to_uppercase(),
+                "parent_id": l.parent_id.map(|id| id.to_string()),
+                "latitude": l.geo_latitude,
+                "longitude": l.geo_longitude,
+                // Rounded to a metre: a GPS fix does not justify finer precision.
+                "distance_m": (distance_km * 1000.0).round(),
+                "created_at": l.created_at,
+                "updated_at": l.updated_at,
+            })).collect::<Vec<_>>()
+        }))),
+        Err(e) => {
+            let (status, code) = match &e {
+                sip_domain::error::SipError::Validation(_) => {
+                    (StatusCode::BAD_REQUEST, "BAD_REQUEST")
+                }
+                sip_domain::error::SipError::PermissionDenied => {
+                    (StatusCode::FORBIDDEN, "FORBIDDEN")
+                }
+                _ => (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR"),
+            };
+            Err((
+                status,
+                Json(json!({"error": {"code": code, "message": e.to_string()}})),
+            ))
+        }
     }
 }

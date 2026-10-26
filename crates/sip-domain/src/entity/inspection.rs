@@ -44,7 +44,12 @@ mod tests {
 
     #[test]
     fn test_checklist_response_type_serde_roundtrip() {
-        for ty in [ChecklistResponseType::PassFail, ChecklistResponseType::Numeric, ChecklistResponseType::Text, ChecklistResponseType::Photo] {
+        for ty in [
+            ChecklistResponseType::PassFail,
+            ChecklistResponseType::Numeric,
+            ChecklistResponseType::Text,
+            ChecklistResponseType::Photo,
+        ] {
             let json = serde_json::to_string(&ty).unwrap();
             let back: ChecklistResponseType = serde_json::from_str(&json).unwrap();
             assert_eq!(back, ty);
@@ -53,7 +58,11 @@ mod tests {
 
     #[test]
     fn test_checklist_result_serde_roundtrip() {
-        for result in [ChecklistResult::Pass, ChecklistResult::Fail, ChecklistResult::NotApplicable] {
+        for result in [
+            ChecklistResult::Pass,
+            ChecklistResult::Fail,
+            ChecklistResult::NotApplicable,
+        ] {
             let json = serde_json::to_string(&result).unwrap();
             let back: ChecklistResult = serde_json::from_str(&json).unwrap();
             assert_eq!(back, result);

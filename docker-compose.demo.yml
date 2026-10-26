@@ -1,0 +1,138 @@
+# Isolated demo overlay for SIP.
+#
+# Runs a COMPLETELY SEPARATE stack from any existing SIP deployment on this host:
+# its own Compose project, its own container names, its own named volumes, and
+# its own host ports. Nothing here touches another project's containers, volumes
+# or database.
+#
+#   cd /home/jesseakc/sip
+#   SIP_BUILD_COMMIT=$(git rev-parse --short HEAD) sudo docker compose \
+#     -p sip-demo \
+#     --env-file ~/sip-demo/secrets.env \
+#     -f docker-compose.yml -f docker-compose.demo.yml \
+#     up -d --build
+#
+#   validate without starting anything:
+#   docker compose -p sip-demo --env-file ~/sip-demo/secrets.env \
+#     -f docker-compose.yml -f docker-compose.demo.yml config
+#
+# Contains no secrets: everything is substituted from the --env-file, which lives
+# outside the repository, and `:?` makes Compose fail loudly rather than fall back
+# to a default password.
+#
+# `!override` REPLACES an inherited list (ports, volumes) rather than appending to
+# it, and `!reset []` clears one. This matters: appending ports would leave the
+# base file's bindings in place, including 8000 on 0.0.0.0, which would collide
+# with another running stack. Requires Compose >= 2.24.
+
+name: sip-demo
+
+services:
+  # ── Data services ────────────────────────────────────────────────────────
+  # Dedicated containers. Postgres is bound to loopback on a non-default port so
+  # provisioning can talk to it without `sudo docker exec`; it is not exposed to
+  # the LAN. Redis and MinIO stay entirely on the project network.
+
+  postgres:
+    container_name: sip-demo-postgres
+    ports: !override
+      - "127.0.0.1:55432:5432"
+    environment:
+      POSTGRES_USER: sip
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the --env-file}
+      POSTGRES_DB: sip
+
+  redis:
+    container_name: sip-demo-redis
+    ports: !reset []
+
+  minio:
+    container_name: sip-demo-minio
+    ports: !reset []
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in the --env-file}
+
+  # ── Migrations ───────────────────────────────────────────────────────────
+  # The base file hardcodes the DSN in this command, so with a different Postgres
+  # password migrations would fail and the API would never start.
+
+  db-migrate:
+    container_name: sip-demo-db-migrate
+    command: sh -c "sqlx migrate run --database-url postgres://sip:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the --env-file}@postgres:5432/sip"
+
+  # ── API ──────────────────────────────────────────────────────────────────
+
+  sip-api:
+    container_name: sip-demo-api
+    ports: !override
+      # Loopback only, like Postgres. Nothing here needs to be reachable from the
+      # LAN; change to "18000:8000" if you deliberately want that.
+      - "127.0.0.1:18000:8000"
+    build:
+      args:
+        # This host is memory-constrained; fewer parallel rustc jobs avoids
+        # thrashing swap during the release build.
+        CARGO_BUILD_JOBS: "2"
+        # Build identity, surfaced at GET /api/v1/capabilities as build.commit.
+        SIP_BUILD_COMMIT: ${SIP_BUILD_COMMIT:-unknown}
+    volumes: !override
+      # Replaces the base file's mount. Carries no secrets; it exists to set the
+      # CORS origin for this stack's frontend port.
+      - /home/jesseakc/sip-demo/demo.toml:/app/Sip.toml:ro
+    environment:
+      SIP_ENV: local
+
+      SIP_DATABASE__URL: postgres://sip:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the --env-file}@postgres:5432/sip
+      SIP_REDIS__URL: redis://redis:6379
+
+      SIP_OBJECT_STORAGE__ENDPOINT: http://minio:9000
+      SIP_OBJECT_STORAGE__ACCESS_KEY: minioadmin
+      SIP_OBJECT_STORAGE__SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in the --env-file}
+      SIP_OBJECT_STORAGE__BUCKET: sip-documents
+
+      SIP_AUTH__JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in the --env-file}
+
+      SIP_SERVER__PORT: 8000
+
+      # Marks this an explicit development/demo environment. Advertised through
+      # GET /api/v1/capabilities so clients can hide test-only affordances. Not an
+      # authorization mechanism: writes still require RBAC permissions.
+      SIP_FEATURES__DEMO_MODE: "true"
+
+      # ── AI: OpenAI-compatible provider ──────────────────────────────────
+      # Providers are configured generically (api_key + base_url + model), so a
+      # customer points SIP at whatever they use. Per-tenant provider config is
+      # deliberately not built yet; this is the deployment-level setting.
+      SIP_AI__ENABLED: ${AI_ENABLED:-false}
+      SIP_AI__PROVIDER: ${AI_PROVIDER:-disabled}
+      SIP_AI__STREAMING_ENABLED: "true"
+      SIP_AI__OPENAI__API_KEY: ${SIP_DEEPSEEK_API_KEY:-}
+      SIP_AI__OPENAI__BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      SIP_AI__OPENAI__MODEL: ${AI_MODEL:-deepseek-chat}
+
+  # ── Frontend ─────────────────────────────────────────────────────────────
+
+  sip-frontend:
+    container_name: sip-demo-frontend
+    ports: !override
+      - "127.0.0.1:13000:3000"
+    build:
+      args:
+        # Inlined into the client bundle at build time. The server API is the
+        # other origin, and the plugin host resolves relative plugin mounts
+        # against it.
+        NEXT_PUBLIC_API_URL: http://localhost:18000/api/v1
+
+# ── Dedicated volumes ──────────────────────────────────────────────────────
+# Named explicitly so isolation does not depend on the project name being passed
+# correctly on every invocation. These are this stack's own storage; no other
+# project can mount them.
+
+volumes:
+  postgres_data:
+    name: sip-demo-postgres-data
+  redis_data:
+    name: sip-demo-redis-data
+  minio_data:
+    name: sip-demo-minio-data

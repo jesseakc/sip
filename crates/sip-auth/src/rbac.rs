@@ -81,6 +81,9 @@ impl RolePermissions {
                 "settings:read",
                 "settings:update",
                 "activity:read",
+                // Migration and import management is destructive and bulk by
+                // nature, so it gets its own permission instead of riding on "*".
+                "migration:manage",
                 "*",
             ]
             .into_iter()

@@ -251,6 +251,15 @@ pub struct FeatureConfig {
     pub marketplace_enabled: bool,
     #[serde(default)]
     pub experimental_enabled: bool,
+    /// Marks this deployment as an explicit development/demo environment.
+    ///
+    /// Off by default, and off in production. Test-only affordances — the Test
+    /// Bench's role switcher, fixture loading — are advertised to clients only
+    /// when this is true, so a shipped build cannot present them. It is a
+    /// capability announcement, not an authorization mechanism: every write
+    /// still goes through RBAC at the API layer.
+    #[serde(default)]
+    pub demo_mode: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -261,6 +270,11 @@ pub struct SecurityConfig {
     pub require_https: bool,
     #[serde(default = "default_rate_limit_rpm")]
     pub rate_limit_rpm: u32,
+    /// One-time secret for `POST /api/v1/auth/bootstrap`, which creates the first
+    /// administrator on an empty database. Unset means the endpoint is closed —
+    /// there is no fallback that silently allows an unauthenticated first admin.
+    #[serde(default)]
+    pub bootstrap_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1037,8 +1051,10 @@ mod tests {
                 api_docs_enabled: true,
                 marketplace_enabled: false,
                 experimental_enabled: false,
+                demo_mode: false,
             },
             security: SecurityConfig {
+                bootstrap_token: None,
                 cors_allowed_origins: vec!["http://localhost:3000".into()],
                 require_https: false,
                 rate_limit_rpm: 300,
@@ -1122,8 +1138,10 @@ mod tests {
                 api_docs_enabled: true,
                 marketplace_enabled: false,
                 experimental_enabled: false,
+                demo_mode: false,
             },
             security: SecurityConfig {
+                bootstrap_token: None,
                 cors_allowed_origins: vec!["http://localhost:3000".into()],
                 require_https: false,
                 rate_limit_rpm: 300,
@@ -1202,8 +1220,10 @@ mod tests {
                 api_docs_enabled: true,
                 marketplace_enabled: false,
                 experimental_enabled: false,
+                demo_mode: false,
             },
             security: SecurityConfig {
+                bootstrap_token: None,
                 cors_allowed_origins: vec!["https://sip.example.com".into()],
                 require_https: true,
                 rate_limit_rpm: 300,
@@ -1282,8 +1302,10 @@ mod tests {
                 api_docs_enabled: true,
                 marketplace_enabled: false,
                 experimental_enabled: false,
+                demo_mode: false,
             },
             security: SecurityConfig {
+                bootstrap_token: None,
                 cors_allowed_origins: vec!["https://sip.example.com".into()],
                 require_https: true,
                 rate_limit_rpm: 300,
@@ -1359,8 +1381,10 @@ mod tests {
                 api_docs_enabled: true,
                 marketplace_enabled: false,
                 experimental_enabled: false,
+                demo_mode: false,
             },
             security: SecurityConfig {
+                bootstrap_token: None,
                 cors_allowed_origins: vec!["https://sip.example.com".into()],
                 require_https: true,
                 rate_limit_rpm: 300,
@@ -1423,6 +1447,7 @@ mod tests {
             },
             features: FeatureConfig::default(),
             security: SecurityConfig {
+                bootstrap_token: None,
                 cors_allowed_origins: vec![],
                 require_https: false,
                 rate_limit_rpm: 300,
@@ -1482,6 +1507,8 @@ impl Default for FeatureConfig {
             api_docs_enabled: true,
             marketplace_enabled: false,
             experimental_enabled: false,
+            // Never default to a demo environment.
+            demo_mode: false,
         }
     }
 }
@@ -1537,6 +1564,7 @@ impl Default for SecurityConfig {
             cors_allowed_origins: default_cors_allowed_origins(),
             require_https: false,
             rate_limit_rpm: default_rate_limit_rpm(),
+            bootstrap_token: None,
         }
     }
 }

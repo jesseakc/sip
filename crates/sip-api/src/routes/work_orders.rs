@@ -129,6 +129,7 @@ pub async fn create_work_order(
         _ => WorkOrderPriority::Medium,
     };
     let input = CreateWorkOrderInput {
+        id: None,
         asset_id,
         work_order_type: wo_type,
         priority,

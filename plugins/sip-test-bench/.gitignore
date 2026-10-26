@@ -1,0 +1,9 @@
+# The SIP API serves the build output from plugins/sip-test-bench/dist at
+#   GET /api/v1/ui/plugins/sip-test-bench/app/<path>
+# so dist/ is deliberately COMMITTED — do not ignore it. Only build tooling
+# and local deps are ignored.
+node_modules/
+.vite/
+*.local
+.DS_Store
+npm-debug.log*

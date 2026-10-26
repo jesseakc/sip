@@ -121,11 +121,18 @@ required_permissions = ["my-plugin:read"]
 |-------|------|----------|-------------|
 | `id` | string | Yes | Unique route ID |
 | `path` | string | Yes | URL path the route handles |
+| `mount` | string | No | Where the plugin serves this route's application itself. Same-origin path (normally the SIP API's plugin-app route) or an absolute URL for an externally hosted app. See [Plugin Hosting](../plugin-hosting.md). |
 | `component` | string | No | Component name to render |
 | `layout` | string | No | Layout type (see below) |
 | `title` | string | No | Page title (browser tab) |
 | `breadcrumb` | string | No | Breadcrumb label |
 | `required_permissions` | string[] | No | Permissions required to access the route |
+
+> **A route with no `mount` and no `ui.production_mount` is not hosted.** It is a
+> declarative entry whose `component` must exist in the first-party frontend tree.
+> To have SIP load your own application, set `mount` — see
+> [Hosting a Plugin's UI](../plugin-hosting.md) for the full contract, including
+> the iframe isolation model and the `postMessage` token handshake.
 
 **Valid layout types:**
 

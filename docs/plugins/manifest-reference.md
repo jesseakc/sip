@@ -54,6 +54,58 @@ production_mount = "/"
 api_base_env = "NEXT_PUBLIC_API_URL"
 ```
 
+### `[ui.compatibility]` — Compatibility Level
+
+Declares how tightly the plugin integrates with the SIP shell. See
+[UI Plugins](./ui-plugins.md) for the meaning of each level.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `level` | string | No | `"native"`, `"compatible"` or `"standalone"` |
+| `sip_ui_version` | string | No | SIP UI version the plugin targets |
+| `requires_shell` | bool | No | Plugin expects to render inside the SIP shell. Default `true` |
+| `uses_sip_components` | bool | No | Plugin imports `@/components/sip`. Default `false` |
+| `uses_theme_tokens` | bool | No | Plugin references SIP design tokens. Default `false` |
+| `allows_global_css` | bool | No | Plugin may inject global CSS. Default `true` |
+
+### `[[ui.routes]]` — Route Table
+
+Routes a plugin contributes. Returned by `GET /api/v1/ui/plugins` and used by the
+shell to resolve paths that have no first-party page. See
+[Hosting a Plugin's UI](../plugin-hosting.md).
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | **Yes** | Unique route ID |
+| `path` | string | **Yes** | URL path the route handles |
+| `mount` | string | No | Where the plugin serves this route itself: a same-origin path (normally `/api/v1/ui/plugins/<id>/app/index.html`) or an absolute URL |
+| `component` | string | No | Component name to render from the first-party tree |
+| `layout` | string | No | `sip-page`, `sip-dashboard`, `sip-settings`, `embedded` or `standalone` |
+| `title` | string | No | Page title |
+| `breadcrumb` | string | No | Breadcrumb label |
+| `required_permissions` | string[] | No | Permissions required to access the route |
+
+### `[[ui.actions]]` — Invocable Actions
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | **Yes** | Unique action ID |
+| `label` | string | **Yes** | Display label |
+| `icon` | string | No | Lucide icon name |
+| `route` | string | No | Path to navigate to on invocation |
+| `placement` | string[] | No | `command_palette`, `toolbar`, `context-menu`, `dashboard` |
+| `required_permissions` | string[] | No | Permissions required |
+
+### `[ui.theme]` — Theme Declarations
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `inherits` | string | No | Theme to inherit from |
+| `supports_dark_mode` | bool | No | Plugin responds to dark mode |
+| `supports_density` | bool | No | Plugin responds to density modes |
+| `supports_accent_color` | bool | No | Plugin honours a configurable accent |
+| `uses_design_tokens` | bool | No | Plugin uses SIP design tokens |
+
 ### `[[navigation]]` — Navigation Items
 
 An array of navigation items. Each item contributes to the aggregated sidebar.

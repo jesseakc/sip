@@ -260,6 +260,15 @@ pub struct UiThemeConfig {
 pub struct UiRouteDef {
     pub id: String,
     pub path: String,
+    /// URL or path where the plugin serves this route itself.
+    ///
+    /// A `standalone`-compatibility plugin has no Next.js page in the SIP
+    /// frontend, so the shell mounts the plugin's own app here instead of
+    /// resolving `component` against the first-party component tree. May be
+    /// absolute (externally hosted) or same-origin (served by the SIP API from
+    /// `plugins/<id>/dist`).
+    #[serde(default)]
+    pub mount: Option<String>,
     #[serde(default)]
     pub component: Option<String>,
     #[serde(default)]
@@ -532,6 +541,8 @@ impl PluginManifest {
                 enabled: u.enabled,
                 compatibility: u.compatibility.clone(),
                 theme: u.theme.clone(),
+                routes: u.routes.clone(),
+                actions: u.actions.clone(),
             }),
             navigation: self.navigation.clone(),
             resources: self
@@ -592,6 +603,12 @@ pub struct PublicUiInfo {
     pub enabled: bool,
     pub compatibility: Option<UiCompatibility>,
     pub theme: Option<UiThemeConfig>,
+    /// Route table contributed by the plugin. Previously dropped from the public
+    /// view, which left clients able to render the sidebar but not the pages.
+    #[serde(default)]
+    pub routes: Vec<UiRouteDef>,
+    #[serde(default)]
+    pub actions: Vec<UiActionDef>,
 }
 
 // ─── Default ────────────────────────────────────────────────────────────────

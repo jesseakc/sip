@@ -566,6 +566,7 @@ mod tests {
         manifest.ui.as_mut().unwrap().routes = vec![UiRouteDef {
             id: "settings".into(),
             path: "/settings".into(),
+            mount: None,
             component: Some("SettingsPage".into()),
             layout: Some("sip-settings".into()),
             title: Some("Settings".into()),
@@ -582,6 +583,7 @@ mod tests {
         manifest.ui.as_mut().unwrap().routes = vec![UiRouteDef {
             id: "custom".into(),
             path: "/custom".into(),
+            mount: None,
             component: None,
             layout: Some("invalid-layout".into()),
             title: None,
@@ -613,6 +615,7 @@ mod tests {
         manifest.ui.as_mut().unwrap().routes = vec![UiRouteDef {
             id: "dashboard-overview".into(),
             path: "/dashboard/overview".into(),
+            mount: None,
             component: Some("OverviewCard".into()),
             layout: Some("sip-dashboard".into()),
             title: Some("Overview".into()),

@@ -48,14 +48,26 @@ mod tests {
 
     #[test]
     fn test_success_shape() {
-        let json = success(TestItem { id: 1, name: "test".into() });
+        let json = success(TestItem {
+            id: 1,
+            name: "test".into(),
+        });
         assert_eq!(json["status"], "ok");
         assert_eq!(json["data"]["id"], 1);
     }
 
     #[test]
     fn test_success_paginated_shape() {
-        let items = vec![TestItem { id: 1, name: "a".into() }, TestItem { id: 2, name: "b".into() }];
+        let items = vec![
+            TestItem {
+                id: 1,
+                name: "a".into(),
+            },
+            TestItem {
+                id: 2,
+                name: "b".into(),
+            },
+        ];
         let json = success_paginated(items, 100, 0, 20);
         assert_eq!(json["status"], "ok");
         assert_eq!(json["data"][0]["id"], 1);

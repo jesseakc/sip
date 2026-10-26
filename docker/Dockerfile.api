@@ -8,6 +8,17 @@ COPY plugins ./plugins
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
+# Build parallelism is configurable so a memory-constrained host can avoid
+# thrashing swap. Empty means cargo's default (all available cores).
+ARG CARGO_BUILD_JOBS=""
+ENV CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS}
+
+# Baked-in build identity, surfaced by GET /api/v1/capabilities as
+# build.commit. Lets a caller confirm which revision is actually running rather
+# than inferring it from the presence of a feature.
+ARG SIP_BUILD_COMMIT="unknown"
+ENV SIP_BUILD_COMMIT=${SIP_BUILD_COMMIT}
+
 RUN cargo build --release -p sip-api --features full
 RUN cargo install sqlx-cli --no-default-features --features postgres,rustls
 
