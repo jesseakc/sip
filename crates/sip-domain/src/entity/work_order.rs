@@ -18,6 +18,26 @@ pub enum WorkOrderStatus {
 }
 
 impl WorkOrderStatus {
+    /// Canonical wire and database encoding.
+    ///
+    /// `Debug` is not a wire format: `format!("{:?}", InProgress)` yields
+    /// `"INPROGRESS"`, which does not round-trip through the parser that expects
+    /// `"IN_PROGRESS"`. Statuses written that way were silently unreadable.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "DRAFT",
+            Self::Open => "OPEN",
+            Self::Assigned => "ASSIGNED",
+            Self::Accepted => "ACCEPTED",
+            Self::InProgress => "IN_PROGRESS",
+            Self::OnHold => "ON_HOLD",
+            Self::Completed => "COMPLETED",
+            Self::Reviewed => "REVIEWED",
+            Self::Closed => "CLOSED",
+            Self::Cancelled => "CANCELLED",
+        }
+    }
+
     pub fn can_transition_to(self, next: WorkOrderStatus) -> bool {
         matches!(
             (self, next),

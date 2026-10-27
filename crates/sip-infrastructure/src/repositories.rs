@@ -531,7 +531,7 @@ impl WorkOrderRepository for PgWorkOrderRepository {
         .bind(wo.schedule_id.map(Uuid::from))
         .bind(format!("{:?}", wo.work_order_type).to_uppercase())
         .bind(format!("{:?}", wo.priority).to_uppercase())
-        .bind(format!("{:?}", wo.status).to_uppercase())
+        .bind(wo.status.as_str())
         .bind(&wo.title)
         .bind(&wo.display_number)
         .bind(&wo.description)

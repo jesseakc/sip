@@ -286,7 +286,7 @@ pub async fn pull(
                 "display_number": wo.display_number,
                 "type": format!("{:?}", wo.work_order_type).to_uppercase(),
                 "priority": format!("{:?}", wo.priority).to_uppercase(),
-                "status": format!("{:?}", wo.status).to_uppercase(),
+                "status": wo.status.as_str(),
                 "title": wo.title,
                 "description": wo.description,
                 "due_at": wo.due_at,

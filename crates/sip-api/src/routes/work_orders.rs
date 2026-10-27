@@ -45,7 +45,7 @@ pub async fn list_work_orders(
                 "id": wo.id.to_string(),
                 "display_number": wo.display_number,
                 "title": wo.title,
-                "status": format!("{:?}", wo.status).to_uppercase(),
+                "status": wo.status.as_str(),
                 "priority": format!("{:?}", wo.priority).to_uppercase(),
                 "type": format!("{:?}", wo.work_order_type).to_uppercase(),
                 "asset_id": wo.asset_id.to_string(),
@@ -80,7 +80,7 @@ pub async fn get_work_order(
                 "display_number": wo.display_number,
                 "title": wo.title,
                 "description": wo.description,
-                "status": format!("{:?}", wo.status).to_uppercase(),
+                "status": wo.status.as_str(),
                 "priority": format!("{:?}", wo.priority).to_uppercase(),
                 "type": format!("{:?}", wo.work_order_type).to_uppercase(),
                 "asset_id": wo.asset_id.to_string(),
@@ -198,7 +198,7 @@ pub async fn transition_work_order(
         .await
     {
         Ok(wo) => Ok(Json(
-            json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}),
+            json!({"data": {"id": wo.id.to_string(), "status": wo.status.as_str()}}),
         )),
         Err(e) => Err((
             StatusCode::BAD_REQUEST,
@@ -220,7 +220,7 @@ macro_rules! lifecycle_handler {
             let history_repo = PgWorkOrderStatusHistoryRepository::new(state.pool.clone());
             let service = WorkOrderService::new(repo);
             match service.$method(&ctx, wo_id, &activity_repo, &history_repo).await {
-                Ok(wo) => Ok(Json(json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}))),
+                Ok(wo) => Ok(Json(json!({"data": {"id": wo.id.to_string(), "status": wo.status.as_str()}}))),
                 Err(e) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": {"code": "BAD_REQUEST", "message": e.to_string()}})))),
             }
         }
@@ -260,7 +260,7 @@ pub async fn complete_work_order(
         .await
     {
         Ok(wo) => Ok(Json(
-            json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}),
+            json!({"data": {"id": wo.id.to_string(), "status": wo.status.as_str()}}),
         )),
         Err(e) => Err((
             StatusCode::BAD_REQUEST,
@@ -289,7 +289,7 @@ pub async fn archive_work_order(
         .await
     {
         Ok(wo) => Ok(Json(
-            json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}),
+            json!({"data": {"id": wo.id.to_string(), "status": wo.status.as_str()}}),
         )),
         Err(e) => Err((
             StatusCode::BAD_REQUEST,
@@ -539,7 +539,7 @@ pub async fn reopen_work_order(
         .await
     {
         Ok(wo) => Ok(Json(
-            json!({"data": {"id": wo.id.to_string(), "status": format!("{:?}", wo.status).to_uppercase()}}),
+            json!({"data": {"id": wo.id.to_string(), "status": wo.status.as_str()}}),
         )),
         Err(e) => Err((
             StatusCode::BAD_REQUEST,
