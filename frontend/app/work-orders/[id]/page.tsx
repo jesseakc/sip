@@ -13,7 +13,7 @@ export default function WorkOrderDetailPage() {
   useEffect(() => {
     if (!id) return;
     apiFetch(`/work-orders/${id}`)
-      .then((data) => setWo(data))
+      .then((data) => setWo(data.data))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
@@ -25,7 +25,7 @@ export default function WorkOrderDetailPage() {
         body: JSON.stringify({ status, resolution_notes: notes }),
       });
       const updated = await apiFetch(`/work-orders/${id}`);
-      setWo(updated);
+      setWo(updated.data);
     } catch (e: any) {
       alert(e.message);
     }

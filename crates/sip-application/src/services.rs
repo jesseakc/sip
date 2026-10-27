@@ -483,7 +483,7 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
                 new_status,
             ));
         }
-        let mut patch = serde_json::json!({"status": format!("{:?}", new_status).to_uppercase()});
+        let mut patch = serde_json::json!({"status": new_status.as_str().to_string()});
         if let Some(notes) = resolution_notes {
             patch["resolution_notes"] = serde_json::json!(notes);
         }
@@ -521,7 +521,7 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
                 old_status, new_status,
             ));
         }
-        let mut patch = serde_json::json!({"status": format!("{:?}", new_status).to_uppercase()});
+        let mut patch = serde_json::json!({"status": new_status.as_str().to_string()});
         if let Some(ref notes) = resolution_notes {
             patch["resolution_notes"] = serde_json::json!(notes);
         }
@@ -825,7 +825,7 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         };
 
         let patch = serde_json::json!({
-            "status": format!("{:?}", new_status).to_uppercase(),
+            "status": new_status.as_str().to_string(),
             "reopened_count": current.reopened_count + 1,
             "last_reopened_at": Utc::now().to_rfc3339(),
             "last_reopened_by_id": ctx.user_id.map(|id| id.to_string()).unwrap_or_default(),
