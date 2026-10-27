@@ -26,6 +26,7 @@ DECLARE
     demo_org CONSTANT uuid := '00000000-0000-0000-0000-000000000001';
     tbl      text;
     removed  integer;
+    affected integer;
     pass     integer := 0;
 BEGIN
     -- Join tables that carry no organization_id of their own, keyed through their
@@ -62,20 +63,24 @@ BEGIN
             WHERE c.relkind = 'r'
               AND a.attname = 'organization_id'
               AND NOT a.attisdropped
+              AND c.relnamespace = 'public'::regnamespace
               AND c.relname <> 'organizations'
             ORDER BY c.relname
         LOOP
             BEGIN
-                EXECUTE format('DELETE FROM %I WHERE organization_id = $1', tbl)
+                EXECUTE format('DELETE FROM public.%I WHERE organization_id = $1', tbl)
                     USING demo_org;
-                GET DIAGNOSTICS removed = ROW_COUNT;
-            EXCEPTION WHEN foreign_key_violation THEN
+                GET DIAGNOSTICS affected = ROW_COUNT;
+                removed := removed + affected;
+            EXCEPTION WHEN foreign_key_violation OR restrict_violation THEN
                 NULL;
             END;
         END LOOP;
 
         EXIT WHEN removed = 0;
-        EXIT WHEN pass > 20;  -- safety valve; a tenant this tangled should be manual
+        IF pass > 20 THEN
+            RAISE EXCEPTION 'demo cleanup exceeded dependency passes; no data was committed';
+        END IF;
     END LOOP;
 
     DELETE FROM organizations WHERE id = demo_org;
