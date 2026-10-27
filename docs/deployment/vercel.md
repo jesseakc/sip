@@ -29,7 +29,7 @@ Import the GitHub repo and set:
 | Output Directory | *(leave default)* |
 
 `frontend/vercel.json` pins the build commands and adds baseline security
-headers. Root Directory is a project setting, not a `vercel.json` key — if you
+headers. Root Directory is a project setting, not a `vercel.json` key: if you
 leave it at the repo root, the build fails because there is no root `package.json`.
 
 ### Environment variable
@@ -39,7 +39,7 @@ leave it at the repo root, the build fails because there is no root `package.jso
 | `NEXT_PUBLIC_API_URL` | `https://api.example.com/api/v1` | **Must include `/api/v1`** |
 
 Set it for **Production and Preview** separately. This value is inlined into the
-client bundle at build time, so changing it requires a redeploy — it is not read
+client bundle at build time, so changing it requires a redeploy: it is not read
 at runtime.
 
 `/api/v1` is not optional. `lib/api.ts` appends paths such as `/auth/login` to it
@@ -48,7 +48,7 @@ login returns 401.
 
 ## 2. The API
 
-Build the existing image — `docker/Dockerfile.api` is already the production
+Build the existing image: `docker/Dockerfile.api` is already the production
 build, and it bakes `SIP_BUILD_COMMIT` in so you can prove which revision is live.
 
 ```bash
@@ -79,7 +79,7 @@ fly deploy
 
 Nested keys use `SIP_` + `__` (`SIP_SERVER__PORT` → `server.port`), which is how
 figment loads them. Flat names such as `SIP_CORS_ALLOWED_ORIGINS` appear in some
-warning messages but **do not** map — use the nested form.
+warning messages but **do not** map: use the nested form.
 
 | Variable | Required | Notes |
 |---|---|---|
@@ -97,8 +97,7 @@ Set `SIP_SERVER__PORT` to whatever the platform injects (Fly uses `8080`;
 pass its `$PORT` through if the host supplies one).
 
 > Leaving `SIP_SECURITY__CORS_ALLOWED_ORIGINS` empty makes the API fall back to
-> **permissive CORS** and only log a warning. It also overrides nothing else —
-> set it explicitly.
+> **permissive CORS** and only log a warning. Set it explicitly.
 
 ## 3. Database
 
@@ -117,14 +116,21 @@ The migrations require `uuid-ossp`, `vector`, `ltree` and `pg_trgm`. `postgis` i
 present but commented out and not required. Confirm each extension is available on
 your provider before migrating.
 
-Then create the first administrator. `POST /users` scopes new users to the
-caller's organisation, so the very first user of a new deployment has to be
-inserted directly; see `scripts/demo/provision.py` for the shape of that insert
-(it bootstraps one admin, then uses the API for the rest).
+Then create the first administrator with `POST /api/v1/auth/bootstrap`. Set
+`SIP_SECURITY__BOOTSTRAP_TOKEN` in the API host's environment and send the same
+value in the `X-Bootstrap-Token` header. The request takes `organization_name`,
+`name`, `email`, and a password of at least 12 characters. Use HTTPS for a hosted
+deployment. See the [Quick Start](../../QUICKSTART.md#create-your-first-administrator)
+for the request format.
+
+The endpoint is disabled without a configured token and refuses setup after
+users exist. Remove the token from the host configuration and restart the API
+after setup. Fresh installations remove the old demo tenant through migration
+`011`; there is no shared demo login.
 
 ## 4. CORS and preview deployments
 
-SIP matches origins **exactly** — there is no wildcard support. Consequences:
+SIP matches origins **exactly**: there is no wildcard support. Consequences:
 
 - add `https://your-app.vercel.app` (and any custom domain) to
   `SIP_SECURITY__CORS_ALLOWED_ORIGINS`;
@@ -134,7 +140,7 @@ SIP matches origins **exactly** — there is no wildcard support. Consequences:
 
 If working previews matter, the change is small but touches security code: accept
 a `*.vercel.app` style suffix entry via `AllowOrigin::predicate`. Ask before
-assuming it exists — it does not today.
+assuming it exists: it does not today.
 
 Login uses a bearer token in `localStorage`, not cookies, so cross-site
 deployment (frontend on `vercel.app`, API on `api.example.com`) works without
@@ -144,7 +150,7 @@ deployment (frontend on `vercel.app`, API on `api.example.com`) works without
 
 No extra work. Plugin bundles are served by the **API**
 (`/api/v1/ui/plugins/<id>/app/`), not by Vercel, so `plugins/*/dist` must ship in
-the API image — it is tracked in git for exactly that reason. The shell frames the
+the API image: it is tracked in git for exactly that reason. The shell frames the
 API origin, and `buildMountUrl` resolves relative mounts against
 `NEXT_PUBLIC_API_URL`, so the iframe works cross-origin.
 
