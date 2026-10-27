@@ -6,7 +6,7 @@ use axum::{
     Json,
 };
 use serde_json::json;
-use sip_auth::decode_jwt;
+use sip_auth::{decode_jwt, TokenUse};
 use sip_domain::tenant::TenantContext;
 use std::sync::Arc;
 
@@ -50,7 +50,14 @@ pub async fn auth_middleware(
         }
     };
 
-    let org_id = match claims.org_id.parse() {
+    if claims.token_use != TokenUse::Access {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error":{"code":"UNAUTHORIZED","message":"Access token required"}})),
+        )
+            .into_response();
+    }
+    let org_id: sip_domain::id::OrganizationId = match claims.org_id.parse() {
         Ok(id) => id,
         Err(_) => return (
             StatusCode::UNAUTHORIZED,
@@ -59,9 +66,35 @@ pub async fn auth_middleware(
             .into_response(),
     };
 
-    let user_id = claims.sub.parse().ok();
+    let user_id = match claims.sub.parse::<sip_domain::id::UserId>() {
+        Ok(id) => id,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+    let row = sqlx::query_as::<_, (bool, i32, String)>(
+        "SELECT is_active,auth_epoch,role FROM users WHERE id=$1 AND organization_id=$2",
+    )
+    .bind(uuid::Uuid::from(user_id))
+    .bind(uuid::Uuid::from(org_id))
+    .fetch_optional(&state.pool)
+    .await;
+    match row {
+        Ok(Some((true, epoch, role))) if epoch == claims.auth_epoch && role == claims.role => {}
+        Ok(_) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(
+                    json!({"error":{"code":"UNAUTHORIZED","message":"Session is no longer valid"}}),
+                ),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            tracing::error!("session validation failed: {}", e);
+            return StatusCode::SERVICE_UNAVAILABLE.into_response();
+        }
+    }
 
-    let ctx = TenantContext::new(org_id, user_id).with_permissions(claims.permissions);
+    let ctx = TenantContext::new(org_id, Some(user_id)).with_permissions(claims.permissions);
     req.extensions_mut().insert(ctx);
     next.run(req).await
 }

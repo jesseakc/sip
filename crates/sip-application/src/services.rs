@@ -2,7 +2,7 @@ use crate::migration_import;
 use chrono::{Datelike, Utc};
 use serde::Serialize;
 use sip_ai::{CompletionOptions, LlmProvider};
-use sip_auth::{decode_jwt, encode_jwt, verify_password, Claims};
+use sip_auth::{decode_jwt, encode_jwt, verify_password, Claims, TokenUse};
 use sip_domain::{
     entity::activity::{Activity, ActivitySource},
     entity::ai_conversation::{AIConversation, AIMessage, AIRetrievalTrace, RetrieverType, Source},
@@ -56,6 +56,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct AuthService {
+    pool: PgPool,
     user_repo: sip_infrastructure::repositories::PgUserRepository,
     jwt_secret: String,
     jwt_expiration: u64,
@@ -70,7 +71,8 @@ impl AuthService {
         refresh_expiration: u64,
     ) -> Self {
         Self {
-            user_repo: sip_infrastructure::repositories::PgUserRepository::new(pool),
+            user_repo: sip_infrastructure::repositories::PgUserRepository::new(pool.clone()),
+            pool,
             jwt_secret,
             jwt_expiration,
             refresh_expiration,
@@ -83,13 +85,27 @@ impl AuthService {
             .get_by_email(email)
             .await?
             .ok_or(SipError::PermissionDenied)?;
+        if !user.is_active {
+            return Err(SipError::PermissionDenied);
+        }
         if !verify_password(password, &pass_hash)
             .map_err(|e| SipError::Validation(e.to_string()))?
         {
             return Err(SipError::PermissionDenied);
         }
+        let (auth_epoch,): (i32,) = sqlx::query_as(
+            "SELECT auth_epoch FROM users WHERE id=$1 AND organization_id=$2 AND is_active",
+        )
+        .bind(Uuid::from(user.id))
+        .bind(Uuid::from(user.organization_id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?
+        .ok_or(SipError::PermissionDenied)?;
         let permissions = role_permissions(&user.role);
         let claims = Claims {
+            token_use: TokenUse::Access,
+            auth_epoch,
             sub: user.id.to_string(),
             org_id: user.organization_id.to_string(),
             role: format!("{:?}", user.role).to_uppercase(),
@@ -101,6 +117,8 @@ impl AuthService {
             .map_err(|e| SipError::Validation(e.to_string()))?;
         let refresh = encode_jwt(
             &Claims {
+                token_use: TokenUse::Refresh,
+                auth_epoch,
                 sub: user.id.to_string(),
                 org_id: user.organization_id.to_string(),
                 role: format!("{:?}", user.role).to_uppercase(),
@@ -117,6 +135,9 @@ impl AuthService {
     pub async fn refresh(&self, refresh_token: &str) -> Result<String, SipError> {
         let claims = decode_jwt(refresh_token, &self.jwt_secret)
             .map_err(|e| SipError::Validation(e.to_string()))?;
+        if claims.token_use != TokenUse::Refresh {
+            return Err(SipError::PermissionDenied);
+        }
         let user_id =
             UserId::from_str(&claims.sub).map_err(|e| SipError::Validation(e.to_string()))?;
         let org_id = OrganizationId::from_str(&claims.org_id)
@@ -127,8 +148,22 @@ impl AuthService {
             .get(&ctx, user_id)
             .await?
             .ok_or(SipError::PermissionDenied)?;
+        let (active, auth_epoch): (bool, i32) = sqlx::query_as(
+            "SELECT is_active,auth_epoch FROM users WHERE id=$1 AND organization_id=$2",
+        )
+        .bind(Uuid::from(user.id))
+        .bind(Uuid::from(org_id))
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| SipError::Validation(e.to_string()))?
+        .ok_or(SipError::PermissionDenied)?;
+        if !active || !user.is_active || auth_epoch != claims.auth_epoch {
+            return Err(SipError::PermissionDenied);
+        }
         let permissions = role_permissions(&user.role);
         let new_claims = Claims {
+            token_use: TokenUse::Access,
+            auth_epoch,
             sub: user.id.to_string(),
             org_id: user.organization_id.to_string(),
             role: format!("{:?}", user.role).to_uppercase(),
@@ -173,7 +208,6 @@ fn role_permissions(role: &UserRole) -> Vec<String> {
             "schedule:manage",
             "schedule:read",
             "user:read",
-            "user:manage",
             "team:manage",
             "part:manage",
             "part:read",
@@ -471,7 +505,7 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         new_status: WorkOrderStatus,
         resolution_notes: Option<String>,
     ) -> Result<WorkOrder, SipError> {
-        ctx.require_permission("work_order:update")?;
+        authorize_work_order_transition(ctx, new_status)?;
         let current = self
             .repo
             .get_work_order(ctx, id)
@@ -510,6 +544,7 @@ impl<R: sip_domain::repository::WorkOrderRepository> WorkOrderService<R> {
         activity_repo: &A,
         history_repo: &H,
     ) -> Result<WorkOrder, SipError> {
+        authorize_work_order_transition(ctx, new_status)?;
         let current = self
             .repo
             .get_work_order(ctx, id)
@@ -2680,7 +2715,7 @@ impl UserService {
         role: UserRole,
         password_hash: String,
     ) -> Result<User, SipError> {
-        ctx.require_permission("user:manage")?;
+        ctx.require_permission("*")?;
         let user = User {
             id: UserId::new(),
             organization_id: ctx.organization_id,
@@ -2705,7 +2740,7 @@ impl UserService {
         role: Option<UserRole>,
         is_active: Option<bool>,
     ) -> Result<User, SipError> {
-        ctx.require_permission("user:manage")?;
+        ctx.require_permission("*")?;
         self.repo.update(ctx, id, name, role, is_active).await
     }
 }
@@ -4014,5 +4049,38 @@ mod tests {
     fn test_classify_query_case_insensitive() {
         let result = AIService::classify_query("SHOW ME THE HISTORY OF MOTOR REPAIRS");
         assert!(matches!(result.question_type, QuestionType::Temporal));
+    }
+}
+
+fn authorize_work_order_transition(
+    ctx: &TenantContext,
+    status: WorkOrderStatus,
+) -> Result<(), SipError> {
+    ctx.require_permission("work_order:update")?;
+    match status {
+        WorkOrderStatus::Reviewed => ctx.require_permission("work_order:review"),
+        WorkOrderStatus::Cancelled => ctx.require_permission("work_order:cancel"),
+        _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod authorization_regressions {
+    use super::*;
+    #[test]
+    fn technician_cannot_review_or_cancel_using_generic_transitions() {
+        let ctx = TenantContext::new(OrganizationId::new(), None)
+            .with_permissions(role_permissions(&UserRole::Technician));
+        assert!(authorize_work_order_transition(&ctx, WorkOrderStatus::Reviewed).is_err());
+        assert!(authorize_work_order_transition(&ctx, WorkOrderStatus::Cancelled).is_err());
+        assert!(authorize_work_order_transition(&ctx, WorkOrderStatus::InProgress).is_ok());
+    }
+    #[test]
+    fn manager_cannot_administer_users_or_grant_wildcard() {
+        let ctx = TenantContext::new(OrganizationId::new(), None)
+            .with_permissions(role_permissions(&UserRole::Manager));
+        assert!(!ctx.has_permission("user:manage"));
+        assert!(ctx.require_permission("*").is_err());
+        assert!(authorize_work_order_transition(&ctx, WorkOrderStatus::Reviewed).is_ok());
     }
 }

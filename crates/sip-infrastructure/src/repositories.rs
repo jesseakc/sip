@@ -78,15 +78,21 @@ impl PgUserRepository {
     }
 
     pub async fn get_by_email(&self, email: &str) -> Result<Option<(User, String)>, SipError> {
-        let row = sqlx::query_as::<_, UserRow>(
-            "SELECT id, organization_id, email, name, role, skills, to_jsonb(certifications) as certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users WHERE email = $1"
+        let rows = sqlx::query_as::<_, UserRow>(
+            "SELECT id, organization_id, email, name, role, skills, to_jsonb(certifications) as certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users WHERE lower(email) = lower($1) LIMIT 2"
         )
-        .bind(email)
-        .fetch_optional(&self.pool)
+        .bind(email.trim())
+        .fetch_all(&self.pool)
         .await
         .map_err(|e| SipError::Validation(e.to_string()))?;
 
-        Ok(row.map(|r| (map_user_row(r.clone()), r.password_hash)))
+        if rows.len() != 1 {
+            return Err(SipError::PermissionDenied);
+        }
+        Ok(rows
+            .into_iter()
+            .next()
+            .map(|r| (map_user_row(r.clone()), r.password_hash)))
     }
 
     pub async fn get(&self, ctx: &TenantContext, id: UserId) -> Result<Option<User>, SipError> {
