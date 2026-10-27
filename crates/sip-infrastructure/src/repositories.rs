@@ -77,6 +77,24 @@ impl PgUserRepository {
         Self { pool }
     }
 
+    /// Current session epoch for a user, plus whether the account is active.
+    ///
+    /// Tokens carry the epoch they were issued under; a token whose value is lower
+    /// than this one has been superseded and must be rejected. Returns `None` when
+    /// the user does not exist, which callers treat as unauthenticated.
+    pub async fn get_session_state(
+        &self,
+        user_id: uuid::Uuid,
+    ) -> Result<Option<(bool, i32)>, SipError> {
+        let row: Option<(bool, i32)> =
+            sqlx::query_as("SELECT is_active, auth_epoch FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| SipError::Validation(e.to_string()))?;
+        Ok(row)
+    }
+
     pub async fn get_by_email(&self, email: &str) -> Result<Option<(User, String)>, SipError> {
         let row = sqlx::query_as::<_, UserRow>(
             "SELECT id, organization_id, email, name, role, skills, to_jsonb(certifications) as certifications, working_hours, is_active, password_hash, created_at, updated_at FROM users WHERE email = $1"

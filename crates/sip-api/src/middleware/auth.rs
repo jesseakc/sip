@@ -59,6 +59,52 @@ pub async fn auth_middleware(
             .into_response(),
     };
 
+    // Tokens are stateless, so nothing revoked them before now: a deactivated user,
+    // or one who signed out everywhere, kept working until the token aged out. This
+    // is the check that makes revocation immediate. It fails closed — if the session
+    // cannot be verified, the request is not authenticated.
+    let user_uuid = match uuid::Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => return (
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": {"code": "UNAUTHORIZED", "message": "Invalid subject in token"}})),
+        )
+            .into_response(),
+    };
+
+    let users = sip_infrastructure::repositories::PgUserRepository::new(state.pool.clone());
+    match users.get_session_state(user_uuid).await {
+        Ok(Some((true, epoch))) if epoch.max(0) as u32 == claims.auth_epoch => {}
+        Ok(Some((false, _))) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": {"code": "UNAUTHORIZED", "message": "Account is inactive"}})),
+            )
+                .into_response()
+        }
+        Ok(Some(_)) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": {"code": "UNAUTHORIZED", "message": "Session has been revoked; sign in again"}})),
+            )
+                .into_response()
+        }
+        Ok(None) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": {"code": "UNAUTHORIZED", "message": "Unknown user"}})),
+            )
+                .into_response()
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": {"code": "INTERNAL_ERROR", "message": e.to_string()}})),
+            )
+                .into_response()
+        }
+    }
+
     let user_id = claims.sub.parse().ok();
 
     let ctx = TenantContext::new(org_id, user_id).with_permissions(claims.permissions);

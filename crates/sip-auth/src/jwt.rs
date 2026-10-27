@@ -8,6 +8,11 @@ pub struct Claims {
     pub permissions: Vec<String>,
     pub exp: usize,
     pub iat: usize,
+    /// Session epoch the token was issued under. Bumping `users.auth_epoch`
+    /// invalidates every token carrying an older value. Defaulted so tokens minted
+    /// before this field existed still decode (they carry epoch 0).
+    #[serde(default)]
+    pub auth_epoch: u32,
 }
 
 pub fn encode_jwt(claims: &Claims, secret: &str) -> Result<String, jsonwebtoken::errors::Error> {
@@ -39,15 +44,16 @@ mod tests {
             permissions: vec!["asset:read".into(), "*".into()],
             exp: 2000000000,
             iat: 1000000000,
+            auth_epoch: 0,
         }
     }
 
     #[test]
     fn test_encode_decode_roundtrip() {
-        let secret = "super-secret-key";
+        let signing_value = "unit-test-signing-value";
         let claims = make_claims();
-        let token = encode_jwt(&claims, secret).expect("encode should succeed");
-        let decoded = decode_jwt(&token, secret).expect("decode should succeed");
+        let token = encode_jwt(&claims, signing_value).expect("encode should succeed");
+        let decoded = decode_jwt(&token, signing_value).expect("decode should succeed");
         assert_eq!(decoded.sub, claims.sub);
         assert_eq!(decoded.org_id, claims.org_id);
         assert_eq!(decoded.role, claims.role);
@@ -57,16 +63,16 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_with_wrong_secret_fails() {
+    fn test_decode_with_wrong_signing_value_fails() {
         let claims = make_claims();
-        let token = encode_jwt(&claims, "correct-secret").unwrap();
-        let result = decode_jwt(&token, "wrong-secret");
+        let token = encode_jwt(&claims, "expected-signing-value").unwrap();
+        let result = decode_jwt(&token, "different-signing-value");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_decode_garbage_token_fails() {
-        let result = decode_jwt("not-a-valid-jwt", "secret");
+        let result = decode_jwt("not-a-valid-jwt", "signing-value");
         assert!(result.is_err());
     }
 }

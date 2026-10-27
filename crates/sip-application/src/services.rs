@@ -89,6 +89,14 @@ impl AuthService {
             return Err(SipError::PermissionDenied);
         }
         let permissions = role_permissions(&user.role);
+        // The epoch the token is issued under. Bumping it later invalidates this
+        // token without waiting for expiry.
+        let auth_epoch = self
+            .user_repo
+            .get_session_state(Uuid::from(user.id))
+            .await?
+            .map(|(_, epoch)| epoch.max(0) as u32)
+            .unwrap_or(0);
         let claims = Claims {
             sub: user.id.to_string(),
             org_id: user.organization_id.to_string(),
@@ -96,6 +104,7 @@ impl AuthService {
             permissions,
             exp: (chrono::Utc::now().timestamp() as u64 + self.jwt_expiration) as usize,
             iat: chrono::Utc::now().timestamp() as usize,
+            auth_epoch,
         };
         let token = encode_jwt(&claims, &self.jwt_secret)
             .map_err(|e| SipError::Validation(e.to_string()))?;
@@ -107,6 +116,7 @@ impl AuthService {
                 permissions: vec![],
                 exp: (chrono::Utc::now().timestamp() as u64 + self.refresh_expiration) as usize,
                 iat: chrono::Utc::now().timestamp() as usize,
+                auth_epoch,
             },
             &self.jwt_secret,
         )
@@ -127,6 +137,18 @@ impl AuthService {
             .get(&ctx, user_id)
             .await?
             .ok_or(SipError::PermissionDenied)?;
+
+        // A refresh token is not a way around revocation: it must also carry the
+        // current epoch, and an inactive account cannot refresh at all.
+        let (is_active, current_epoch) = self
+            .user_repo
+            .get_session_state(Uuid::from(user_id))
+            .await?
+            .ok_or(SipError::PermissionDenied)?;
+        if !is_active || claims.auth_epoch != current_epoch.max(0) as u32 {
+            return Err(SipError::PermissionDenied);
+        }
+
         let permissions = role_permissions(&user.role);
         let new_claims = Claims {
             sub: user.id.to_string(),
@@ -135,6 +157,7 @@ impl AuthService {
             permissions,
             exp: (chrono::Utc::now().timestamp() as u64 + self.jwt_expiration) as usize,
             iat: chrono::Utc::now().timestamp() as usize,
+            auth_epoch: current_epoch.max(0) as u32,
         };
         encode_jwt(&new_claims, &self.jwt_secret).map_err(|e| SipError::Validation(e.to_string()))
     }
