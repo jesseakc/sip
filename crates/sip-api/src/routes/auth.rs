@@ -100,7 +100,27 @@ pub async fn refresh(
     }
 }
 
-pub async fn logout() -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+/// Revokes every access and refresh token issued to this user before logout.
+pub async fn logout(
+    State(state): State<Arc<AppState>>,
+    Extension(ctx): Extension<TenantContext>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let user_id = ctx.user_id.ok_or((
+        StatusCode::UNAUTHORIZED,
+        Json(json!({"error":{"code":"UNAUTHORIZED"}})),
+    ))?;
+    sqlx::query("UPDATE users SET auth_epoch=auth_epoch+1 WHERE id=$1 AND organization_id=$2")
+        .bind(Uuid::from(user_id))
+        .bind(Uuid::from(ctx.organization_id))
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            tracing::error!("logout failed: {}", e);
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"error":{"code":"UNAVAILABLE","message":"Could not revoke session"}})),
+            )
+        })?;
     Ok(Json(json!({"data": {}})))
 }
 

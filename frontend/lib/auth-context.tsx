@@ -61,7 +61,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchUser();
   }
 
-  function logout() {
+  async function logout() {
+    const token = localStorage.getItem('sip_token');
+    if (token) {
+      const response = await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => null);
+      if (!response?.ok && response?.status !== 401) {
+        window.alert('Sign-out could not revoke your session. Please retry.');
+        return;
+      }
+    }
     localStorage.removeItem('sip_token');
     setUser(null);
     window.location.href = '/login';
