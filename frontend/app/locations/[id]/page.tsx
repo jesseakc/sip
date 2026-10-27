@@ -13,7 +13,7 @@ export default function LocationDetailPage() {
   useEffect(() => {
     if (!id) return;
     apiFetch(`/locations/${id}`)
-      .then((data) => setLocation(data))
+      .then((data) => setLocation(data.data))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);

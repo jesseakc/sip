@@ -18,6 +18,22 @@ pub enum WorkOrderStatus {
 }
 
 impl WorkOrderStatus {
+    /// Stable database and API encoding. Debug output is not a wire format.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "DRAFT",
+            Self::Open => "OPEN",
+            Self::Assigned => "ASSIGNED",
+            Self::Accepted => "ACCEPTED",
+            Self::InProgress => "IN_PROGRESS",
+            Self::OnHold => "ON_HOLD",
+            Self::Completed => "COMPLETED",
+            Self::Reviewed => "REVIEWED",
+            Self::Closed => "CLOSED",
+            Self::Cancelled => "CANCELLED",
+        }
+    }
+
     pub fn can_transition_to(self, next: WorkOrderStatus) -> bool {
         matches!(
             (self, next),
@@ -369,4 +385,27 @@ pub struct WorkOrderStatusHistory {
     pub plugin_id: Option<crate::id::PluginId>,
     pub reason: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+#[cfg(test)]
+mod wire_contract_tests {
+    use super::WorkOrderStatus;
+    #[test]
+    fn canonical_status_values_are_stable() {
+        let expected = [
+            (WorkOrderStatus::Draft, "DRAFT"),
+            (WorkOrderStatus::Open, "OPEN"),
+            (WorkOrderStatus::Assigned, "ASSIGNED"),
+            (WorkOrderStatus::Accepted, "ACCEPTED"),
+            (WorkOrderStatus::InProgress, "IN_PROGRESS"),
+            (WorkOrderStatus::OnHold, "ON_HOLD"),
+            (WorkOrderStatus::Completed, "COMPLETED"),
+            (WorkOrderStatus::Reviewed, "REVIEWED"),
+            (WorkOrderStatus::Closed, "CLOSED"),
+            (WorkOrderStatus::Cancelled, "CANCELLED"),
+        ];
+        for (status, literal) in expected {
+            assert_eq!(status.as_str(), literal);
+        }
+    }
 }
