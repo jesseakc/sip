@@ -922,6 +922,94 @@ pub fn config_status(config: &AppConfig) -> ConfigStatus {
     }
 }
 
+impl Default for FeatureConfig {
+    fn default() -> Self {
+        Self {
+            ai_chat_enabled: true,
+            rag_enabled: true,
+            graph_enabled: true,
+            plugin_system_enabled: false,
+            document_ingestion_enabled: true,
+            semantic_search_enabled: true,
+            dispatch_enabled: true,
+            parts_inventory_enabled: true,
+            disposables_tracking_enabled: false,
+            billing_enabled: false,
+            api_docs_enabled: true,
+            marketplace_enabled: false,
+            experimental_enabled: false,
+            // Never default to a demo environment.
+            demo_mode: false,
+        }
+    }
+}
+
+impl Default for AiConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider: LlmProviderType::Disabled,
+            timeout_seconds: default_timeout_seconds(),
+            max_retries: default_max_retries(),
+            streaming_enabled: default_streaming_enabled(),
+            request_logging_enabled: false,
+            default_temperature: default_temperature(),
+            default_max_tokens: default_max_tokens(),
+            ollama: OllamaConfig {
+                url: default_ollama_url(),
+                model: default_ollama_model(),
+                embedding_model: default_embedding_model(),
+            },
+            openai: None,
+            anthropic: None,
+            openrouter: None,
+            azure_openai: None,
+            bedrock: None,
+            custom_http: None,
+        }
+    }
+}
+
+impl Default for OllamaConfig {
+    fn default() -> Self {
+        Self {
+            url: default_ollama_url(),
+            model: default_ollama_model(),
+            embedding_model: default_embedding_model(),
+        }
+    }
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self {
+            host: default_server_host(),
+            port: default_server_port(),
+        }
+    }
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            cors_allowed_origins: default_cors_allowed_origins(),
+            require_https: false,
+            rate_limit_rpm: default_rate_limit_rpm(),
+            bootstrap_token: None,
+        }
+    }
+}
+
+impl Default for ObservabilityConfig {
+    fn default() -> Self {
+        Self {
+            log_level: default_log_level(),
+            otlp_endpoint: None,
+            metrics_enabled: false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1085,7 +1173,7 @@ mod tests {
 
     #[test]
     fn test_ai_disabled_validation() {
-        let mut config = AppConfig {
+        let config = AppConfig {
             env: Environment::Development,
             server: ServerConfig {
                 host: "0.0.0.0".into(),
@@ -1163,7 +1251,7 @@ mod tests {
 
     #[test]
     fn test_openai_missing_key_validation() {
-        let mut config = AppConfig {
+        let config = AppConfig {
             env: Environment::Production,
             server: ServerConfig {
                 host: "0.0.0.0".into(),
@@ -1249,7 +1337,7 @@ mod tests {
 
     #[test]
     fn test_feature_dependency_validation() {
-        let mut config = AppConfig {
+        let config = AppConfig {
             env: Environment::Staging,
             server: ServerConfig {
                 host: "0.0.0.0".into(),
@@ -1328,7 +1416,7 @@ mod tests {
 
     #[test]
     fn test_production_jwt_placeholder() {
-        let mut config = AppConfig {
+        let config = AppConfig {
             env: Environment::Production,
             server: ServerConfig {
                 host: "0.0.0.0".into(),
@@ -1488,93 +1576,5 @@ mod tests {
         std::env::remove_var("SIP_OLLAMA_URL");
         std::env::remove_var("SIP_OLLAMA_MODEL");
         std::env::remove_var("SIP_DATABASE_URL");
-    }
-}
-
-impl Default for FeatureConfig {
-    fn default() -> Self {
-        Self {
-            ai_chat_enabled: true,
-            rag_enabled: true,
-            graph_enabled: true,
-            plugin_system_enabled: false,
-            document_ingestion_enabled: true,
-            semantic_search_enabled: true,
-            dispatch_enabled: true,
-            parts_inventory_enabled: true,
-            disposables_tracking_enabled: false,
-            billing_enabled: false,
-            api_docs_enabled: true,
-            marketplace_enabled: false,
-            experimental_enabled: false,
-            // Never default to a demo environment.
-            demo_mode: false,
-        }
-    }
-}
-
-impl Default for AiConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            provider: LlmProviderType::Disabled,
-            timeout_seconds: default_timeout_seconds(),
-            max_retries: default_max_retries(),
-            streaming_enabled: default_streaming_enabled(),
-            request_logging_enabled: false,
-            default_temperature: default_temperature(),
-            default_max_tokens: default_max_tokens(),
-            ollama: OllamaConfig {
-                url: default_ollama_url(),
-                model: default_ollama_model(),
-                embedding_model: default_embedding_model(),
-            },
-            openai: None,
-            anthropic: None,
-            openrouter: None,
-            azure_openai: None,
-            bedrock: None,
-            custom_http: None,
-        }
-    }
-}
-
-impl Default for OllamaConfig {
-    fn default() -> Self {
-        Self {
-            url: default_ollama_url(),
-            model: default_ollama_model(),
-            embedding_model: default_embedding_model(),
-        }
-    }
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            host: default_server_host(),
-            port: default_server_port(),
-        }
-    }
-}
-
-impl Default for SecurityConfig {
-    fn default() -> Self {
-        Self {
-            cors_allowed_origins: default_cors_allowed_origins(),
-            require_https: false,
-            rate_limit_rpm: default_rate_limit_rpm(),
-            bootstrap_token: None,
-        }
-    }
-}
-
-impl Default for ObservabilityConfig {
-    fn default() -> Self {
-        Self {
-            log_level: default_log_level(),
-            otlp_endpoint: None,
-            metrics_enabled: false,
-        }
     }
 }
