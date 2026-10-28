@@ -14,16 +14,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  rust:
-    name: Rust (fmt, clippy, test)
+  rust-lint:
+    name: Rust (fmt, clippy)
+    runs-on: ubuntu-latest
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec  # pinned action
+        with:
+          toolchain: "1.99.0"
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a  # v2
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  rust-test:
+    name: Rust (test)
     runs-on: ubuntu-latest
     services:
       postgres:
         image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: sip
-          # No password: the container is reachable only inside this job's network.
-          POSTGRES_HOST_AUTH_METHOD: trust
+          # Per-run and disposable. Derived from the run id, never reused, and the container
+          # exists only for this job -- a literal or shared password in a public workflow would
+          # be a credential to protect, which this has nothing of value to protect with.
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
           POSTGRES_DB: sip
         ports: ["5432:5432"]
         options: >-
@@ -32,16 +49,14 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgres://sip@localhost:5432/sip
+      DATABASE_URL: postgres://sip:${{ github.run_id }}-${{ github.run_attempt }}@localhost:5432/sip
       SQLX_OFFLINE: "true"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec  # stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec  # pinned action
         with:
-          components: rustfmt, clippy
+          toolchain: "1.99.0"
       - uses: Swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a  # v2
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace --no-fail-fast
 
   frontend:
@@ -58,7 +73,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - run: npm run lint --if-present
+      - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm run build
 
