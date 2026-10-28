@@ -31,3 +31,8 @@
 
 ## Dependencies
 Coordinate with reproducible SIP distribution, operator/tenant/brand isolation, plugin marketplace, white-label marketing starter and installer wizard proposals.
+
+## Repository boundary (explicit owner decision)
+This repository contains SIP Core, APIs, infrastructure, deployment automation, provider adapters, plugin architecture, identity/tenant/brand configuration, and technical documentation only. The public marketing/landing website and all industry-specific marketing websites will be developed in separate repositories. Do not create marketing pages, marketing Next.js starters, landing page templates, SEO/content tooling, or marketing UI here. Existing SIP application frontend remains in scope as product software. This repository may expose brand configuration, authentication interfaces, documented APIs, domain/CORS integration contracts, and deployment examples needed by external website repositories. No website implementation should be added to this repository.
+
+Brand policy and documentation in scope; website implementation and marketing site assets belong in separate repos.
