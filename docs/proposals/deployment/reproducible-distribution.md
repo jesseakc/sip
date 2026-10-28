@@ -23,3 +23,8 @@ Produce source-build and prebuilt-container distributions plus documented indepe
 
 ## Dependencies
 Coordinate with P0 capability contracts, provider configuration, plugin dependency management, operator isolation and security work before implementation where applicable.
+
+## Repository boundary (explicit owner decision)
+This repository contains SIP Core, APIs, infrastructure, deployment automation, provider adapters, plugin architecture, identity/tenant/brand configuration, and technical documentation only. The public marketing/landing website and all industry-specific marketing websites will be developed in separate repositories. Do not create marketing pages, marketing Next.js starters, landing page templates, SEO/content tooling, or marketing UI here. Existing SIP application frontend remains in scope as product software. This repository may expose brand configuration, authentication interfaces, documented APIs, domain/CORS integration contracts, and deployment examples needed by external website repositories. No website implementation should be added to this repository.
+
+Only SIP platform runtime, infrastructure and deployment templates are in scope. No public marketing website.
