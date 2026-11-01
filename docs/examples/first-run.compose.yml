@@ -1,0 +1,6 @@
+# Temporary local setup overlay. No secret is stored in this file.
+# See ../../QUICKSTART.md for startup, bootstrap, and removal steps.
+services:
+  sip-api:
+    environment:
+      SIP_SECURITY__BOOTSTRAP_TOKEN: ${SIP_SETUP_TOKEN:?Export SIP_SETUP_TOKEN before first-run setup}
