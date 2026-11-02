@@ -1,145 +1,74 @@
--- Convert all custom ENUM columns to TEXT for sqlx compatibility
--- Must drop dependent indexes/constraints before altering column types
-
--- Drop partial indexes that reference enum types in WHERE clauses
+-- Convert enum-backed business columns without dropping their data or defaults.
+-- Drop partial indexes whose predicates reference the old enum types first.
 DROP INDEX IF EXISTS idx_wo_org_status_scheduled;
 DROP INDEX IF EXISTS idx_outbox_ready;
-DROP INDEX IF EXISTS idx_wo_org_status_scheduled;
 
--- work_orders
-ALTER TABLE work_orders ALTER COLUMN status DROP DEFAULT;
-ALTER TABLE work_orders ALTER COLUMN status TYPE text USING status::text;
-ALTER TABLE work_orders ALTER COLUMN status SET DEFAULT 'DRAFT';
+DO $$
+DECLARE
+    col record;
+    default_expression text;
+    default_value text;
+BEGIN
+    FOR col IN
+        SELECT c.relname AS table_name, a.attname AS column_name, a.attrelid, a.attnum
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_type t ON t.oid = a.atttypid
+        WHERE n.nspname = 'public' AND c.relkind = 'r'
+          AND NOT a.attisdropped AND a.attnum > 0
+          AND t.typtype = 'e' AND t.typname IN ('work_order_status', 'work_order_type', 'work_order_priority', 'work_order_source_type', 'asset_status', 'asset_criticality', 'user_role', 'location_type', 'schedule_trigger_type', 'document_type', 'document_source_type', 'document_visibility', 'document_processing_status', 'document_link_entity_type', 'document_link_relationship', 'assignee_type', 'assignment_role', 'assignment_status', 'activity_actor_type', 'activity_source', 'agent_type', 'ai_message_role', 'ai_retrieval_type', 'checklist_response_type', 'checklist_result', 'embedding_source_type', 'outbox_status', 'model_lifecycle_status', 'migration_job_status', 'migration_run_type', 'migration_run_status')
+        ORDER BY c.relname, a.attnum
+    LOOP
+        default_expression := NULL;
+        default_value := NULL;
+        SELECT pg_get_expr(d.adbin, d.adrelid) INTO default_expression
+        FROM pg_attrdef d WHERE d.adrelid = col.attrelid AND d.adnum = col.attnum;
+        IF default_expression IS NOT NULL THEN
+            -- All enum defaults in this schema are enum literals. Preserve their
+            -- actual values as text, not casts that still depend on the old type.
+            IF default_expression !~ '^''[^'']*''::[a-z_]+$' THEN
+                RAISE EXCEPTION 'nonliteral enum default on %.% requires review', col.table_name, col.column_name;
+            END IF;
+            EXECUTE 'SELECT (' || default_expression || ')::text' INTO default_value;
+            EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I DROP DEFAULT', col.table_name, col.column_name);
+        END IF;
+        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I TYPE text USING %I::text', col.table_name, col.column_name, col.column_name);
+        IF default_expression IS NOT NULL THEN
+            EXECUTE format('ALTER TABLE public.%I ALTER COLUMN %I SET DEFAULT %L', col.table_name, col.column_name, default_value);
+        END IF;
+    END LOOP;
+END $$;
 
-ALTER TABLE work_orders ALTER COLUMN type DROP DEFAULT;
-ALTER TABLE work_orders ALTER COLUMN type TYPE text USING type::text;
-ALTER TABLE work_orders ALTER COLUMN type SET DEFAULT 'CORRECTIVE';
-
-ALTER TABLE work_orders ALTER COLUMN priority DROP DEFAULT;
-ALTER TABLE work_orders ALTER COLUMN priority TYPE text USING priority::text;
-ALTER TABLE work_orders ALTER COLUMN priority SET DEFAULT 'MEDIUM';
-
-ALTER TABLE work_orders ALTER COLUMN source_type DROP DEFAULT;
-ALTER TABLE work_orders ALTER COLUMN source_type TYPE text USING source_type::text;
-ALTER TABLE work_orders ALTER COLUMN source_type SET DEFAULT 'MANUAL';
-
--- work_order_status_history
-ALTER TABLE work_order_status_history ALTER COLUMN from_status TYPE text USING from_status::text;
-ALTER TABLE work_order_status_history ALTER COLUMN to_status TYPE text USING to_status::text;
-ALTER TABLE work_order_status_history ALTER COLUMN actor_type TYPE text USING actor_type::text;
-
--- work_order_assignments
-ALTER TABLE work_order_assignments ALTER COLUMN assignee_type TYPE text USING assignee_type::text;
-ALTER TABLE work_order_assignments ALTER COLUMN role TYPE text USING role::text;
-ALTER TABLE work_order_assignments ALTER COLUMN status DROP DEFAULT;
-ALTER TABLE work_order_assignments ALTER COLUMN status TYPE text USING status::text;
-ALTER TABLE work_order_assignments ALTER COLUMN status SET DEFAULT 'ASSIGNED';
-
--- assets
-ALTER TABLE assets ALTER COLUMN status DROP DEFAULT;
-ALTER TABLE assets ALTER COLUMN status TYPE text USING status::text;
-ALTER TABLE assets ALTER COLUMN status SET DEFAULT 'OPERATIONAL';
-
-ALTER TABLE assets ALTER COLUMN criticality DROP DEFAULT;
-ALTER TABLE assets ALTER COLUMN criticality TYPE text USING criticality::text;
-ALTER TABLE assets ALTER COLUMN criticality SET DEFAULT 'MEDIUM';
-
--- users
-ALTER TABLE users ALTER COLUMN role DROP DEFAULT;
-ALTER TABLE users ALTER COLUMN role TYPE text USING role::text;
-ALTER TABLE users ALTER COLUMN role SET DEFAULT 'VIEWER';
-
--- locations
-ALTER TABLE locations ALTER COLUMN type TYPE text USING type::text;
-
--- schedules
-ALTER TABLE schedules ALTER COLUMN trigger_type DROP DEFAULT;
-ALTER TABLE schedules ALTER COLUMN trigger_type TYPE text USING trigger_type::text;
-ALTER TABLE schedules ALTER COLUMN trigger_type SET DEFAULT 'CRON';
-
--- documents
-ALTER TABLE documents ALTER COLUMN type DROP DEFAULT;
-ALTER TABLE documents ALTER COLUMN type TYPE text USING type::text;
-ALTER TABLE documents ALTER COLUMN type SET DEFAULT 'OTHER';
-
-ALTER TABLE documents ALTER COLUMN source_type DROP DEFAULT;
-ALTER TABLE documents ALTER COLUMN source_type TYPE text USING source_type::text;
-ALTER TABLE documents ALTER COLUMN source_type SET DEFAULT 'UPLOAD';
-
-ALTER TABLE documents ALTER COLUMN visibility DROP DEFAULT;
-ALTER TABLE documents ALTER COLUMN visibility TYPE text USING visibility::text;
-ALTER TABLE documents ALTER COLUMN visibility SET DEFAULT 'PRIVATE_TENANT';
-
-ALTER TABLE documents ALTER COLUMN processing_status DROP DEFAULT;
-ALTER TABLE documents ALTER COLUMN processing_status TYPE text USING processing_status::text;
-ALTER TABLE documents ALTER COLUMN processing_status SET DEFAULT 'PENDING';
-
--- document_links
-ALTER TABLE document_links ALTER COLUMN entity_type TYPE text USING entity_type::text;
-ALTER TABLE document_links ALTER COLUMN relationship_type TYPE text USING relationship_type::text;
-
--- embedding_records
-ALTER TABLE embedding_records ALTER COLUMN source_type TYPE text USING source_type::text;
-
--- outbox_events
-ALTER TABLE outbox ALTER COLUMN status DROP DEFAULT;
-ALTER TABLE outbox ALTER COLUMN status TYPE text USING status::text;
-ALTER TABLE outbox ALTER COLUMN status SET DEFAULT 'PENDING';
-
--- asset_models
-ALTER TABLE asset_models ALTER COLUMN lifecycle_status DROP DEFAULT;
-ALTER TABLE asset_models ALTER COLUMN lifecycle_status TYPE text USING lifecycle_status::text;
-ALTER TABLE asset_models ALTER COLUMN lifecycle_status SET DEFAULT 'ACTIVE';
-
--- agent_identities
-ALTER TABLE agent_identities ALTER COLUMN type TYPE text USING type::text;
-
--- ai_retrieval_traces
-ALTER TABLE ai_retrieval_traces ALTER COLUMN retriever_type TYPE text USING retriever_type::text;
-
--- activities
-ALTER TABLE activities ALTER COLUMN source TYPE text USING source::text;
-
--- migration_jobs
-ALTER TABLE migration_jobs ALTER COLUMN status DROP DEFAULT;
-ALTER TABLE migration_jobs ALTER COLUMN status TYPE text USING status::text;
-ALTER TABLE migration_jobs ALTER COLUMN status SET DEFAULT 'DRAFT';
-
--- migration_runs
-ALTER TABLE migration_runs ALTER COLUMN run_type TYPE text USING run_type::text;
-ALTER TABLE migration_runs ALTER COLUMN status DROP DEFAULT;
-ALTER TABLE migration_runs ALTER COLUMN status TYPE text USING status::text;
-ALTER TABLE migration_runs ALTER COLUMN status SET DEFAULT 'RUNNING';
-
--- Now drop all enum types (CASCADE handles remaining dependencies)
-DROP TYPE IF EXISTS work_order_status CASCADE;
-DROP TYPE IF EXISTS work_order_type CASCADE;
-DROP TYPE IF EXISTS work_order_priority CASCADE;
-DROP TYPE IF EXISTS work_order_source_type CASCADE;
-DROP TYPE IF EXISTS asset_status CASCADE;
-DROP TYPE IF EXISTS asset_criticality CASCADE;
-DROP TYPE IF EXISTS user_role CASCADE;
-DROP TYPE IF EXISTS location_type CASCADE;
-DROP TYPE IF EXISTS schedule_trigger_type CASCADE;
-DROP TYPE IF EXISTS document_type CASCADE;
-DROP TYPE IF EXISTS document_source_type CASCADE;
-DROP TYPE IF EXISTS document_visibility CASCADE;
-DROP TYPE IF EXISTS document_processing_status CASCADE;
-DROP TYPE IF EXISTS document_link_entity_type CASCADE;
-DROP TYPE IF EXISTS document_link_relationship CASCADE;
-DROP TYPE IF EXISTS assignee_type CASCADE;
-DROP TYPE IF EXISTS assignment_role CASCADE;
-DROP TYPE IF EXISTS assignment_status CASCADE;
-DROP TYPE IF EXISTS activity_actor_type CASCADE;
-DROP TYPE IF EXISTS activity_source CASCADE;
-DROP TYPE IF EXISTS agent_type CASCADE;
-DROP TYPE IF EXISTS ai_message_role CASCADE;
-DROP TYPE IF EXISTS ai_retrieval_type CASCADE;
-DROP TYPE IF EXISTS checklist_response_type CASCADE;
-DROP TYPE IF EXISTS checklist_result CASCADE;
-DROP TYPE IF EXISTS embedding_source_type CASCADE;
-DROP TYPE IF EXISTS outbox_status CASCADE;
-DROP TYPE IF EXISTS model_lifecycle_status CASCADE;
-DROP TYPE IF EXISTS migration_job_status CASCADE;
-DROP TYPE IF EXISTS migration_run_type CASCADE;
-DROP TYPE IF EXISTS migration_run_status CASCADE;
+-- RESTRICT turns a missed dependency into an error instead of deleting columns.
+DROP TYPE IF EXISTS work_order_status RESTRICT;
+DROP TYPE IF EXISTS work_order_type RESTRICT;
+DROP TYPE IF EXISTS work_order_priority RESTRICT;
+DROP TYPE IF EXISTS work_order_source_type RESTRICT;
+DROP TYPE IF EXISTS asset_status RESTRICT;
+DROP TYPE IF EXISTS asset_criticality RESTRICT;
+DROP TYPE IF EXISTS user_role RESTRICT;
+DROP TYPE IF EXISTS location_type RESTRICT;
+DROP TYPE IF EXISTS schedule_trigger_type RESTRICT;
+DROP TYPE IF EXISTS document_type RESTRICT;
+DROP TYPE IF EXISTS document_source_type RESTRICT;
+DROP TYPE IF EXISTS document_visibility RESTRICT;
+DROP TYPE IF EXISTS document_processing_status RESTRICT;
+DROP TYPE IF EXISTS document_link_entity_type RESTRICT;
+DROP TYPE IF EXISTS document_link_relationship RESTRICT;
+DROP TYPE IF EXISTS assignee_type RESTRICT;
+DROP TYPE IF EXISTS assignment_role RESTRICT;
+DROP TYPE IF EXISTS assignment_status RESTRICT;
+DROP TYPE IF EXISTS activity_actor_type RESTRICT;
+DROP TYPE IF EXISTS activity_source RESTRICT;
+DROP TYPE IF EXISTS agent_type RESTRICT;
+DROP TYPE IF EXISTS ai_message_role RESTRICT;
+DROP TYPE IF EXISTS ai_retrieval_type RESTRICT;
+DROP TYPE IF EXISTS checklist_response_type RESTRICT;
+DROP TYPE IF EXISTS checklist_result RESTRICT;
+DROP TYPE IF EXISTS embedding_source_type RESTRICT;
+DROP TYPE IF EXISTS outbox_status RESTRICT;
+DROP TYPE IF EXISTS model_lifecycle_status RESTRICT;
+DROP TYPE IF EXISTS migration_job_status RESTRICT;
+DROP TYPE IF EXISTS migration_run_type RESTRICT;
+DROP TYPE IF EXISTS migration_run_status RESTRICT;
