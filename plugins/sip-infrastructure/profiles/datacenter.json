@@ -1,0 +1,17 @@
+{
+  "id": "datacenter",
+  "name": "Data Center",
+  "version": "0.1.0",
+  "status": "planned",
+  "asset_categories": [
+    "facility",
+    "hall",
+    "rack",
+    "server",
+    "gpu",
+    "network_device",
+    "power_distribution",
+    "cooling_unit"
+  ],
+  "notes": "Profile metadata only. Asset types and dependency edges will be implemented in INF-007 and INF-001."
+}

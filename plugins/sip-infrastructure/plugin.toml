@@ -1,0 +1,43 @@
+id = "sip-infrastructure"
+name = "SIP Infrastructure"
+version = "0.1.0"
+description = "Optional infrastructure asset operations distribution for data centers and energy facilities."
+author = "SIP Project"
+license = "AGPL-3.0-or-later"
+sip_version = "0.1.0"
+plugin_type = "hybrid"
+enabled_by_default = false
+dependencies = ["sip-core-ui"]
+permissions = ["asset:read", "location:read", "document:read", "work_order:read"]
+capabilities = ["infrastructure_profiles", "asset_operations"]
+
+[ui]
+kind = "web"
+framework = "nextjs"
+entrypoint = "/infrastructure"
+production_mount = "/infrastructure"
+api_base_env = "NEXT_PUBLIC_API_URL"
+
+[ui.compatibility]
+level = "native"
+requires_shell = true
+uses_sip_components = true
+uses_theme_tokens = true
+allows_global_css = false
+
+[[navigation]]
+id = "infrastructure"
+label = "Infrastructure"
+path = "/infrastructure"
+icon = "server"
+permission = "asset:read"
+order = 125
+
+[[extension_points]]
+id = "app.shell.sidebar.nav"
+type = "ui"
+
+[marketplace]
+category = "operations"
+tags = ["official", "infrastructure", "data-center", "energy", "assets"]
+homepage = "https://github.com/jesseakc/sip"

@@ -1,0 +1,16 @@
+{
+  "id": "energy",
+  "name": "Energy",
+  "version": "0.1.0",
+  "status": "planned",
+  "asset_categories": [
+    "site",
+    "solar_array",
+    "inverter",
+    "battery_storage",
+    "transformer",
+    "substation",
+    "generator"
+  ],
+  "notes": "Profile metadata only. Templates and operations are deferred to INF-011."
+}
