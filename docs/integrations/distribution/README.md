@@ -7,7 +7,7 @@ These are implementation proposals, not evidence of a deployed integration, subm
 
 | Proposal | Scope | Draft PR |
 | --- | --- | --- |
-| DIST-001 | Shared evidence model, Official MCP Registry, and ten-channel inventory | [#83](https://github.com/jesseakc/sip/pull/83) |
+| DIST-001 | Shared evidence model, Official MCP Registry, optional AI Catalog/Server Card discovery, and ten-channel inventory | [#83](https://github.com/jesseakc/sip/pull/83) |
 | DIST-002 | Google Connected Apps for Gemini and Search | [#84](https://github.com/jesseakc/sip/pull/84) |
 | DIST-003 | Microsoft 365 Copilot Agent Store | [#85](https://github.com/jesseakc/sip/pull/85) |
 | DIST-004 | AWS Marketplace and Salesforce AgentExchange | [#86](https://github.com/jesseakc/sip/pull/86) |
@@ -39,5 +39,7 @@ Preserve the existing observability and cloud-deployment priorities. Metadata an
 Track eligibility, runtime validation, submission, approval, publication, and clean-account discovery separately. Record the exact release, tool/auth snapshot, platform ID, date, and evidence for each transition. The inventory deliberately starts with runtime and publication status `not_verified` and no invented endpoint, publishing identity, or listing URL.
 
 The Registry is an early metadata destination once a release is ready. It does not automatically submit to other stores. Aggregator ingestion policies need independent confirmation.
+
+Optional [domain discovery and MCP Server Cards](readiness.md#domain-discovery-and-mcp-server-cards) are now explicit in #83, with gateway serving coordinated through #5. Follow the accepted extension, keep tool lists in the authenticated runtime, and track older-path compatibility and scanner scores separately.
 
 No marketplace application, commercial choice, term acceptance, or publication was performed by these PRs. Prepare the exact release packet for operator review before those actions. Keep uncertain access explicit, especially for preview or curated programs.
