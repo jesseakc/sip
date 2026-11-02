@@ -340,10 +340,10 @@ mod tests {
         let mut registry = PluginRegistry::empty();
         registry.register(make_core_ui_manifest());
 
-        registry.set_enabled_list(&vec![]);
+        registry.set_enabled_list(&[]);
         assert!(!registry.is_enabled("sip-core-ui"));
 
-        registry.set_enabled_list(&vec!["sip-core-ui".into()]);
+        registry.set_enabled_list(&["sip-core-ui".into()]);
         assert!(registry.is_enabled("sip-core-ui"));
     }
 

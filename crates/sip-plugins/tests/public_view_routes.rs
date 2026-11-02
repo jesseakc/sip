@@ -109,7 +109,7 @@ fn compatibility_and_mount_fallback_are_exposed() {
         compatibility.level,
         Some(sip_plugins::manifest::UiCompatibilityLevel::Standalone)
     );
-    assert_eq!(compatibility.requires_shell, false);
+    assert!(!compatibility.requires_shell);
     assert_eq!(
         ui.production_mount.as_deref(),
         Some("/api/v1/ui/plugins/sip-test-bench/app/index.html"),

@@ -28,15 +28,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const token = localStorage.getItem('sip_token');
-    if (token) {
-      fetchUser();
-    } else {
-      setLoading(false);
-    }
-  }, []);
-
   async function fetchUser() {
     try {
       const res = await fetch(`${API_BASE}/auth/me`, {
@@ -55,6 +46,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const token = localStorage.getItem('sip_token');
+    if (token) {
+      void fetchUser();
+    } else {
+      setLoading(false);
+    }
+  }, []);
 
   function login(token: string) {
     localStorage.setItem('sip_token', token);

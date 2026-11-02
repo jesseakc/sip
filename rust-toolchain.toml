@@ -1,0 +1,6 @@
+# Pinned so a local build and CI agree, and so a new stable release cannot turn a passing
+# branch into a failing one without a commit that says so.
+[toolchain]
+channel = "1.99.0"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

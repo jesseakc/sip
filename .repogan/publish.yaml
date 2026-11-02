@@ -1,0 +1,14 @@
+# Repogan publication policy.
+#
+# A suppression here downgrades a finding: it is still reported on every scan, and only its
+# ability to block is cleared. Every entry needs a reason a reviewer can check.
+secret_scan:
+  allow:
+    - path: "crates/sip-config/src/lib.rs"
+      reason: >-
+        Configuration-crate unit tests whose fixtures are the credential-shaped placeholders
+        that the code itself detects and rejects: a known JWT placeholder that validation is
+        required to refuse, a localhost database URL whose userinfo is a dummy, and short
+        values like "test-secret" used to exercise masking. None grants access to any system
+        and none is used outside the test module. The file is unchanged from what main already
+        publishes; this branch only relocates six impl blocks within it.
