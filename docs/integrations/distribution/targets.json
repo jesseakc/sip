@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "purpose": "Planning inventory only; not a marketplace manifest or submission payload.",
+  "checked_on": "2026-11-02",
+  "repository_baseline": "c3ad101ab5b60ca6cce3d23277bf8ce7a37c35ca",
+  "mcp_endpoint": null,
+  "publisher_identity": null,
+  "readiness_policy": "Do not infer SIP readiness or publication from an upstream capability, a fake-server test, or a registry entry.",
+  "targets": [
+    {
+      "id": "official-mcp-registry",
+      "name": "Official MCP Registry",
+      "route": "Versioned registry metadata and verified publisher namespace",
+      "evidence": "documented",
+      "sources": [
+        "https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/quickstart.mdx"
+      ],
+      "existing": [
+        5
+      ],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    },
+    {
+      "id": "chatgpt",
+      "name": "ChatGPT / Codex plugin directory",
+      "route": "Verified developer, remote plugin package, review, then publish",
+      "evidence": "documented",
+      "sources": [
+        "https://developers.openai.com/plugins/deploy/submission"
+      ],
+      "existing": [
+        6,
+        11
+      ],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    },
+    {
+      "id": "claude",
+      "name": "Claude directory",
+      "route": "Remote MCP connector or reviewed Git-hosted plugin bundle",
+      "evidence": "documented",
+      "sources": [
+        "https://claude.com/resources/articles/build-plugins-for-claude"
+      ],
+      "existing": [
+        8
+      ],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    },
+    {
+      "id": "google-connected-apps",
+      "name": "Google Connected Apps: Gemini and Search",
+      "route": "Preview access, Connected Console, remote MCP, per-surface review",
+      "evidence": "documented_preview",
+      "sources": [
+        "https://developers.google.com/connected-apps",
+        "https://developers.google.com/connected-apps/gpc"
+      ],
+      "existing": [
+        14
+      ],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    },
+    {
+      "id": "meta-muse",
+      "name": "Meta Muse Connector Platform",
+      "route": "Confirm publisher eligibility and obtain current connector submission requirements",
+      "evidence": "platform_confirmed_intake_unverified",
+      "sources": [
+        "https://developers.meta.com/blog/meta-connect-recap/",
+        "https://platform.muse.ai/"
+      ],
+      "existing": [],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    },
+    {
+      "id": "grok",
+      "name": "Grok connector catalog",
+      "route": "Custom MCP pilot is documented; public catalog intake requires confirmation",
+      "evidence": "custom_connection_documented_catalog_intake_unverified",
+      "sources": [
+        "https://docs.x.ai/grok/connectors"
+      ],
+      "existing": [
+        7
+      ],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    },
+    {
+      "id": "microsoft-365",
+      "name": "Microsoft 365 Copilot Agent Store / Marketplace",
+      "route": "Supported Microsoft 365 package, tenant pilot, eligible Partner Center offer and review",
+      "evidence": "documented_eligibility_dependent",
+      "sources": [
+        "https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/build-mcp-plugins",
+        "https://learn.microsoft.com/en-us/microsoft-365/copilot/extensibility/publish-plugin-publicly"
+      ],
+      "existing": [
+        15
+      ],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    },
+    {
+      "id": "salesforce-agentexchange",
+      "name": "Salesforce AgentExchange",
+      "route": "Partner listing and applicable security review; prove Agentforce tool discovery",
+      "evidence": "channel_documented_exact_mcp_seller_intake_to_confirm",
+      "sources": [
+        "https://developer.salesforce.com/blogs/2026/10/developers-guide-to-the-winter-27-release",
+        "https://developer.salesforce.com/docs/platform/isvforce/guide/appexchange-publish-listings.html"
+      ],
+      "existing": [],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    },
+    {
+      "id": "aws-marketplace",
+      "name": "AWS Marketplace AI Agents & Tools",
+      "route": "Seller onboarding, MCP product/fulfillment configuration, limited pilot, public offer",
+      "evidence": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/marketplace/latest/userguide/listing-saas-ai-agents.html"
+      ],
+      "existing": [],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    },
+    {
+      "id": "cursor-marketplace",
+      "name": "Cursor Marketplace",
+      "route": "Tested open-source plugin repository and Cursor submission review",
+      "evidence": "documented",
+      "sources": [
+        "https://cursor.com/docs/reference/plugins"
+      ],
+      "existing": [
+        13
+      ],
+      "runtime_status": "not_verified",
+      "publication_status": "not_verified",
+      "listing_url": null,
+      "submitted_version": null,
+      "public_search_verified_at": null,
+      "responsible_owner": null,
+      "evidence_links": []
+    }
+  ]
+}
